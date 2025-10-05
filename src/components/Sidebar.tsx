@@ -1,10 +1,24 @@
 import { Link, useLocation } from "react-router-dom";
-import { Package2, Users, Warehouse, HelpCircle, Menu, X } from "lucide-react";
+import { Package2, Users, Warehouse, HelpCircle, Menu, X, LogOut } from "lucide-react";
 import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const Sidebar = () => {
   const location = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const { user, signOut } = useAuth();
+
+  const getUserInitials = () => {
+    if (user?.user_metadata?.full_name) {
+      const names = user.user_metadata.full_name.split(" ");
+      return names.length > 1 
+        ? `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase()
+        : names[0][0].toUpperCase();
+    }
+    return user?.email?.[0].toUpperCase() || "U";
+  };
 
   const navigation = [
     { name: "Stock", href: "/", icon: Package2 },
@@ -80,7 +94,7 @@ const Sidebar = () => {
           })}
         </nav>
 
-        <div className="mt-auto">
+        <div className="mt-auto space-y-4">
           <Link
             to="/ayuda"
             className="flex items-center gap-3 px-4 py-3 rounded-xl text-foreground hover:bg-primary/10 transition-colors"
@@ -90,6 +104,33 @@ const Sidebar = () => {
             </div>
             <span className="font-medium text-lg">Ayuda</span>
           </Link>
+
+          <div className="glassmorphism p-4 rounded-xl">
+            <div className="flex items-center gap-3 mb-3">
+              <Avatar>
+                <AvatarFallback className="bg-primary/20 text-primary">
+                  {getUserInitials()}
+                </AvatarFallback>
+              </Avatar>
+              <div className="flex-1 overflow-hidden">
+                <p className="text-sm font-medium text-foreground truncate">
+                  {user?.user_metadata?.full_name || user?.email}
+                </p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {user?.email}
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={signOut}
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Cerrar Sesión
+            </Button>
+          </div>
         </div>
       </aside>
     </>
