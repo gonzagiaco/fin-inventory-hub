@@ -10,69 +10,73 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Client } from "@/types";
+import { Textarea } from "@/components/ui/textarea";
+import { Client, StockItem, InvoiceProduct } from "@/types";
+import ProductSelector from "./ProductSelector";
 
 interface ClientDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   client?: Client | null;
   onSave: (client: Omit<Client, "id"> & { id?: string }) => void;
+  stockItems: StockItem[];
 }
 
-const ClientDialog = ({ open, onOpenChange, client, onSave }: ClientDialogProps) => {
+const ClientDialog = ({ open, onOpenChange, client, onSave, stockItems }: ClientDialogProps) => {
   const [formData, setFormData] = useState({
     name: "",
-    amount: "",
     dueDate: "",
-    status: "pending" as Client["status"],
     phone: "",
     email: "",
+    address: "",
   });
+  const [selectedProducts, setSelectedProducts] = useState<InvoiceProduct[]>([]);
 
   useEffect(() => {
     if (client) {
       setFormData({
         name: client.name,
-        amount: client.amount.toString(),
         dueDate: client.dueDate,
-        status: client.status,
         phone: client.phone || "",
         email: client.email || "",
+        address: client.address || "",
       });
+      setSelectedProducts(client.products || []);
     } else {
       setFormData({
         name: "",
-        amount: "",
-        dueDate: "",
-        status: "pending",
+        dueDate: new Date().toLocaleDateString("es-AR"),
         phone: "",
         email: "",
+        address: "",
       });
+      setSelectedProducts([]);
     }
   }, [client, open]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.name || !formData.amount || !formData.dueDate) {
+    if (!formData.name || !formData.dueDate || selectedProducts.length === 0) {
       return;
     }
+
+    const total = selectedProducts.reduce((sum, product) => sum + product.subtotal, 0);
+    const remainingAmount = client ? total - client.amountPaid : total;
 
     onSave({
       ...(client?.id && { id: client.id }),
       name: formData.name,
-      amount: parseFloat(formData.amount),
+      amount: total,
+      amountPaid: client?.amountPaid || 0,
       dueDate: formData.dueDate,
-      status: formData.status,
+      status: client?.status || "pending",
       phone: formData.phone || undefined,
       email: formData.email || undefined,
+      address: formData.address || undefined,
+      products: selectedProducts,
+      payments: client?.payments || [],
+      issueDate: client?.issueDate || new Date().toLocaleDateString("es-AR"),
     });
 
     onOpenChange(false);
@@ -106,18 +110,15 @@ const ClientDialog = ({ open, onOpenChange, client, onSave }: ClientDialogProps)
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="amount" className="text-foreground">
-                Monto Adeudado ($)
+              <Label htmlFor="address" className="text-foreground">
+                Dirección
               </Label>
-              <Input
-                id="amount"
-                type="number"
-                min="0"
-                step="0.01"
-                value={formData.amount}
-                onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+              <Textarea
+                id="address"
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                 className="bg-muted/50 border-primary/20 text-foreground"
-                required
+                rows={2}
               />
             </div>
             <div className="grid gap-2">
@@ -133,32 +134,6 @@ const ClientDialog = ({ open, onOpenChange, client, onSave }: ClientDialogProps)
                 className="bg-muted/50 border-primary/20 text-foreground"
                 required
               />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="status" className="text-foreground">
-                Estado
-              </Label>
-              <Select
-                value={formData.status}
-                onValueChange={(value: Client["status"]) =>
-                  setFormData({ ...formData, status: value })
-                }
-              >
-                <SelectTrigger className="bg-muted/50 border-primary/20 text-foreground">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-card border-primary/20 z-50">
-                  <SelectItem value="pending" className="text-foreground hover:bg-primary/10">
-                    Pendiente
-                  </SelectItem>
-                  <SelectItem value="paid" className="text-foreground hover:bg-primary/10">
-                    Pagado
-                  </SelectItem>
-                  <SelectItem value="overdue" className="text-foreground hover:bg-primary/10">
-                    Vencido
-                  </SelectItem>
-                </SelectContent>
-              </Select>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="phone" className="text-foreground">
@@ -182,6 +157,14 @@ const ClientDialog = ({ open, onOpenChange, client, onSave }: ClientDialogProps)
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 className="bg-muted/50 border-primary/20 text-foreground"
+              />
+            </div>
+            
+            <div className="border-t border-primary/20 pt-4">
+              <ProductSelector
+                stockItems={stockItems}
+                selectedProducts={selectedProducts}
+                onChange={setSelectedProducts}
               />
             </div>
           </div>

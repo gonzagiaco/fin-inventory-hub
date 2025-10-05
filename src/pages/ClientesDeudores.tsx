@@ -1,10 +1,20 @@
 import { useState, useMemo } from "react";
 import Header from "@/components/Header";
 import ClientDialog from "@/components/ClientDialog";
+import PaymentDialog from "@/components/PaymentDialog";
 import DeleteConfirmDialog from "@/components/DeleteConfirmDialog";
-import { Search, Plus, Edit, Trash2 } from "lucide-react";
-import { Client } from "@/types";
+import { Search, Plus, Edit, Trash2, FileText, Send, DollarSign, Eye } from "lucide-react";
+import { Client, StockItem, Payment } from "@/types";
 import { toast } from "sonner";
+import { generateInvoicePDF } from "@/utils/pdfGenerator";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 const ClientesDeudores = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -13,47 +23,78 @@ const ClientesDeudores = () => {
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingClientId, setDeletingClientId] = useState<string | null>(null);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [paymentClient, setPaymentClient] = useState<Client | null>(null);
+
+  // Mock stock items for product selection
+  const [stockItems] = useState<StockItem[]>([
+    {
+      id: "1",
+      code: "FRT001",
+      name: "Manzanas Rojas",
+      quantity: 150,
+      category: "Fruits",
+      costPrice: 2.5,
+      supplier: "FreshCo",
+      specialDiscount: false,
+      minStockLimit: 50,
+    },
+    {
+      id: "2",
+      code: "BKR001",
+      name: "Pan Integral",
+      quantity: 80,
+      category: "Bakery",
+      costPrice: 1.2,
+      supplier: "La Panadería",
+      specialDiscount: true,
+      minStockLimit: 30,
+    },
+  ]);
 
   const [clients, setClients] = useState<Client[]>([
     {
       id: "1",
       name: "Ana Torres",
       amount: 500,
+      amountPaid: 200,
       dueDate: "15/07/2024",
       status: "pending",
       phone: "+1234567890",
       email: "ana@example.com",
+      address: "Calle Principal 123, Ciudad",
+      products: [],
+      payments: [
+        { id: "p1", amount: 200, date: "10/07/2024", notes: "Pago inicial" }
+      ],
+      issueDate: "01/07/2024",
     },
     {
       id: "2",
       name: "Carlos Ruiz",
       amount: 1200,
+      amountPaid: 0,
       dueDate: "20/07/2024",
       status: "pending",
       phone: "+1234567891",
+      address: "Av. Libertador 456",
+      products: [],
+      payments: [],
+      issueDate: "05/07/2024",
     },
     {
       id: "3",
       name: "Sofía López",
       amount: 300,
+      amountPaid: 300,
       dueDate: "25/07/2024",
       status: "paid",
       email: "sofia@example.com",
-    },
-    {
-      id: "4",
-      name: "Javier García",
-      amount: 800,
-      dueDate: "30/07/2024",
-      status: "overdue",
-      phone: "+1234567892",
-    },
-    {
-      id: "5",
-      name: "Elena Martínez",
-      amount: 650,
-      dueDate: "05/08/2024",
-      status: "pending",
+      products: [],
+      payments: [
+        { id: "p2", amount: 300, date: "20/07/2024" }
+      ],
+      issueDate: "10/07/2024",
     },
   ]);
 
@@ -100,21 +141,107 @@ const ClientesDeudores = () => {
 
   const handleSaveClient = (client: Omit<Client, "id"> & { id?: string }) => {
     if (client.id) {
-      // Editar
+      // Update existing client
       setClients((prev) =>
-        prev.map((c) => (c.id === client.id ? { ...client, id: client.id } : c))
+        prev.map((c) => {
+          if (c.id === client.id) {
+            // Auto-update status based on payment
+            const remaining = client.amount - client.amountPaid;
+            let newStatus: Client["status"] = "pending";
+            
+            if (remaining === 0) {
+              newStatus = "paid";
+            } else {
+              const dueDate = new Date(client.dueDate.split("/").reverse().join("-"));
+              const today = new Date();
+              if (today > dueDate && remaining > 0) {
+                newStatus = "overdue";
+              }
+            }
+            
+            return { ...client, id: client.id, status: newStatus };
+          }
+          return c;
+        })
       );
       toast.success("Cliente actualizado correctamente");
     } else {
-      // Crear
+      // Create new client
       const newClient: Client = {
         ...client,
         id: Date.now().toString(),
+        status: "pending",
       };
       setClients((prev) => [...prev, newClient]);
-      toast.success("Cliente creado correctamente");
+      toast.success("Factura creada correctamente");
     }
     setEditingClient(null);
+  };
+
+  const handleRegisterPayment = (client: Client) => {
+    setPaymentClient(client);
+    setPaymentDialogOpen(true);
+  };
+
+  const handleSavePayment = (payment: Omit<Payment, "id">) => {
+    if (!paymentClient) return;
+
+    const newPayment: Payment = {
+      ...payment,
+      id: Date.now().toString(),
+    };
+
+    setClients((prev) =>
+      prev.map((c) => {
+        if (c.id === paymentClient.id) {
+          const updatedAmountPaid = c.amountPaid + payment.amount;
+          const remaining = c.amount - updatedAmountPaid;
+          
+          let newStatus: Client["status"] = "pending";
+          if (remaining === 0) {
+            newStatus = "paid";
+          } else {
+            const dueDate = new Date(c.dueDate.split("/").reverse().join("-"));
+            const today = new Date();
+            if (today > dueDate && remaining > 0) {
+              newStatus = "overdue";
+            }
+          }
+
+          return {
+            ...c,
+            amountPaid: updatedAmountPaid,
+            payments: [...c.payments, newPayment],
+            status: newStatus,
+          };
+        }
+        return c;
+      })
+    );
+
+    toast.success("Pago registrado correctamente");
+    setPaymentClient(null);
+  };
+
+  const handleGeneratePDF = (client: Client) => {
+    generateInvoicePDF(client);
+    toast.success("PDF generado correctamente");
+  };
+
+  const handleSendWhatsApp = (client: Client) => {
+    const remaining = client.amount - client.amountPaid;
+    const message = `Hola ${client.name},\n\nTe envío el resumen de tu factura:\n\n` +
+      `Total: $${client.amount.toFixed(2)}\n` +
+      `Pagado: $${client.amountPaid.toFixed(2)}\n` +
+      `Restante: $${remaining.toFixed(2)}\n` +
+      `Vencimiento: ${client.dueDate}\n\n` +
+      `¡Gracias por tu compra!`;
+    
+    const phoneNumber = client.phone?.replace(/\D/g, "") || "";
+    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+    
+    window.open(whatsappUrl, "_blank");
+    toast.success("Abriendo WhatsApp");
   };
 
   const handleDeleteClient = (id: string) => {
@@ -144,96 +271,135 @@ const ClientesDeudores = () => {
       />
 
       <main>
-        <div className="glassmorphism rounded-xl shadow-lg p-6">
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
-            <div className="relative flex-1">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <input
-                className="w-full pl-10 pr-4 py-3 rounded-lg border border-white/10 bg-muted/50 focus:ring-2 focus:ring-primary focus:border-transparent text-foreground placeholder:text-muted-foreground"
-                placeholder="Buscar clientes..."
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setSortBy("amount")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  sortBy === "amount"
-                    ? "bg-primary/20 text-primary"
-                    : "bg-primary/10 hover:bg-primary/20 text-primary"
-                }`}
-              >
-                <span>Ordenar por Monto</span>
-              </button>
-              <button
-                onClick={() => setSortBy("date")}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  sortBy === "date"
-                    ? "bg-primary/20 text-primary"
-                    : "bg-primary/10 hover:bg-primary/20 text-primary"
-                }`}
-              >
-                <span>Ordenar por Fecha</span>
-              </button>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+          {filteredAndSortedClients.map((client) => {
+            const remaining = client.amount - client.amountPaid;
+            const paymentProgress = (client.amountPaid / client.amount) * 100;
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-white/10">
-                  <th className="p-4 text-sm font-bold text-muted-foreground">
-                    Nombre del Cliente
-                  </th>
-                  <th className="p-4 text-sm font-bold text-muted-foreground">Monto Adeudado</th>
-                  <th className="p-4 text-sm font-bold text-muted-foreground">
-                    Fecha de Vencimiento
-                  </th>
-                  <th className="p-4 text-sm font-bold text-muted-foreground">Estado</th>
-                  <th className="p-4 text-sm font-bold text-muted-foreground">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/10">
-                {filteredAndSortedClients.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="p-8 text-center text-muted-foreground">
-                      No se encontraron clientes
-                    </td>
-                  </tr>
-                ) : (
-                  filteredAndSortedClients.map((client) => (
-                    <tr key={client.id} className="hover:bg-primary/5 transition-colors">
-                      <td className="p-4 text-foreground">{client.name}</td>
-                      <td className="p-4 text-muted-foreground">${client.amount.toFixed(2)}</td>
-                      <td className="p-4 text-muted-foreground">{client.dueDate}</td>
-                      <td className="p-4">{getStatusBadge(client.status)}</td>
-                      <td className="p-4">
-                        <div className="flex items-center space-x-2">
-                          <button
-                            onClick={() => handleEditClient(client)}
-                            className="p-2 rounded-full hover:bg-primary/20 transition-colors duration-300 text-primary"
-                          >
-                            <Edit className="h-5 w-5" />
-                          </button>
-                          <button
-                            onClick={() => handleDeleteClient(client.id)}
-                            className="p-2 rounded-full hover:bg-red-500/20 transition-colors duration-300 text-red-500"
-                          >
-                            <Trash2 className="h-5 w-5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+            return (
+              <Card key={client.id} className="bg-card border-primary/20 hover:border-primary/40 transition-colors">
+                <CardHeader>
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <CardTitle className="text-foreground">{client.name}</CardTitle>
+                      <CardDescription className="text-muted-foreground mt-1">
+                        {client.address && (
+                          <div className="text-xs">{client.address}</div>
+                        )}
+                        {client.phone && (
+                          <div className="text-xs mt-1">📱 {client.phone}</div>
+                        )}
+                      </CardDescription>
+                    </div>
+                    {getStatusBadge(client.status)}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Total:</span>
+                      <span className="font-semibold text-foreground">${client.amount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Pagado:</span>
+                      <span className="font-semibold text-green-500">${client.amountPaid.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Restante:</span>
+                      <span className="font-semibold text-primary">${remaining.toFixed(2)}</span>
+                    </div>
+                    
+                    {/* Progress bar */}
+                    <div className="w-full bg-muted/30 rounded-full h-2 mt-2">
+                      <div
+                        className="bg-primary h-2 rounded-full transition-all"
+                        style={{ width: `${paymentProgress}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="text-xs text-muted-foreground">
+                    <div>Emisión: {client.issueDate}</div>
+                    <div>Vencimiento: {client.dueDate}</div>
+                  </div>
+
+                  {/* Payment history */}
+                  {client.payments.length > 0 && (
+                    <div className="pt-2 border-t border-primary/10">
+                      <div className="text-xs font-semibold text-foreground mb-1">Historial de Pagos:</div>
+                      <div className="space-y-1">
+                        {client.payments.slice(-2).map((payment) => (
+                          <div key={payment.id} className="text-xs text-muted-foreground flex justify-between">
+                            <span>{payment.date}</span>
+                            <span className="text-green-500">${payment.amount.toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEditClient(client)}
+                      className="text-xs"
+                    >
+                      <Edit className="h-3 w-3 mr-1" />
+                      Editar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleGeneratePDF(client)}
+                      className="text-xs"
+                    >
+                      <FileText className="h-3 w-3 mr-1" />
+                      PDF
+                    </Button>
+                    {remaining > 0 && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleRegisterPayment(client)}
+                        className="text-xs"
+                      >
+                        <DollarSign className="h-3 w-3 mr-1" />
+                        Pago
+                      </Button>
+                    )}
+                    {client.phone && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSendWhatsApp(client)}
+                        className="text-xs"
+                      >
+                        <Send className="h-3 w-3 mr-1" />
+                        WhatsApp
+                      </Button>
+                    )}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteClient(client.id)}
+                      className="text-xs col-span-2 text-red-500 hover:text-red-600"
+                    >
+                      <Trash2 className="h-3 w-3 mr-1" />
+                      Eliminar
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
+
+        {filteredAndSortedClients.length === 0 && (
+          <div className="glassmorphism rounded-xl shadow-lg p-12 text-center">
+            <p className="text-muted-foreground">No se encontraron clientes</p>
+          </div>
+        )}
       </main>
 
       {/* Floating Add Button */}
@@ -252,6 +418,14 @@ const ClientesDeudores = () => {
         onOpenChange={setDialogOpen}
         client={editingClient}
         onSave={handleSaveClient}
+        stockItems={stockItems}
+      />
+
+      <PaymentDialog
+        open={paymentDialogOpen}
+        onOpenChange={setPaymentDialogOpen}
+        remainingAmount={paymentClient ? paymentClient.amount - paymentClient.amountPaid : 0}
+        onSave={handleSavePayment}
       />
 
       <DeleteConfirmDialog
