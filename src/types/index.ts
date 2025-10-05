@@ -30,5 +30,20 @@ export interface Client {
   email?: string;
 }
 
+export interface Supplier {
+  id: string;
+  name: string;
+  logo?: string;
+}
+
+export interface ImportRecord {
+  id: string;
+  supplierId: string;
+  fileName: string;
+  date: string;
+  newProducts: number;
+  updatedProducts: number;
+}
+
 export type CategoryFilter = "Todas" | "Fruits" | "Bakery" | "Dairy" | "Produce";
 export type QuantityFilter = "Cualquiera" | "< 100" | "100 - 200" | "> 200";
