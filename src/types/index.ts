@@ -5,7 +5,7 @@ export interface StockItem {
   quantity: number;
   category: string;
   costPrice: number;
-  supplier: string;
+  supplierId: string;
   specialDiscount: boolean;
   minStockLimit: number;
 }
@@ -15,7 +15,7 @@ export interface RequestItem {
   productId: string;
   code: string;
   name: string;
-  supplier: string;
+  supplierId: string;
   costPrice: number;
   quantity: number;
 }

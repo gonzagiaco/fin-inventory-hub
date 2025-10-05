@@ -17,25 +17,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { StockItem } from "@/types";
+import { StockItem, Supplier } from "@/types";
 
 interface StockDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   item?: StockItem | null;
   onSave: (item: Omit<StockItem, "id"> & { id?: string }) => void;
+  suppliers: Supplier[];
 }
 
 const categories = ["Fruits", "Bakery", "Dairy", "Produce"];
 
-const StockDialog = ({ open, onOpenChange, item, onSave }: StockDialogProps) => {
+const StockDialog = ({ open, onOpenChange, item, onSave, suppliers }: StockDialogProps) => {
   const [formData, setFormData] = useState({
     code: "",
     name: "",
     quantity: "",
     category: "Fruits",
     costPrice: "",
-    supplier: "",
+    supplierId: "",
     specialDiscount: false,
     minStockLimit: "",
   });
@@ -48,7 +49,7 @@ const StockDialog = ({ open, onOpenChange, item, onSave }: StockDialogProps) => 
         quantity: item.quantity.toString(),
         category: item.category,
         costPrice: item.costPrice.toString(),
-        supplier: item.supplier,
+        supplierId: item.supplierId,
         specialDiscount: item.specialDiscount,
         minStockLimit: item.minStockLimit.toString(),
       });
@@ -59,17 +60,17 @@ const StockDialog = ({ open, onOpenChange, item, onSave }: StockDialogProps) => 
         quantity: "",
         category: "Fruits",
         costPrice: "",
-        supplier: "",
+        supplierId: suppliers[0]?.id || "",
         specialDiscount: false,
         minStockLimit: "",
       });
     }
-  }, [item, open]);
+  }, [item, open, suppliers]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.code || !formData.name || !formData.quantity || !formData.costPrice || !formData.supplier || !formData.minStockLimit) {
+    if (!formData.code || !formData.name || !formData.quantity || !formData.costPrice || !formData.supplierId || !formData.minStockLimit) {
       return;
     }
 
@@ -80,7 +81,7 @@ const StockDialog = ({ open, onOpenChange, item, onSave }: StockDialogProps) => 
       quantity: parseInt(formData.quantity),
       category: formData.category,
       costPrice: parseFloat(formData.costPrice),
-      supplier: formData.supplier,
+      supplierId: formData.supplierId,
       specialDiscount: formData.specialDiscount,
       minStockLimit: parseInt(formData.minStockLimit),
     });
@@ -177,16 +178,24 @@ const StockDialog = ({ open, onOpenChange, item, onSave }: StockDialogProps) => 
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="supplier" className="text-foreground">
+              <Label htmlFor="supplierId" className="text-foreground">
                 Proveedor
               </Label>
-              <Input
-                id="supplier"
-                value={formData.supplier}
-                onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
-                className="bg-muted/50 border-primary/20 text-foreground"
-                required
-              />
+              <Select
+                value={formData.supplierId}
+                onValueChange={(value) => setFormData({ ...formData, supplierId: value })}
+              >
+                <SelectTrigger className="bg-muted/50 border-primary/20 text-foreground">
+                  <SelectValue placeholder="Seleccionar proveedor" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-primary/20 z-50">
+                  {suppliers.map((supplier) => (
+                    <SelectItem key={supplier.id} value={supplier.id} className="text-foreground hover:bg-primary/10">
+                      {supplier.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="minStockLimit" className="text-foreground">

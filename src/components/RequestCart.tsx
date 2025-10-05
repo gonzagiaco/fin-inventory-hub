@@ -1,5 +1,5 @@
 import { X, Minus, Plus, Download } from "lucide-react";
-import { RequestItem } from "@/types";
+import { RequestItem, Supplier } from "@/types";
 import { toast } from "sonner";
 
 interface RequestCartProps {
@@ -7,10 +7,15 @@ interface RequestCartProps {
   onUpdateQuantity: (id: string, quantity: number) => void;
   onRemove: (id: string) => void;
   onExport: () => void;
+  suppliers: Supplier[];
 }
 
-const RequestCart = ({ requests, onUpdateQuantity, onRemove, onExport }: RequestCartProps) => {
+const RequestCart = ({ requests, onUpdateQuantity, onRemove, onExport, suppliers }: RequestCartProps) => {
   const total = requests.reduce((sum, item) => sum + item.costPrice * item.quantity, 0);
+
+  const getSupplierName = (supplierId: string) => {
+    return suppliers.find((s) => s.id === supplierId)?.name || "Unknown";
+  };
 
   if (requests.length === 0) {
     return (
@@ -45,7 +50,7 @@ const RequestCart = ({ requests, onUpdateQuantity, onRemove, onExport }: Request
             <div className="flex-1">
               <div className="font-semibold text-foreground">{item.name}</div>
               <div className="text-sm text-muted-foreground">
-                Código: {item.code} | Proveedor: {item.supplier}
+                Código: {item.code} | Proveedor: {getSupplierName(item.supplierId)}
               </div>
               <div className="text-sm font-medium text-foreground mt-1">
                 Subtotal: ${(item.costPrice * item.quantity).toFixed(2)}

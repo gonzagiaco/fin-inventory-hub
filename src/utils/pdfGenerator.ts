@@ -83,6 +83,28 @@ export const generateInvoicePDF = (client: Client): void => {
     doc.text(`Restante: $${remaining.toFixed(2)}`, 175, currentY, { align: "right" });
   }
   
+  // Payment history with notes
+  if (client.payments && client.payments.length > 0) {
+    currentY += 10;
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("Historial de Pagos", 20, currentY);
+    currentY += 7;
+    
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    client.payments.forEach((payment) => {
+      doc.text(`${payment.date}: $${payment.amount.toFixed(2)}`, 20, currentY);
+      if (payment.notes) {
+        currentY += 5;
+        doc.setFontSize(9);
+        doc.text(`  Nota: ${payment.notes}`, 20, currentY);
+        doc.setFontSize(10);
+      }
+      currentY += 6;
+    });
+  }
+  
   // Footer
   doc.setFontSize(8);
   doc.setFont("helvetica", "normal");

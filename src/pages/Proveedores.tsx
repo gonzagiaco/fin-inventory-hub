@@ -18,18 +18,28 @@ const Proveedores = () => {
   const [suppliers, setSuppliers] = useState<Supplier[]>([
     {
       id: "1",
-      name: "FreshFarms Co.",
+      name: "Fresh Farms",
       logo: "https://images.unsplash.com/photo-1560493676-04071c5f467b?w=200&h=200&fit=crop",
     },
     {
       id: "2",
-      name: "Dairy Delights",
+      name: "Bakery Co",
       logo: "https://images.unsplash.com/photo-1628088062854-d1870b4553da?w=200&h=200&fit=crop",
     },
     {
       id: "3",
-      name: "Bakery Best",
+      name: "Dairy Express",
       logo: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&h=200&fit=crop",
+    },
+    {
+      id: "4",
+      name: "Farm Direct",
+      logo: "",
+    },
+    {
+      id: "5",
+      name: "Tropical Imports",
+      logo: "",
     },
   ]);
 
@@ -41,7 +51,7 @@ const Proveedores = () => {
       quantity: 150,
       category: "Fruits",
       costPrice: 1.5,
-      supplier: "FreshFarms Co.",
+      supplierId: "1",
       specialDiscount: true,
       minStockLimit: 50,
     },
@@ -52,7 +62,7 @@ const Proveedores = () => {
       quantity: 80,
       category: "Dairy",
       costPrice: 2.0,
-      supplier: "Dairy Delights",
+      supplierId: "3",
       specialDiscount: false,
       minStockLimit: 30,
     },
@@ -83,7 +93,7 @@ const Proveedores = () => {
   const handleDeleteConfirm = () => {
     if (supplierToDelete) {
       setSuppliers(suppliers.filter((s) => s.id !== supplierToDelete.id));
-      setStockItems(stockItems.filter((item) => item.supplier !== supplierToDelete.name));
+      setStockItems(stockItems.filter((item) => item.supplierId !== supplierToDelete.id));
       toast({
         title: "Proveedor eliminado",
         description: `${supplierToDelete.name} y sus productos han sido eliminados.`,
@@ -129,6 +139,32 @@ const Proveedores = () => {
     setImportRecords([record, ...importRecords]);
   };
 
+  const handleAddProduct = (product: Omit<StockItem, "id"> & { id?: string }) => {
+    if (product.id) {
+      setStockItems((prev) =>
+        prev.map((item) => (item.id === product.id ? { ...product, id: product.id } : item))
+      );
+      toast({
+        title: "Producto actualizado",
+        description: "El producto ha sido actualizado correctamente.",
+      });
+    } else {
+      const newProduct: StockItem = {
+        ...product,
+        id: crypto.randomUUID(),
+      };
+      setStockItems((prev) => [...prev, newProduct]);
+      toast({
+        title: "Producto agregado",
+        description: "El producto ha sido agregado correctamente.",
+      });
+    }
+  };
+
+  const handleDeleteProduct = (productId: string) => {
+    setStockItems((prev) => prev.filter((item) => item.id !== productId));
+  };
+
   return (
     <div className="flex-1 p-6 lg:p-10">
       <Header
@@ -162,7 +198,7 @@ const Proveedores = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {suppliers.map((supplier) => {
             const supplierProducts = stockItems.filter(
-              (item) => item.supplier === supplier.name
+              (item) => item.supplierId === supplier.id
             );
 
             return (
@@ -239,11 +275,14 @@ const Proveedores = () => {
           onOpenChange={setIsDetailDialogOpen}
           supplier={selectedSupplier}
           products={stockItems.filter(
-            (item) => item.supplier === selectedSupplier.name
+            (item) => item.supplierId === selectedSupplier.id
           )}
+          suppliers={suppliers}
           onImportProducts={handleImportProducts}
           onAddImportRecord={handleAddImportRecord}
           importRecords={importRecords}
+          onAddProduct={handleAddProduct}
+          onDeleteProduct={handleDeleteProduct}
         />
       )}
 

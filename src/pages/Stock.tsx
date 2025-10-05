@@ -5,7 +5,8 @@ import DeleteConfirmDialog from "@/components/DeleteConfirmDialog";
 import RequestCart from "@/components/RequestCart";
 import { Upload, QrCode, Edit, Trash2, ChevronLeft, ChevronRight, Filter, Plus, RefreshCw, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
-import { StockItem, CategoryFilter, QuantityFilter, RequestItem } from "@/types";
+import { StockItem, CategoryFilter, QuantityFilter, RequestItem, Supplier } from "@/types";
+import * as XLSX from "xlsx";
 
 const ITEMS_PER_PAGE = 5;
 
@@ -15,15 +16,25 @@ const Stock = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("Todas");
   const [quantityFilter, setQuantityFilter] = useState<QuantityFilter>("Cualquiera");
+  const [supplierFilter, setSupplierFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   
+  // Mock suppliers list
+  const [suppliers] = useState<Supplier[]>([
+    { id: "1", name: "Fresh Farms", logo: "" },
+    { id: "2", name: "Bakery Co", logo: "" },
+    { id: "3", name: "Dairy Express", logo: "" },
+    { id: "4", name: "Farm Direct", logo: "" },
+    { id: "5", name: "Tropical Imports", logo: "" },
+  ]);
+
   const [stockItems, setStockItems] = useState<StockItem[]>([
-    { id: "1", code: "A123", name: "Organic Apples", quantity: 150, category: "Fruits", costPrice: 25.50, supplier: "Fresh Farms", specialDiscount: false, minStockLimit: 100 },
-    { id: "2", code: "B456", name: "Whole Wheat Bread", quantity: 80, category: "Bakery", costPrice: 15.00, supplier: "Bakery Co", specialDiscount: true, minStockLimit: 50 },
-    { id: "3", code: "C789", name: "Fresh Milk", quantity: 120, category: "Dairy", costPrice: 12.00, supplier: "Dairy Express", specialDiscount: false, minStockLimit: 100 },
-    { id: "4", code: "D012", name: "Tomatoes", quantity: 95, category: "Produce", costPrice: 8.50, supplier: "Farm Direct", specialDiscount: true, minStockLimit: 80 },
-    { id: "5", code: "E345", name: "Bananas", quantity: 200, category: "Fruits", costPrice: 18.00, supplier: "Tropical Imports", specialDiscount: false, minStockLimit: 150 },
-    { id: "6", code: "F678", name: "Croissants", quantity: 45, category: "Bakery", costPrice: 20.00, supplier: "Bakery Co", specialDiscount: false, minStockLimit: 60 },
+    { id: "1", code: "A123", name: "Organic Apples", quantity: 150, category: "Fruits", costPrice: 25.50, supplierId: "1", specialDiscount: false, minStockLimit: 100 },
+    { id: "2", code: "B456", name: "Whole Wheat Bread", quantity: 80, category: "Bakery", costPrice: 15.00, supplierId: "2", specialDiscount: true, minStockLimit: 50 },
+    { id: "3", code: "C789", name: "Fresh Milk", quantity: 120, category: "Dairy", costPrice: 12.00, supplierId: "3", specialDiscount: false, minStockLimit: 100 },
+    { id: "4", code: "D012", name: "Tomatoes", quantity: 95, category: "Produce", costPrice: 8.50, supplierId: "4", specialDiscount: true, minStockLimit: 80 },
+    { id: "5", code: "E345", name: "Bananas", quantity: 200, category: "Fruits", costPrice: 18.00, supplierId: "5", specialDiscount: false, minStockLimit: 150 },
+    { id: "6", code: "F678", name: "Croissants", quantity: 45, category: "Bakery", costPrice: 20.00, supplierId: "2", specialDiscount: false, minStockLimit: 60 },
   ]);
 
   const [requestList, setRequestList] = useState<RequestItem[]>([]);
@@ -33,6 +44,11 @@ const Stock = () => {
   const [editingItem, setEditingItem] = useState<StockItem | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
+
+  // Helper function to get supplier name
+  const getSupplierName = (supplierId: string) => {
+    return suppliers.find((s) => s.id === supplierId)?.name || "Unknown";
+  };
 
   // Filtrado y búsqueda
   const filteredItems = useMemo(() => {
@@ -56,9 +72,13 @@ const Stock = () => {
         matchesQuantity = item.quantity > 200;
       }
 
-      return matchesSearch && matchesCategory && matchesQuantity;
+      // Filtro de proveedor
+      const matchesSupplier =
+        supplierFilter === "all" || item.supplierId === supplierFilter;
+
+      return matchesSearch && matchesCategory && matchesQuantity && matchesSupplier;
     });
-  }, [stockItems, searchQuery, categoryFilter, quantityFilter]);
+  }, [stockItems, searchQuery, categoryFilter, quantityFilter, supplierFilter]);
 
   // Paginación
   const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
@@ -70,7 +90,7 @@ const Stock = () => {
   // Resetear página cuando cambien los filtros
   useMemo(() => {
     setCurrentPage(1);
-  }, [searchQuery, categoryFilter, quantityFilter]);
+  }, [searchQuery, categoryFilter, quantityFilter, supplierFilter]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -167,7 +187,7 @@ const Stock = () => {
         productId: item.id,
         code: item.code,
         name: item.name,
-        supplier: item.supplier,
+        supplierId: item.supplierId,
         costPrice: item.costPrice,
         quantity: 1,
       };
@@ -188,31 +208,34 @@ const Stock = () => {
   };
 
   const handleExportToExcel = () => {
-    const csvContent = [
+    // Create worksheet data
+    const worksheetData = [
       ["Código", "Nombre", "Proveedor", "Cantidad", "Precio Unitario", "Subtotal"],
       ...requestList.map((item) => [
         item.code,
         item.name,
-        item.supplier,
+        getSupplierName(item.supplierId),
         item.quantity,
         item.costPrice.toFixed(2),
         (item.costPrice * item.quantity).toFixed(2),
       ]),
       [],
       ["", "", "", "", "TOTAL:", requestList.reduce((sum, item) => sum + item.costPrice * item.quantity, 0).toFixed(2)],
-    ]
-      .map((row) => row.join(","))
-      .join("\n");
+    ];
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `pedido_${new Date().toISOString().split("T")[0]}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Create workbook and worksheet
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(worksheetData);
+
+    // Add worksheet to workbook
+    XLSX.utils.book_append_sheet(wb, ws, "Pedido");
+
+    // Generate file name with date
+    const fileName = `pedido_${new Date().toISOString().split("T")[0]}.xlsx`;
+
+    // Save file
+    XLSX.writeFile(wb, fileName);
+    
     toast.success("Lista exportada correctamente");
   };
 
@@ -259,7 +282,7 @@ const Stock = () => {
                   <span>Actualizar desde Proveedores</span>
                 </button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="relative">
                   <label className="block text-sm font-medium text-muted-foreground mb-2">
                     Categoría
@@ -291,6 +314,23 @@ const Stock = () => {
                     <option>&gt; 200</option>
                   </select>
                 </div>
+                <div className="relative">
+                  <label className="block text-sm font-medium text-muted-foreground mb-2">
+                    Proveedor
+                  </label>
+                  <select
+                    className="w-full rounded-lg border-transparent bg-muted/50 backdrop-blur-sm py-3 px-4 text-foreground focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-sm appearance-none"
+                    value={supplierFilter}
+                    onChange={(e) => setSupplierFilter(e.target.value)}
+                  >
+                    <option value="all">Todos los Proveedores</option>
+                    {suppliers.map((supplier) => (
+                      <option key={supplier.id} value={supplier.id}>
+                        {supplier.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div className="flex items-end">
                   <button
                     onClick={applyFilters}
@@ -303,20 +343,88 @@ const Stock = () => {
               </div>
             </div>
 
-            {/* Tabla de Stock */}
+            {/* Tabla de Stock - Responsive */}
             <div className="glassmorphism rounded-xl shadow-lg overflow-hidden">
-              <div className="overflow-x-auto">
+              {/* Mobile view - Cards */}
+              <div className="md:hidden space-y-4 p-4">
+                {paginatedItems.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground">
+                    No se encontraron productos
+                  </div>
+                ) : (
+                  paginatedItems.map((item) => {
+                    const isLowStock = item.quantity < item.minStockLimit;
+                    const publicPrice = calculatePublicPrice(item);
+                    
+                    return (
+                      <div
+                        key={item.id}
+                        className={`p-4 rounded-lg border ${isLowStock ? "border-red-500 bg-red-500/10" : "border-primary/20"}`}
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <p className="font-bold text-foreground">{item.code}</p>
+                            <p className="text-sm text-foreground">{item.name}</p>
+                            {item.specialDiscount && (
+                              <span className="inline-block mt-1 px-2 py-0.5 text-xs font-semibold rounded-full bg-green-500/20 text-green-500">
+                                -8%
+                              </span>
+                            )}
+                          </div>
+                          <span className="px-2 py-1 text-xs font-semibold rounded-full bg-primary/20 text-primary">
+                            {item.category}
+                          </span>
+                        </div>
+                        <div className="space-y-1 text-sm mb-3">
+                          <p className="text-muted-foreground">Proveedor: <span className="text-foreground">{getSupplierName(item.supplierId)}</span></p>
+                          <p className={isLowStock ? "text-red-500 font-bold" : "text-muted-foreground"}>
+                            Stock: <span className="text-foreground">{item.quantity}</span> / Mín: {item.minStockLimit}
+                            {isLowStock && <span className="ml-2 text-xs">(Bajo stock)</span>}
+                          </p>
+                          <p className="text-muted-foreground">Costo: <span className="text-foreground">${item.costPrice.toFixed(2)}</span></p>
+                          <p className="text-muted-foreground">Público: <span className="text-primary font-bold">${publicPrice.toFixed(2)}</span></p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleAddToRequest(item)}
+                            className="flex-1 p-2 rounded-lg bg-green-500/20 text-green-500 hover:bg-green-500/30 transition-colors text-sm font-medium"
+                          >
+                            <ShoppingCart className="h-4 w-4 inline mr-1" />
+                            Solicitar
+                          </button>
+                          <button
+                            onClick={() => handleEditItem(item)}
+                            className="flex-1 p-2 rounded-lg bg-primary/20 text-primary hover:bg-primary/30 transition-colors text-sm font-medium"
+                          >
+                            <Edit className="h-4 w-4 inline mr-1" />
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => handleDeleteItem(item.id)}
+                            className="p-2 rounded-lg bg-red-500/20 text-red-500 hover:bg-red-500/30 transition-colors"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Desktop view - Table */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
                     <tr className="border-b border-white/10">
                       <th className="p-4 font-semibold text-sm text-muted-foreground">Código</th>
                       <th className="p-4 font-semibold text-sm text-muted-foreground">Nombre</th>
-                      <th className="p-4 font-semibold text-sm text-muted-foreground">Proveedor</th>
+                      <th className="p-4 font-semibold text-sm text-muted-foreground hidden lg:table-cell">Proveedor</th>
                       <th className="p-4 font-semibold text-sm text-muted-foreground">Cantidad</th>
                       <th className="p-4 font-semibold text-sm text-muted-foreground">Stock Mín</th>
                       <th className="p-4 font-semibold text-sm text-muted-foreground">Precio Costo</th>
                       <th className="p-4 font-semibold text-sm text-muted-foreground">Precio Público</th>
-                      <th className="p-4 font-semibold text-sm text-muted-foreground">Categoría</th>
+                      <th className="p-4 font-semibold text-sm text-muted-foreground hidden xl:table-cell">Categoría</th>
                       <th className="p-4 font-semibold text-sm text-muted-foreground text-center">
                         Acciones
                       </th>
@@ -348,7 +456,7 @@ const Stock = () => {
                                 </span>
                               )}
                             </td>
-                            <td className="p-4 text-sm font-medium text-foreground">{item.supplier}</td>
+                            <td className="p-4 text-sm font-medium text-foreground hidden lg:table-cell">{getSupplierName(item.supplierId)}</td>
                             <td className={`p-4 text-sm font-medium ${isLowStock ? "text-red-500 font-bold" : "text-foreground"}`}>
                               {item.quantity}
                               {isLowStock && (
@@ -358,7 +466,7 @@ const Stock = () => {
                             <td className="p-4 text-sm font-medium text-muted-foreground">{item.minStockLimit}</td>
                             <td className="p-4 text-sm font-medium text-foreground">${item.costPrice.toFixed(2)}</td>
                             <td className="p-4 text-sm font-medium text-primary font-bold">${publicPrice.toFixed(2)}</td>
-                            <td className="p-4 text-sm">
+                            <td className="p-4 text-sm hidden xl:table-cell">
                               <span className="px-3 py-1 text-xs font-semibold rounded-full bg-primary/20 text-primary">
                                 {item.category}
                               </span>
@@ -439,6 +547,7 @@ const Stock = () => {
               onUpdateQuantity={handleUpdateRequestQuantity}
               onRemove={handleRemoveFromRequest}
               onExport={handleExportToExcel}
+              suppliers={suppliers}
             />
 
             {/* Botón Nuevo Producto */}
@@ -512,6 +621,7 @@ const Stock = () => {
         onOpenChange={setDialogOpen}
         item={editingItem}
         onSave={handleSaveItem}
+        suppliers={suppliers}
       />
 
       <DeleteConfirmDialog
