@@ -2,9 +2,10 @@ import { useState, useMemo } from "react";
 import Header from "@/components/Header";
 import StockDialog from "@/components/StockDialog";
 import DeleteConfirmDialog from "@/components/DeleteConfirmDialog";
-import { Upload, QrCode, Edit, Trash2, ChevronLeft, ChevronRight, Filter, Plus } from "lucide-react";
+import RequestCart from "@/components/RequestCart";
+import { Upload, QrCode, Edit, Trash2, ChevronLeft, ChevronRight, Filter, Plus, RefreshCw, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
-import { StockItem, CategoryFilter, QuantityFilter } from "@/types";
+import { StockItem, CategoryFilter, QuantityFilter, RequestItem } from "@/types";
 
 const ITEMS_PER_PAGE = 5;
 
@@ -17,13 +18,16 @@ const Stock = () => {
   const [currentPage, setCurrentPage] = useState(1);
   
   const [stockItems, setStockItems] = useState<StockItem[]>([
-    { id: "1", code: "A123", name: "Organic Apples", quantity: 150, category: "Fruits" },
-    { id: "2", code: "B456", name: "Whole Wheat Bread", quantity: 80, category: "Bakery" },
-    { id: "3", code: "C789", name: "Fresh Milk", quantity: 120, category: "Dairy" },
-    { id: "4", code: "D012", name: "Tomatoes", quantity: 95, category: "Produce" },
-    { id: "5", code: "E345", name: "Bananas", quantity: 200, category: "Fruits" },
-    { id: "6", code: "F678", name: "Croissants", quantity: 45, category: "Bakery" },
+    { id: "1", code: "A123", name: "Organic Apples", quantity: 150, category: "Fruits", costPrice: 25.50, supplier: "Fresh Farms", specialDiscount: false, minStockLimit: 100 },
+    { id: "2", code: "B456", name: "Whole Wheat Bread", quantity: 80, category: "Bakery", costPrice: 15.00, supplier: "Bakery Co", specialDiscount: true, minStockLimit: 50 },
+    { id: "3", code: "C789", name: "Fresh Milk", quantity: 120, category: "Dairy", costPrice: 12.00, supplier: "Dairy Express", specialDiscount: false, minStockLimit: 100 },
+    { id: "4", code: "D012", name: "Tomatoes", quantity: 95, category: "Produce", costPrice: 8.50, supplier: "Farm Direct", specialDiscount: true, minStockLimit: 80 },
+    { id: "5", code: "E345", name: "Bananas", quantity: 200, category: "Fruits", costPrice: 18.00, supplier: "Tropical Imports", specialDiscount: false, minStockLimit: 150 },
+    { id: "6", code: "F678", name: "Croissants", quantity: 45, category: "Bakery", costPrice: 20.00, supplier: "Bakery Co", specialDiscount: false, minStockLimit: 60 },
   ]);
+
+  const [requestList, setRequestList] = useState<RequestItem[]>([]);
+  const [isUpdatingFromSupplier, setIsUpdatingFromSupplier] = useState(false);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<StockItem | null>(null);
@@ -131,6 +135,94 @@ const Stock = () => {
     toast.success("Filtros aplicados");
   };
 
+  const handleUpdateFromSupplier = () => {
+    setIsUpdatingFromSupplier(true);
+    
+    setTimeout(() => {
+      setStockItems((prev) =>
+        prev.map((item) => ({
+          ...item,
+          quantity: item.quantity + Math.floor(Math.random() * 20 - 5),
+          costPrice: item.costPrice + (Math.random() * 4 - 2),
+        }))
+      );
+      setIsUpdatingFromSupplier(false);
+      toast.success("Datos actualizados desde proveedores");
+    }, 2000);
+  };
+
+  const handleAddToRequest = (item: StockItem) => {
+    const existingItem = requestList.find((r) => r.productId === item.id);
+    
+    if (existingItem) {
+      setRequestList((prev) =>
+        prev.map((r) =>
+          r.productId === item.id ? { ...r, quantity: r.quantity + 1 } : r
+        )
+      );
+      toast.success("Cantidad actualizada en la lista de pedidos");
+    } else {
+      const newRequest: RequestItem = {
+        id: Date.now().toString(),
+        productId: item.id,
+        code: item.code,
+        name: item.name,
+        supplier: item.supplier,
+        costPrice: item.costPrice,
+        quantity: 1,
+      };
+      setRequestList((prev) => [...prev, newRequest]);
+      toast.success("Producto agregado a la lista de pedidos");
+    }
+  };
+
+  const handleUpdateRequestQuantity = (id: string, quantity: number) => {
+    setRequestList((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, quantity } : item))
+    );
+  };
+
+  const handleRemoveFromRequest = (id: string) => {
+    setRequestList((prev) => prev.filter((item) => item.id !== id));
+    toast.success("Producto eliminado de la lista de pedidos");
+  };
+
+  const handleExportToExcel = () => {
+    const csvContent = [
+      ["Código", "Nombre", "Proveedor", "Cantidad", "Precio Unitario", "Subtotal"],
+      ...requestList.map((item) => [
+        item.code,
+        item.name,
+        item.supplier,
+        item.quantity,
+        item.costPrice.toFixed(2),
+        (item.costPrice * item.quantity).toFixed(2),
+      ]),
+      [],
+      ["", "", "", "", "TOTAL:", requestList.reduce((sum, item) => sum + item.costPrice * item.quantity, 0).toFixed(2)],
+    ]
+      .map((row) => row.join(","))
+      .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `pedido_${new Date().toISOString().split("T")[0]}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Lista exportada correctamente");
+  };
+
+  const calculatePublicPrice = (item: StockItem) => {
+    if (item.specialDiscount) {
+      return (item.costPrice * 0.92) * 2;
+    }
+    return item.costPrice * 2;
+  };
+
   return (
     <div className="flex-1 p-6 lg:p-10">
       <div className="mb-8">
@@ -154,9 +246,19 @@ const Stock = () => {
       <main>
         <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
           <div className="xl:col-span-2">
-            {/* Filtros */}
+            {/* Filtros y Actualizar desde Proveedor */}
             <div className="glassmorphism rounded-xl shadow-lg p-6 mb-8">
-              <h2 className="text-xl font-bold mb-4 text-foreground">Filtros</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-foreground">Filtros</h2>
+                <button
+                  onClick={handleUpdateFromSupplier}
+                  disabled={isUpdatingFromSupplier}
+                  className="bg-secondary hover:bg-secondary/80 text-secondary-foreground font-bold py-2 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-300 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <RefreshCw className={`mr-2 h-4 w-4 ${isUpdatingFromSupplier ? "animate-spin" : ""}`} />
+                  <span>Actualizar desde Proveedores</span>
+                </button>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div className="relative">
                   <label className="block text-sm font-medium text-muted-foreground mb-2">
@@ -209,7 +311,11 @@ const Stock = () => {
                     <tr className="border-b border-white/10">
                       <th className="p-4 font-semibold text-sm text-muted-foreground">Código</th>
                       <th className="p-4 font-semibold text-sm text-muted-foreground">Nombre</th>
+                      <th className="p-4 font-semibold text-sm text-muted-foreground">Proveedor</th>
                       <th className="p-4 font-semibold text-sm text-muted-foreground">Cantidad</th>
+                      <th className="p-4 font-semibold text-sm text-muted-foreground">Stock Mín</th>
+                      <th className="p-4 font-semibold text-sm text-muted-foreground">Precio Costo</th>
+                      <th className="p-4 font-semibold text-sm text-muted-foreground">Precio Público</th>
                       <th className="p-4 font-semibold text-sm text-muted-foreground">Categoría</th>
                       <th className="p-4 font-semibold text-sm text-muted-foreground text-center">
                         Acciones
@@ -219,44 +325,70 @@ const Stock = () => {
                   <tbody className="divide-y divide-white/10">
                     {paginatedItems.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="p-8 text-center text-muted-foreground">
+                        <td colSpan={9} className="p-8 text-center text-muted-foreground">
                           No se encontraron productos
                         </td>
                       </tr>
                     ) : (
-                      paginatedItems.map((item) => (
-                        <tr
-                          key={item.id}
-                          className="hover:bg-primary/10 transition-colors duration-300"
-                        >
-                          <td className="p-4 text-sm font-medium text-foreground">{item.code}</td>
-                          <td className="p-4 text-sm font-medium text-foreground">{item.name}</td>
-                          <td className="p-4 text-sm font-medium text-foreground">
-                            {item.quantity}
-                          </td>
-                          <td className="p-4 text-sm">
-                            <span className="px-3 py-1 text-xs font-semibold rounded-full bg-primary/20 text-primary">
-                              {item.category}
-                            </span>
-                          </td>
-                          <td className="p-4 text-sm font-semibold">
-                            <div className="flex justify-center items-center space-x-2">
-                              <button
-                                onClick={() => handleEditItem(item)}
-                                className="p-2 rounded-full hover:bg-primary/20 transition-colors duration-300 text-primary"
-                              >
-                                <Edit className="h-5 w-5" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteItem(item.id)}
-                                className="p-2 rounded-full hover:bg-red-500/20 transition-colors duration-300 text-red-500"
-                              >
-                                <Trash2 className="h-5 w-5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
+                      paginatedItems.map((item) => {
+                        const isLowStock = item.quantity < item.minStockLimit;
+                        const publicPrice = calculatePublicPrice(item);
+                        
+                        return (
+                          <tr
+                            key={item.id}
+                            className={`hover:bg-primary/10 transition-colors duration-300 ${isLowStock ? "bg-red-500/10" : ""}`}
+                          >
+                            <td className="p-4 text-sm font-medium text-foreground">{item.code}</td>
+                            <td className="p-4 text-sm font-medium text-foreground">
+                              {item.name}
+                              {item.specialDiscount && (
+                                <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-green-500/20 text-green-500">
+                                  -8%
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-4 text-sm font-medium text-foreground">{item.supplier}</td>
+                            <td className={`p-4 text-sm font-medium ${isLowStock ? "text-red-500 font-bold" : "text-foreground"}`}>
+                              {item.quantity}
+                              {isLowStock && (
+                                <span className="ml-2 text-xs">(Bajo stock)</span>
+                              )}
+                            </td>
+                            <td className="p-4 text-sm font-medium text-muted-foreground">{item.minStockLimit}</td>
+                            <td className="p-4 text-sm font-medium text-foreground">${item.costPrice.toFixed(2)}</td>
+                            <td className="p-4 text-sm font-medium text-primary font-bold">${publicPrice.toFixed(2)}</td>
+                            <td className="p-4 text-sm">
+                              <span className="px-3 py-1 text-xs font-semibold rounded-full bg-primary/20 text-primary">
+                                {item.category}
+                              </span>
+                            </td>
+                            <td className="p-4 text-sm font-semibold">
+                              <div className="flex justify-center items-center space-x-2">
+                                <button
+                                  onClick={() => handleAddToRequest(item)}
+                                  className="p-2 rounded-full hover:bg-green-500/20 transition-colors duration-300 text-green-500"
+                                  title="Solicitar a Proveedor"
+                                >
+                                  <ShoppingCart className="h-5 w-5" />
+                                </button>
+                                <button
+                                  onClick={() => handleEditItem(item)}
+                                  className="p-2 rounded-full hover:bg-primary/20 transition-colors duration-300 text-primary"
+                                >
+                                  <Edit className="h-5 w-5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteItem(item.id)}
+                                  className="p-2 rounded-full hover:bg-red-500/20 transition-colors duration-300 text-red-500"
+                                >
+                                  <Trash2 className="h-5 w-5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -301,6 +433,14 @@ const Stock = () => {
           </div>
 
           <div className="space-y-8">
+            {/* Lista de Pedidos */}
+            <RequestCart
+              requests={requestList}
+              onUpdateQuantity={handleUpdateRequestQuantity}
+              onRemove={handleRemoveFromRequest}
+              onExport={handleExportToExcel}
+            />
+
             {/* Botón Nuevo Producto */}
             <div className="glassmorphism rounded-xl shadow-lg p-6">
               <h2 className="text-xl font-bold mb-4 text-foreground">Gestionar Productos</h2>

@@ -4,6 +4,20 @@ export interface StockItem {
   name: string;
   quantity: number;
   category: string;
+  costPrice: number;
+  supplier: string;
+  specialDiscount: boolean;
+  minStockLimit: number;
+}
+
+export interface RequestItem {
+  id: string;
+  productId: string;
+  code: string;
+  name: string;
+  supplier: string;
+  costPrice: number;
+  quantity: number;
 }
 
 export interface Client {

@@ -34,6 +34,10 @@ const StockDialog = ({ open, onOpenChange, item, onSave }: StockDialogProps) => 
     name: "",
     quantity: "",
     category: "Fruits",
+    costPrice: "",
+    supplier: "",
+    specialDiscount: false,
+    minStockLimit: "",
   });
 
   useEffect(() => {
@@ -43,6 +47,10 @@ const StockDialog = ({ open, onOpenChange, item, onSave }: StockDialogProps) => 
         name: item.name,
         quantity: item.quantity.toString(),
         category: item.category,
+        costPrice: item.costPrice.toString(),
+        supplier: item.supplier,
+        specialDiscount: item.specialDiscount,
+        minStockLimit: item.minStockLimit.toString(),
       });
     } else {
       setFormData({
@@ -50,6 +58,10 @@ const StockDialog = ({ open, onOpenChange, item, onSave }: StockDialogProps) => 
         name: "",
         quantity: "",
         category: "Fruits",
+        costPrice: "",
+        supplier: "",
+        specialDiscount: false,
+        minStockLimit: "",
       });
     }
   }, [item, open]);
@@ -57,7 +69,7 @@ const StockDialog = ({ open, onOpenChange, item, onSave }: StockDialogProps) => 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.code || !formData.name || !formData.quantity) {
+    if (!formData.code || !formData.name || !formData.quantity || !formData.costPrice || !formData.supplier || !formData.minStockLimit) {
       return;
     }
 
@@ -67,6 +79,10 @@ const StockDialog = ({ open, onOpenChange, item, onSave }: StockDialogProps) => 
       name: formData.name,
       quantity: parseInt(formData.quantity),
       category: formData.category,
+      costPrice: parseFloat(formData.costPrice),
+      supplier: formData.supplier,
+      specialDiscount: formData.specialDiscount,
+      minStockLimit: parseInt(formData.minStockLimit),
     });
 
     onOpenChange(false);
@@ -144,6 +160,59 @@ const StockDialog = ({ open, onOpenChange, item, onSave }: StockDialogProps) => 
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="costPrice" className="text-foreground">
+                Precio de Costo
+              </Label>
+              <Input
+                id="costPrice"
+                type="number"
+                min="0"
+                step="0.01"
+                value={formData.costPrice}
+                onChange={(e) => setFormData({ ...formData, costPrice: e.target.value })}
+                className="bg-muted/50 border-primary/20 text-foreground"
+                required
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="supplier" className="text-foreground">
+                Proveedor
+              </Label>
+              <Input
+                id="supplier"
+                value={formData.supplier}
+                onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
+                className="bg-muted/50 border-primary/20 text-foreground"
+                required
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="minStockLimit" className="text-foreground">
+                Stock Mínimo
+              </Label>
+              <Input
+                id="minStockLimit"
+                type="number"
+                min="0"
+                value={formData.minStockLimit}
+                onChange={(e) => setFormData({ ...formData, minStockLimit: e.target.value })}
+                className="bg-muted/50 border-primary/20 text-foreground"
+                required
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <input
+                id="specialDiscount"
+                type="checkbox"
+                checked={formData.specialDiscount}
+                onChange={(e) => setFormData({ ...formData, specialDiscount: e.target.checked })}
+                className="h-4 w-4 rounded border-primary/20 text-primary focus:ring-primary"
+              />
+              <Label htmlFor="specialDiscount" className="text-foreground cursor-pointer">
+                Descuento Especial de Proveedor (8%)
+              </Label>
             </div>
           </div>
           <DialogFooter>
