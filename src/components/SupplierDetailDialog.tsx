@@ -8,7 +8,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Supplier, StockItem, ImportRecord } from "@/types";
 import { toast } from "@/hooks/use-toast";
-import * as XLSX from "xlsx";
 import {
   Table,
   TableBody,
@@ -20,6 +19,7 @@ import {
 import { Upload, Package, Calendar, Plus, Trash2 } from "lucide-react";
 import StockDialog from "./StockDialog";
 import DeleteConfirmDialog from "./DeleteConfirmDialog";
+import { importProductsFromExcel } from "@/utils/importExcel";
 
 interface SupplierDetailDialogProps {
   open: boolean;
@@ -59,47 +59,11 @@ const SupplierDetailDialog = ({
     setIsImporting(true);
     
     try {
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data);
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-      let newCount = 0;
-      let updateCount = 0;
-      const importedProducts: StockItem[] = [];
-
-      jsonData.forEach((row: any) => {
-        const code = String(row.code || row.Code || row.codigo || row.Codigo || "").trim();
-        const name = String(row.name || row.Name || row.description || row.Description || row.descripcion || row.Descripcion || "").trim();
-        const costPrice = Number(row.price || row.Price || row.precio || row.Precio || 0);
-
-        if (code && name && costPrice > 0) {
-          const existingProduct = products.find((p) => p.code === code);
-          
-          if (existingProduct) {
-            updateCount++;
-            importedProducts.push({
-              ...existingProduct,
-              name,
-              costPrice,
-              supplierId: supplier.id,
-            });
-          } else {
-            newCount++;
-            importedProducts.push({
-              id: crypto.randomUUID(),
-              code,
-              name,
-              quantity: 0,
-              category: "Produce",
-              costPrice,
-              supplierId: supplier.id,
-              specialDiscount: false,
-              minStockLimit: 10,
-            });
-          }
-        }
-      });
+      const { importedProducts, newCount, updateCount } = await importProductsFromExcel(
+        file,
+        products,
+        supplier.id
+      );
 
       if (importedProducts.length === 0) {
         toast({
@@ -134,7 +98,7 @@ const SupplierDetailDialog = ({
       console.error("Error importing file:", error);
       toast({
         title: "Error",
-        description: "No se pudo procesar el archivo Excel.",
+        description: error instanceof Error ? error.message : "No se pudo procesar el archivo Excel.",
         variant: "destructive",
       });
     } finally {

@@ -7,6 +7,7 @@ import { Upload, QrCode, Edit, Trash2, ChevronLeft, ChevronRight, Filter, Plus, 
 import { toast } from "sonner";
 import { StockItem, CategoryFilter, QuantityFilter, RequestItem, Supplier } from "@/types";
 import * as XLSX from "xlsx";
+import { importProductsFromExcel } from "@/utils/importExcel";
 
 const ITEMS_PER_PAGE = 5;
 
@@ -99,19 +100,80 @@ const Stock = () => {
     }
   };
 
-  const handleUpdateStock = () => {
+  const handleUpdateStock = async () => {
     if (!selectedFile) {
       toast.error("Por favor, selecciona un archivo primero");
       return;
     }
 
+    if (supplierFilter === "all") {
+      toast.error("Selecciona un proveedor", {
+        description: "Por favor selecciona un proveedor antes de importar productos.",
+      });
+      return;
+    }
+
     setIsUploading(true);
 
-    setTimeout(() => {
-      setIsUploading(false);
-      toast.success("El stock se ha actualizado correctamente");
+    try {
+      // Filter current products by selected supplier
+      const currentProducts = stockItems.filter(
+        (item) => item.supplierId === supplierFilter
+      );
+
+      const { importedProducts, newCount, updateCount } = await importProductsFromExcel(
+        selectedFile,
+        currentProducts,
+        supplierFilter
+      );
+
+      if (importedProducts.length === 0) {
+        toast.error("Error en importación", {
+          description: "No se encontraron productos válidos en el archivo. Asegúrate de que tenga columnas: code, name/description, price.",
+        });
+        return;
+      }
+
+      // Merge imported products into stock items
+      setStockItems((prev) => {
+        const updatedItems = [...prev];
+        
+        importedProducts.forEach((importedProduct) => {
+          const existingIndex = updatedItems.findIndex(
+            (item) => item.id === importedProduct.id || 
+            (item.code === importedProduct.code && item.supplierId === importedProduct.supplierId)
+          );
+
+          if (existingIndex !== -1) {
+            // Update existing product
+            updatedItems[existingIndex] = importedProduct;
+          } else {
+            // Add new product
+            updatedItems.push(importedProduct);
+          }
+        });
+
+        return updatedItems;
+      });
+
+      toast.success("Importación exitosa", {
+        description: `${newCount} productos nuevos agregados, ${updateCount} productos actualizados.`,
+      });
+
       setSelectedFile(null);
-    }, 3000);
+      // Reset file input
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      if (fileInput) {
+        fileInput.value = "";
+      }
+    } catch (error) {
+      console.error("Error importing file:", error);
+      toast.error("Error", {
+        description: error instanceof Error ? error.message : "No se pudo procesar el archivo Excel.",
+      });
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   const handleSaveItem = (item: Omit<StockItem, "id"> & { id?: string }) => {
