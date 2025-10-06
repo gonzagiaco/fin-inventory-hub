@@ -95,10 +95,10 @@ const Auth = () => {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login" className="w-full">
-            <TabsList className="grid w-full grid-cols-1">
+            {/* <TabsList className="grid w-full grid-cols-1">
               <TabsTrigger value="login">Iniciar Sesión</TabsTrigger>
-              {/* <TabsTrigger value="signup">Registrarse</TabsTrigger> */}
-            </TabsList>
+               <TabsTrigger value="signup">Registrarse</TabsTrigger>
+            </TabsList> */}
 
             <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4">
