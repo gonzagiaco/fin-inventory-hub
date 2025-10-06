@@ -474,95 +474,96 @@ const Stock = () => {
                 )}
               </div>
 
-              {/* Desktop view - Table */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="border-b border-white/10">
-                      <th className="p-4 font-semibold text-sm text-muted-foreground">Código</th>
-                      <th className="p-4 font-semibold text-sm text-muted-foreground">Nombre</th>
-                      <th className="p-4 font-semibold text-sm text-muted-foreground hidden lg:table-cell">Proveedor</th>
-                      <th className="p-4 font-semibold text-sm text-muted-foreground">Cantidad</th>
-                      <th className="p-4 font-semibold text-sm text-muted-foreground">Stock Mín</th>
-                      <th className="p-4 font-semibold text-sm text-muted-foreground">Precio Costo</th>
-                      <th className="p-4 font-semibold text-sm text-muted-foreground">Precio Público</th>
-                      <th className="p-4 font-semibold text-sm text-muted-foreground hidden xl:table-cell">Categoría</th>
-                      <th className="p-4 font-semibold text-sm text-muted-foreground text-center">
-                        Acciones
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/10">
-                    {paginatedItems.length === 0 ? (
-                      <tr>
-                        <td colSpan={9} className="p-8 text-center text-muted-foreground">
-                          No se encontraron productos
-                        </td>
-                      </tr>
-                    ) : (
-                      paginatedItems.map((item) => {
-                        const isLowStock = item.quantity < item.minStockLimit;
-                        const publicPrice = calculatePublicPrice(item);
-                        
-                        return (
-                          <tr
-                            key={item.id}
-                            className={`hover:bg-primary/10 transition-colors duration-300 ${isLowStock ? "bg-red-500/10" : ""}`}
-                          >
-                            <td className="p-4 text-sm font-medium text-foreground">{item.code}</td>
-                            <td className="p-4 text-sm font-medium text-foreground">
-                              {item.name}
-                              {item.specialDiscount && (
-                                <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-green-500/20 text-green-500">
-                                  -8%
-                                </span>
-                              )}
-                            </td>
-                            <td className="p-4 text-sm font-medium text-foreground hidden lg:table-cell">{getSupplierName(item.supplierId)}</td>
-                            <td className={`p-4 text-sm font-medium ${isLowStock ? "text-red-500 font-bold" : "text-foreground"}`}>
-                              {item.quantity}
-                              {isLowStock && (
-                                <span className="ml-2 text-xs">(Bajo stock)</span>
-                              )}
-                            </td>
-                            <td className="p-4 text-sm font-medium text-muted-foreground">{item.minStockLimit}</td>
-                            <td className="p-4 text-sm font-medium text-foreground">${item.costPrice.toFixed(2)}</td>
-                            <td className="p-4 text-sm font-medium text-primary font-bold">${publicPrice.toFixed(2)}</td>
-                            <td className="p-4 text-sm hidden xl:table-cell">
-                              <span className="px-3 py-1 text-xs font-semibold rounded-full bg-primary/20 text-primary">
-                                {item.category}
-                              </span>
-                            </td>
-                            <td className="p-4 text-sm font-semibold">
-                              <div className="flex justify-center items-center space-x-2">
-                                <button
-                                  onClick={() => handleAddToRequest(item)}
-                                  className="p-2 rounded-full hover:bg-green-500/20 transition-colors duration-300 text-green-500"
-                                  title="Solicitar a Proveedor"
-                                >
-                                  <ShoppingCart className="h-5 w-5" />
-                                </button>
-                                <button
-                                  onClick={() => handleEditItem(item)}
-                                  className="p-2 rounded-full hover:bg-primary/20 transition-colors duration-300 text-primary"
-                                >
-                                  <Edit className="h-5 w-5" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteItem(item.id)}
-                                  className="p-2 rounded-full hover:bg-red-500/20 transition-colors duration-300 text-red-500"
-                                >
-                                  <Trash2 className="h-5 w-5" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
+              {/* Desktop view - Table (sin scroll horizontal) */}
+<div className="hidden md:block">
+  <div className="overflow-hidden rounded-xl border border-white/10">
+    <table className="w-full table-fixed text-left">
+      <thead>
+        <tr className="border-b border-white/10 bg-background/30 backdrop-blur">
+          <th className="w-[10%] p-4 text-sm font-semibold text-muted-foreground">Código</th>
+          <th className="w-[25%] p-4 text-sm font-semibold text-muted-foreground">Nombre</th>
+          <th className="w-[15%] p-4 text-sm font-semibold text-muted-foreground hidden lg:table-cell">Proveedor</th>
+          <th className="w-[10%] p-4 text-sm font-semibold text-muted-foreground">Cantidad</th>
+          <th className="w-[10%] p-4 text-sm font-semibold text-muted-foreground">Stock Mín</th>
+          <th className="w-[10%] p-4 text-sm font-semibold text-muted-foreground">Costo</th>
+          <th className="w-[10%] p-4 text-sm font-semibold text-muted-foreground">Público</th>
+          <th className="w-[10%] p-4 text-sm font-semibold text-muted-foreground hidden xl:table-cell">Categoría</th>
+          <th className="w-[10%] p-4 text-sm font-semibold text-muted-foreground text-center">Acciones</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-white/10">
+        {paginatedItems.length === 0 ? (
+          <tr>
+            <td colSpan={9} className="p-8 text-center text-muted-foreground">
+              No se encontraron productos
+            </td>
+          </tr>
+        ) : (
+          paginatedItems.map((item) => {
+            const isLowStock = item.quantity < item.minStockLimit;
+            const publicPrice = calculatePublicPrice(item);
+
+            return (
+              <tr
+                key={item.id}
+                className={`hover:bg-primary/10 transition-colors duration-300 ${
+                  isLowStock ? "bg-red-500/10" : ""
+                }`}
+              >
+                <td className="p-4 text-sm font-medium truncate">{item.code}</td>
+                <td className="p-4 text-sm font-medium truncate">
+                  {item.name}
+                  {item.specialDiscount && (
+                    <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-green-500/20 text-green-500">
+                      -8%
+                    </span>
+                  )}
+                </td>
+                <td className="p-4 text-sm font-medium hidden lg:table-cell truncate">
+                  {getSupplierName(item.supplierId)}
+                </td>
+                <td
+                  className={`p-4 text-sm font-medium ${
+                    isLowStock ? "text-red-500 font-bold" : "text-foreground"
+                  }`}
+                >
+                  {item.quantity}
+                </td>
+                <td className="p-4 text-sm text-muted-foreground">{item.minStockLimit}</td>
+                <td className="p-4 text-sm text-foreground">${item.costPrice.toFixed(2)}</td>
+                <td className="p-4 text-sm text-primary font-bold">${publicPrice.toFixed(2)}</td>
+                <td className="p-4 text-sm hidden xl:table-cell truncate">{item.category}</td>
+                <td className="p-4 text-sm text-center">
+                  <div className="flex justify-center items-center space-x-2">
+                    <button
+                      onClick={() => handleAddToRequest(item)}
+                      className="p-2 rounded-full hover:bg-green-500/20 text-green-500 transition"
+                    >
+                      <ShoppingCart className="h-5 w-5" />
+                    </button>
+                    <button
+                      onClick={() => handleEditItem(item)}
+                      className="p-2 rounded-full hover:bg-primary/20 text-primary transition"
+                    >
+                      <Edit className="h-5 w-5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteItem(item.id)}
+                      className="p-2 rounded-full hover:bg-red-500/20 text-red-500 transition"
+                    >
+                      <Trash2 className="h-5 w-5" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })
+        )}
+      </tbody>
+    </table>
+  </div>
+</div>
+
               <div className="p-4 flex items-center justify-between border-t border-white/10">
                 <span className="text-sm text-muted-foreground">
                   Mostrando {paginatedItems.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0}-
