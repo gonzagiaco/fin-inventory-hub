@@ -97,7 +97,7 @@ const Auth = () => {
           <Tabs defaultValue="login" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="login">Iniciar Sesión</TabsTrigger>
-              <TabsTrigger value="signup">Registrarse</TabsTrigger>
+              {/* <TabsTrigger value="signup">Registrarse</TabsTrigger> */}
             </TabsList>
 
             <TabsContent value="login">
@@ -198,7 +198,7 @@ const Auth = () => {
             </TabsContent>
           </Tabs>
 
-          <div className="relative my-4">
+          {/* <div className="relative my-4">
             <div className="absolute inset-0 flex items-center">
               <span className="w-full border-t" />
             </div>
@@ -207,9 +207,9 @@ const Auth = () => {
                 O continuar con
               </span>
             </div>
-          </div>
+          </div> */}
 
-          <Button
+          {/* <Button
             variant="outline"
             className="w-full"
             onClick={signInWithGoogle}
@@ -234,7 +234,7 @@ const Auth = () => {
               />
             </svg>
             Google
-          </Button>
+          </Button> */}
         </CardContent>
       </Card>
     </div>
