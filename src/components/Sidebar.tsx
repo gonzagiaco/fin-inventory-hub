@@ -95,7 +95,7 @@ const Sidebar = () => {
         </nav>
 
         <div className="mt-auto space-y-4">
-          <Link
+          {/* <Link
             to="/ayuda"
             className="flex items-center gap-3 px-4 py-3 rounded-xl text-foreground hover:bg-primary/10 transition-colors"
           >
@@ -103,7 +103,7 @@ const Sidebar = () => {
               <HelpCircle className="h-6 w-6 text-primary" />
             </div>
             <span className="font-medium text-lg">Ayuda</span>
-          </Link>
+          </Link> */}
 
           <div className="glassmorphism p-4 rounded-xl">
             <div className="flex items-center gap-3 mb-3">

@@ -604,14 +604,7 @@ const Stock = () => {
               </div>
             </div>
 
-            {/* Escanear Código */}
-            <div className="glassmorphism rounded-xl shadow-lg p-6 text-center">
-              <h2 className="text-xl font-bold mb-4 text-foreground">Escanear Código</h2>
-              <button className="w-full bg-transparent border-2 border-primary text-primary font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-all duration-300 flex items-center justify-center hover:bg-primary/10">
-                <QrCode className="mr-2 h-6 w-6" />
-                <span>Escanear</span>
-              </button>
-            </div>
+            
           </div>
         </div>
       </main>
