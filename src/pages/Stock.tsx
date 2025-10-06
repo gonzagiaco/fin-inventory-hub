@@ -408,7 +408,7 @@ const Stock = () => {
             {/* Tabla de Stock - Responsive */}
             <div className="glassmorphism rounded-xl shadow-lg overflow-hidden">
               {/* Mobile view - Cards */}
-              <div className=" space-y-4 p-4">
+              <div className="md:hidden space-y-4 p-4">
                 {paginatedItems.length === 0 ? (
                   <div className="p-8 text-center text-muted-foreground">
                     No se encontraron productos
@@ -475,7 +475,7 @@ const Stock = () => {
               </div>
 
               {/* Desktop view - Table */}
-              <div className="hidden md:hidden overflow-x-auto">
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
                     <tr className="border-b border-white/10">
