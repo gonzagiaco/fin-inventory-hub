@@ -329,344 +329,408 @@ const Stock = () => {
       </div>
 
       <main>
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
-          <div className="xl:col-span-2">
-            {/* Filtros y Actualizar desde Proveedor */}
-            <div className="glassmorphism rounded-xl shadow-lg p-6 mb-8">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-bold text-foreground">Filtros</h2>
-                <button
-                  onClick={handleUpdateFromSupplier}
-                  disabled={isUpdatingFromSupplier}
-                  className="bg-secondary hover:bg-secondary/80 text-secondary-foreground font-bold py-2 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-300 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <RefreshCw className={`mr-2 h-4 w-4 ${isUpdatingFromSupplier ? "animate-spin" : ""}`} />
-                  <span>Actualizar desde Proveedores</span>
-                </button>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="relative">
-                  <label className="block text-sm font-medium text-muted-foreground mb-2">
-                    Categoría
-                  </label>
-                  <select
-                    className="w-full rounded-lg border-transparent bg-muted/50 backdrop-blur-sm py-3 px-4 text-foreground focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-sm appearance-none"
-                    value={categoryFilter}
-                    onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)}
-                  >
-                    <option>Todas</option>
-                    <option>Fruits</option>
-                    <option>Bakery</option>
-                    <option>Dairy</option>
-                    <option>Produce</option>
-                  </select>
-                </div>
-                <div className="relative">
-                  <label className="block text-sm font-medium text-muted-foreground mb-2">
-                    Cantidad
-                  </label>
-                  <select
-                    className="w-full rounded-lg border-transparent bg-muted/50 backdrop-blur-sm py-3 px-4 text-foreground focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-sm appearance-none"
-                    value={quantityFilter}
-                    onChange={(e) => setQuantityFilter(e.target.value as QuantityFilter)}
-                  >
-                    <option>Cualquiera</option>
-                    <option>&lt; 100</option>
-                    <option>100 - 200</option>
-                    <option>&gt; 200</option>
-                  </select>
-                </div>
-                <div className="relative">
-                  <label className="block text-sm font-medium text-muted-foreground mb-2">
-                    Proveedor
-                  </label>
-                  <select
-                    className="w-full rounded-lg border-transparent bg-muted/50 backdrop-blur-sm py-3 px-4 text-foreground focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-sm appearance-none"
-                    value={supplierFilter}
-                    onChange={(e) => setSupplierFilter(e.target.value)}
-                  >
-                    <option value="all">Todos los Proveedores</option>
-                    {suppliers.map((supplier) => (
-                      <option key={supplier.id} value={supplier.id}>
-                        {supplier.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex items-end">
-                  <button
-                    onClick={applyFilters}
-                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-300 flex items-center justify-center"
-                  >
-                    <Filter className="mr-2 h-5 w-5" />
-                    <span>Aplicar</span>
-                  </button>
-                </div>
-              </div>
-            </div>
+        {/* Contenedores superiores - Solo en desktop */}
+        <div className="hidden xl:grid xl:grid-cols-3 gap-8 mb-8">
+          {/* Lista de Pedidos */}
+          <RequestCart
+            requests={requestList}
+            onUpdateQuantity={handleUpdateRequestQuantity}
+            onRemove={handleRemoveFromRequest}
+            onExport={handleExportToExcel}
+            suppliers={suppliers}
+          />
 
-            {/* Tabla de Stock - Responsive */}
-            <div className="glassmorphism rounded-xl shadow-lg overflow-hidden">
-              {/* Mobile view - Cards */}
-              <div className="md:hidden space-y-4 p-4">
-                {paginatedItems.length === 0 ? (
-                  <div className="p-8 text-center text-muted-foreground">
-                    No se encontraron productos
-                  </div>
-                ) : (
-                  paginatedItems.map((item) => {
-                    const isLowStock = item.quantity < item.minStockLimit;
-                    const publicPrice = calculatePublicPrice(item);
-                    
-                    return (
-                      <div
-                        key={item.id}
-                        className={`p-4 rounded-lg border ${isLowStock ? "border-red-500 bg-red-500/10" : "border-primary/20"}`}
-                      >
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <p className="font-bold text-foreground">{item.code}</p>
-                            <p className="text-sm text-foreground">{item.name}</p>
-                            {item.specialDiscount && (
-                              <span className="inline-block mt-1 px-2 py-0.5 text-xs font-semibold rounded-full bg-green-500/20 text-green-500">
-                                -8%
-                              </span>
-                            )}
-                          </div>
-                          <span className="px-2 py-1 text-xs font-semibold rounded-full bg-primary/20 text-primary">
-                            {item.category}
-                          </span>
-                        </div>
-                        <div className="space-y-1 text-sm mb-3">
-                          <p className="text-muted-foreground">Proveedor: <span className="text-foreground">{getSupplierName(item.supplierId)}</span></p>
-                          <p className={isLowStock ? "text-red-500 font-bold" : "text-muted-foreground"}>
-                            Stock: <span className="text-foreground">{item.quantity}</span> / Mín: {item.minStockLimit}
-                            {isLowStock && <span className="ml-2 text-xs">(Bajo stock)</span>}
-                          </p>
-                          <p className="text-muted-foreground">Costo: <span className="text-foreground">${item.costPrice.toFixed(2)}</span></p>
-                          <p className="text-muted-foreground">Público: <span className="text-primary font-bold">${publicPrice.toFixed(2)}</span></p>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleAddToRequest(item)}
-                            className="flex-1 p-2 rounded-lg bg-green-500/20 text-green-500 hover:bg-green-500/30 transition-colors text-sm font-medium"
-                          >
-                            <ShoppingCart className="h-4 w-4 inline mr-1" />
-                            Solicitar
-                          </button>
-                          <button
-                            onClick={() => handleEditItem(item)}
-                            className="flex-1 p-2 rounded-lg bg-primary/20 text-primary hover:bg-primary/30 transition-colors text-sm font-medium"
-                          >
-                            <Edit className="h-4 w-4 inline mr-1" />
-                            Editar
-                          </button>
-                          <button
-                            onClick={() => handleDeleteItem(item.id)}
-                            className="p-2 rounded-lg bg-red-500/20 text-red-500 hover:bg-red-500/30 transition-colors"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+          {/* Botón Nuevo Producto */}
+          <div className="glassmorphism rounded-xl shadow-lg p-6">
+            <h2 className="text-xl font-bold mb-4 text-foreground">Gestionar Productos</h2>
+            <button
+              onClick={() => {
+                setEditingItem(null);
+                setDialogOpen(true);
+              }}
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-300 flex items-center justify-center"
+            >
+              <Plus className="mr-2 h-5 w-5" />
+              <span>Nuevo Producto</span>
+            </button>
+          </div>
 
-              {/* Desktop view - Table */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="border-b border-white/10">
-                      <th className="p-4 font-semibold text-sm text-muted-foreground">Código</th>
-                      <th className="p-4 font-semibold text-sm text-muted-foreground">Nombre</th>
-                      <th className="p-4 font-semibold text-sm text-muted-foreground hidden lg:table-cell">Proveedor</th>
-                      <th className="p-4 font-semibold text-sm text-muted-foreground">Cantidad</th>
-                      <th className="p-4 font-semibold text-sm text-muted-foreground">Stock Mín</th>
-                      <th className="p-4 font-semibold text-sm text-muted-foreground">Precio Costo</th>
-                      <th className="p-4 font-semibold text-sm text-muted-foreground">Precio Público</th>
-                      <th className="p-4 font-semibold text-sm text-muted-foreground hidden xl:table-cell">Categoría</th>
-                      <th className="p-4 font-semibold text-sm text-muted-foreground text-center">
-                        Acciones
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/10">
-                    {paginatedItems.length === 0 ? (
-                      <tr>
-                        <td colSpan={9} className="p-8 text-center text-muted-foreground">
-                          No se encontraron productos
-                        </td>
-                      </tr>
-                    ) : (
-                      paginatedItems.map((item) => {
-                        const isLowStock = item.quantity < item.minStockLimit;
-                        const publicPrice = calculatePublicPrice(item);
-                        
-                        return (
-                          <tr
-                            key={item.id}
-                            className={`hover:bg-primary/10 transition-colors duration-300 ${isLowStock ? "bg-red-500/10" : ""}`}
-                          >
-                            <td className="p-4 text-sm font-medium text-foreground">{item.code}</td>
-                            <td className="p-4 text-sm font-medium text-foreground">
-                              {item.name}
-                              {item.specialDiscount && (
-                                <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-green-500/20 text-green-500">
-                                  -8%
-                                </span>
-                              )}
-                            </td>
-                            <td className="p-4 text-sm font-medium text-foreground hidden lg:table-cell">{getSupplierName(item.supplierId)}</td>
-                            <td className={`p-4 text-sm font-medium ${isLowStock ? "text-red-500 font-bold" : "text-foreground"}`}>
-                              {item.quantity}
-                              {isLowStock && (
-                                <span className="ml-2 text-xs">(Bajo stock)</span>
-                              )}
-                            </td>
-                            <td className="p-4 text-sm font-medium text-muted-foreground">{item.minStockLimit}</td>
-                            <td className="p-4 text-sm font-medium text-foreground">${item.costPrice.toFixed(2)}</td>
-                            <td className="p-4 text-sm font-medium text-primary font-bold">${publicPrice.toFixed(2)}</td>
-                            <td className="p-4 text-sm hidden xl:table-cell">
-                              <span className="px-3 py-1 text-xs font-semibold rounded-full bg-primary/20 text-primary">
-                                {item.category}
-                              </span>
-                            </td>
-                            <td className="p-4 text-sm font-semibold">
-                              <div className="flex justify-center items-center space-x-2">
-                                <button
-                                  onClick={() => handleAddToRequest(item)}
-                                  className="p-2 rounded-full hover:bg-green-500/20 transition-colors duration-300 text-green-500"
-                                  title="Solicitar a Proveedor"
-                                >
-                                  <ShoppingCart className="h-5 w-5" />
-                                </button>
-                                <button
-                                  onClick={() => handleEditItem(item)}
-                                  className="p-2 rounded-full hover:bg-primary/20 transition-colors duration-300 text-primary"
-                                >
-                                  <Edit className="h-5 w-5" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteItem(item.id)}
-                                  className="p-2 rounded-full hover:bg-red-500/20 transition-colors duration-300 text-red-500"
-                                >
-                                  <Trash2 className="h-5 w-5" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              <div className="p-4 flex items-center justify-between border-t border-white/10">
-                <span className="text-sm text-muted-foreground">
-                  Mostrando {paginatedItems.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0}-
-                  {Math.min(currentPage * ITEMS_PER_PAGE, filteredItems.length)} de{" "}
-                  {filteredItems.length} resultados
+          {/* Importar desde Excel */}
+          <div className="glassmorphism rounded-xl shadow-lg p-6">
+            <h2 className="text-xl font-bold mb-4 text-foreground">Importar desde Excel</h2>
+            <div className="space-y-4">
+              <label
+                htmlFor="file-upload"
+                className="cursor-pointer w-full flex flex-col items-center justify-center p-6 rounded-lg border-2 border-dashed border-primary/50 hover:bg-primary/10 transition-colors duration-300"
+              >
+                <Upload className="h-10 w-10 text-primary" />
+                <span className="mt-2 text-sm text-center text-muted-foreground">
+                  {selectedFile ? selectedFile.name : "Cargar Archivo Excel"}
                 </span>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                    className="p-2 rounded-md hover:bg-primary/10 transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={currentPage === 1}
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`p-2 px-4 rounded-md font-bold transition-colors ${
-                        currentPage === page
-                          ? "bg-primary/20 text-primary"
-                          : "hover:bg-primary/10 text-muted-foreground"
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    className="p-2 rounded-md hover:bg-primary/10 transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                    disabled={currentPage === totalPages}
-                  >
-                    <ChevronRight className="h-5 w-5" />
-                  </button>
+              </label>
+              <input
+                id="file-upload"
+                type="file"
+                accept=".xlsx, .xls"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+              {isUploading && (
+                <div className="flex items-center space-x-3">
+                  <div className="animate-spin h-9 w-9 border-4 border-primary/20 border-t-primary rounded-full" />
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Cargando archivo...
+                  </span>
                 </div>
+              )}
+              <button
+                onClick={handleUpdateStock}
+                disabled={isUploading}
+                className="w-full bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-300 flex items-center justify-center"
+              >
+                <Upload className="mr-2 h-5 w-5" />
+                <span>Actualizar Stock</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Filtros y Tabla - Ancho completo */}
+        <div>
+          {/* Filtros y Actualizar desde Proveedor */}
+          <div className="glassmorphism rounded-xl shadow-lg p-6 mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-foreground">Filtros</h2>
+              <button
+                onClick={handleUpdateFromSupplier}
+                disabled={isUpdatingFromSupplier}
+                className="bg-secondary hover:bg-secondary/80 text-secondary-foreground font-bold py-2 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-300 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <RefreshCw className={`mr-2 h-4 w-4 ${isUpdatingFromSupplier ? "animate-spin" : ""}`} />
+                <span>Actualizar desde Proveedores</span>
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="relative">
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
+                  Categoría
+                </label>
+                <select
+                  className="w-full rounded-lg border-transparent bg-muted/50 backdrop-blur-sm py-3 px-4 text-foreground focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-sm appearance-none"
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)}
+                >
+                  <option>Todas</option>
+                  <option>Fruits</option>
+                  <option>Bakery</option>
+                  <option>Dairy</option>
+                  <option>Produce</option>
+                </select>
+              </div>
+              <div className="relative">
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
+                  Cantidad
+                </label>
+                <select
+                  className="w-full rounded-lg border-transparent bg-muted/50 backdrop-blur-sm py-3 px-4 text-foreground focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-sm appearance-none"
+                  value={quantityFilter}
+                  onChange={(e) => setQuantityFilter(e.target.value as QuantityFilter)}
+                >
+                  <option>Cualquiera</option>
+                  <option>&lt; 100</option>
+                  <option>100 - 200</option>
+                  <option>&gt; 200</option>
+                </select>
+              </div>
+              <div className="relative">
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
+                  Proveedor
+                </label>
+                <select
+                  className="w-full rounded-lg border-transparent bg-muted/50 backdrop-blur-sm py-3 px-4 text-foreground focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-sm appearance-none"
+                  value={supplierFilter}
+                  onChange={(e) => setSupplierFilter(e.target.value)}
+                >
+                  <option value="all">Todos los Proveedores</option>
+                  {suppliers.map((supplier) => (
+                    <option key={supplier.id} value={supplier.id}>
+                      {supplier.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={applyFilters}
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-300 flex items-center justify-center"
+                >
+                  <Filter className="mr-2 h-5 w-5" />
+                  <span>Aplicar</span>
+                </button>
               </div>
             </div>
           </div>
 
-          <div className="space-y-8">
-            {/* Lista de Pedidos */}
-            <RequestCart
-              requests={requestList}
-              onUpdateQuantity={handleUpdateRequestQuantity}
-              onRemove={handleRemoveFromRequest}
-              onExport={handleExportToExcel}
-              suppliers={suppliers}
-            />
-
-            {/* Botón Nuevo Producto */}
-            <div className="glassmorphism rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-bold mb-4 text-foreground">Gestionar Productos</h2>
-              <button
-                onClick={() => {
-                  setEditingItem(null);
-                  setDialogOpen(true);
-                }}
-                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-300 flex items-center justify-center"
-              >
-                <Plus className="mr-2 h-5 w-5" />
-                <span>Nuevo Producto</span>
-              </button>
+          {/* Tabla de Stock - Responsive */}
+          <div className="glassmorphism rounded-xl shadow-lg overflow-hidden">
+            {/* Mobile view - Cards */}
+            <div className="md:hidden space-y-4 p-4">
+              {paginatedItems.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  No se encontraron productos
+                </div>
+              ) : (
+                paginatedItems.map((item) => {
+                  const isLowStock = item.quantity < item.minStockLimit;
+                  const publicPrice = calculatePublicPrice(item);
+                  
+                  return (
+                    <div
+                      key={item.id}
+                      className={`p-4 rounded-lg border ${isLowStock ? "border-red-500 bg-red-500/10" : "border-primary/20"}`}
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <p className="font-bold text-foreground">{item.code}</p>
+                          <p className="text-sm text-foreground">{item.name}</p>
+                          {item.specialDiscount && (
+                            <span className="inline-block mt-1 px-2 py-0.5 text-xs font-semibold rounded-full bg-green-500/20 text-green-500">
+                              -8%
+                            </span>
+                          )}
+                        </div>
+                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-primary/20 text-primary">
+                          {item.category}
+                        </span>
+                      </div>
+                      <div className="space-y-1 text-sm mb-3">
+                        <p className="text-muted-foreground">Proveedor: <span className="text-foreground">{getSupplierName(item.supplierId)}</span></p>
+                        <p className={isLowStock ? "text-red-500 font-bold" : "text-muted-foreground"}>
+                          Stock: <span className="text-foreground">{item.quantity}</span> / Mín: {item.minStockLimit}
+                          {isLowStock && <span className="ml-2 text-xs">(Bajo stock)</span>}
+                        </p>
+                        <p className="text-muted-foreground">Costo: <span className="text-foreground">${item.costPrice.toFixed(2)}</span></p>
+                        <p className="text-muted-foreground">Público: <span className="text-primary font-bold">${publicPrice.toFixed(2)}</span></p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleAddToRequest(item)}
+                          className="flex-1 p-2 rounded-lg bg-green-500/20 text-green-500 hover:bg-green-500/30 transition-colors text-sm font-medium"
+                        >
+                          <ShoppingCart className="h-4 w-4 inline mr-1" />
+                          Solicitar
+                        </button>
+                        <button
+                          onClick={() => handleEditItem(item)}
+                          className="flex-1 p-2 rounded-lg bg-primary/20 text-primary hover:bg-primary/30 transition-colors text-sm font-medium"
+                        >
+                          <Edit className="h-4 w-4 inline mr-1" />
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => handleDeleteItem(item.id)}
+                          className="p-2 rounded-lg bg-red-500/20 text-red-500 hover:bg-red-500/30 transition-colors"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
 
-            {/* Importar desde Excel */}
-            <div className="glassmorphism rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-bold mb-4 text-foreground">Importar desde Excel</h2>
-              <div className="space-y-4">
-                <label
-                  htmlFor="file-upload"
-                  className="cursor-pointer w-full flex flex-col items-center justify-center p-6 rounded-lg border-2 border-dashed border-primary/50 hover:bg-primary/10 transition-colors duration-300"
-                >
-                  <Upload className="h-10 w-10 text-primary" />
-                  <span className="mt-2 text-sm text-center text-muted-foreground">
-                    {selectedFile ? selectedFile.name : "Cargar Archivo Excel"}
-                  </span>
-                </label>
-                <input
-                  id="file-upload"
-                  type="file"
-                  accept=".xlsx, .xls"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-                {isUploading && (
-                  <div className="flex items-center space-x-3">
-                    <div className="animate-spin h-9 w-9 border-4 border-primary/20 border-t-primary rounded-full" />
-                    <span className="text-sm font-medium text-muted-foreground">
-                      Cargando archivo...
-                    </span>
-                  </div>
-                )}
+            {/* Desktop view - Table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-white/10">
+                    <th className="p-4 font-semibold text-sm text-muted-foreground">Código</th>
+                    <th className="p-4 font-semibold text-sm text-muted-foreground">Nombre</th>
+                    <th className="p-4 font-semibold text-sm text-muted-foreground hidden lg:table-cell">Proveedor</th>
+                    <th className="p-4 font-semibold text-sm text-muted-foreground">Cantidad</th>
+                    <th className="p-4 font-semibold text-sm text-muted-foreground">Stock Mín</th>
+                    <th className="p-4 font-semibold text-sm text-muted-foreground">Precio Costo</th>
+                    <th className="p-4 font-semibold text-sm text-muted-foreground">Precio Público</th>
+                    <th className="p-4 font-semibold text-sm text-muted-foreground hidden xl:table-cell">Categoría</th>
+                    <th className="p-4 font-semibold text-sm text-muted-foreground text-center">
+                      Acciones
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {paginatedItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="p-8 text-center text-muted-foreground">
+                        No se encontraron productos
+                      </td>
+                    </tr>
+                  ) : (
+                    paginatedItems.map((item) => {
+                      const isLowStock = item.quantity < item.minStockLimit;
+                      const publicPrice = calculatePublicPrice(item);
+                      
+                      return (
+                        <tr
+                          key={item.id}
+                          className={`hover:bg-primary/10 transition-colors duration-300 ${isLowStock ? "bg-red-500/10" : ""}`}
+                        >
+                          <td className="p-4 text-sm font-medium text-foreground">{item.code}</td>
+                          <td className="p-4 text-sm font-medium text-foreground">
+                            {item.name}
+                            {item.specialDiscount && (
+                              <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-green-500/20 text-green-500">
+                                -8%
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-4 text-sm font-medium text-foreground hidden lg:table-cell">{getSupplierName(item.supplierId)}</td>
+                          <td className={`p-4 text-sm font-medium ${isLowStock ? "text-red-500 font-bold" : "text-foreground"}`}>
+                            {item.quantity}
+                            {isLowStock && (
+                              <span className="ml-2 text-xs">(Bajo stock)</span>
+                            )}
+                          </td>
+                          <td className="p-4 text-sm font-medium text-muted-foreground">{item.minStockLimit}</td>
+                          <td className="p-4 text-sm font-medium text-foreground">${item.costPrice.toFixed(2)}</td>
+                          <td className="p-4 text-sm font-medium text-primary font-bold">${publicPrice.toFixed(2)}</td>
+                          <td className="p-4 text-sm hidden xl:table-cell">
+                            <span className="px-3 py-1 text-xs font-semibold rounded-full bg-primary/20 text-primary">
+                              {item.category}
+                            </span>
+                          </td>
+                          <td className="p-4 text-sm font-semibold">
+                            <div className="flex justify-center items-center space-x-2">
+                              <button
+                                onClick={() => handleAddToRequest(item)}
+                                className="p-2 rounded-full hover:bg-green-500/20 transition-colors duration-300 text-green-500"
+                                title="Solicitar a Proveedor"
+                              >
+                                <ShoppingCart className="h-5 w-5" />
+                              </button>
+                              <button
+                                onClick={() => handleEditItem(item)}
+                                className="p-2 rounded-full hover:bg-primary/20 transition-colors duration-300 text-primary"
+                              >
+                                <Edit className="h-5 w-5" />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteItem(item.id)}
+                                className="p-2 rounded-full hover:bg-red-500/20 transition-colors duration-300 text-red-500"
+                              >
+                                <Trash2 className="h-5 w-5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="p-4 flex items-center justify-between border-t border-white/10">
+              <span className="text-sm text-muted-foreground">
+                Mostrando {paginatedItems.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0}-
+                {Math.min(currentPage * ITEMS_PER_PAGE, filteredItems.length)} de{" "}
+                {filteredItems.length} resultados
+              </span>
+              <div className="flex items-center space-x-2">
                 <button
-                  onClick={handleUpdateStock}
-                  disabled={isUploading}
-                  className="w-full bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-300 flex items-center justify-center"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="p-2 rounded-md hover:bg-primary/10 transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={currentPage === 1}
                 >
-                  <Upload className="mr-2 h-5 w-5" />
-                  <span>Actualizar Stock</span>
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`p-2 px-4 rounded-md font-bold transition-colors ${
+                      currentPage === page
+                        ? "bg-primary/20 text-primary"
+                        : "hover:bg-primary/10 text-muted-foreground"
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className="p-2 rounded-md hover:bg-primary/10 transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={currentPage === totalPages}
+                >
+                  <ChevronRight className="h-5 w-5" />
                 </button>
               </div>
             </div>
+          </div>
+        </div>
 
-            
+        {/* Contenedores inferiores - Solo en tablet y mobile */}
+        <div className="xl:hidden space-y-8 mt-8">
+          {/* Lista de Pedidos */}
+          <RequestCart
+            requests={requestList}
+            onUpdateQuantity={handleUpdateRequestQuantity}
+            onRemove={handleRemoveFromRequest}
+            onExport={handleExportToExcel}
+            suppliers={suppliers}
+          />
+
+          {/* Botón Nuevo Producto */}
+          <div className="glassmorphism rounded-xl shadow-lg p-6">
+            <h2 className="text-xl font-bold mb-4 text-foreground">Gestionar Productos</h2>
+            <button
+              onClick={() => {
+                setEditingItem(null);
+                setDialogOpen(true);
+              }}
+              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-300 flex items-center justify-center"
+            >
+              <Plus className="mr-2 h-5 w-5" />
+              <span>Nuevo Producto</span>
+            </button>
+          </div>
+
+          {/* Importar desde Excel */}
+          <div className="glassmorphism rounded-xl shadow-lg p-6">
+            <h2 className="text-xl font-bold mb-4 text-foreground">Importar desde Excel</h2>
+            <div className="space-y-4">
+              <label
+                htmlFor="file-upload-mobile"
+                className="cursor-pointer w-full flex flex-col items-center justify-center p-6 rounded-lg border-2 border-dashed border-primary/50 hover:bg-primary/10 transition-colors duration-300"
+              >
+                <Upload className="h-10 w-10 text-primary" />
+                <span className="mt-2 text-sm text-center text-muted-foreground">
+                  {selectedFile ? selectedFile.name : "Cargar Archivo Excel"}
+                </span>
+              </label>
+              <input
+                id="file-upload-mobile"
+                type="file"
+                accept=".xlsx, .xls"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+              {isUploading && (
+                <div className="flex items-center space-x-3">
+                  <div className="animate-spin h-9 w-9 border-4 border-primary/20 border-t-primary rounded-full" />
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Cargando archivo...
+                  </span>
+                </div>
+              )}
+              <button
+                onClick={handleUpdateStock}
+                disabled={isUploading}
+                className="w-full bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-300 flex items-center justify-center"
+              >
+                <Upload className="mr-2 h-5 w-5" />
+                <span>Actualizar Stock</span>
+              </button>
+            </div>
           </div>
         </div>
       </main>
