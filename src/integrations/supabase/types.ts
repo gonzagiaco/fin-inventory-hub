@@ -55,6 +55,53 @@ export type Database = {
           },
         ]
       }
+      dynamic_products: {
+        Row: {
+          code: string | null
+          created_at: string
+          data: Json
+          id: string
+          list_id: string
+          name: string | null
+          price: number | null
+          quantity: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          data?: Json
+          id?: string
+          list_id: string
+          name?: string | null
+          price?: number | null
+          quantity?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          data?: Json
+          id?: string
+          list_id?: string
+          name?: string | null
+          price?: number | null
+          quantity?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dynamic_products_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "product_lists"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       import_records: {
         Row: {
           created_at: string | null
@@ -232,6 +279,53 @@ export type Database = {
             columns: ["invoice_id"]
             isOneToOne: false
             referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_lists: {
+        Row: {
+          column_schema: Json
+          created_at: string
+          file_name: string
+          file_type: string
+          id: string
+          name: string
+          product_count: number
+          supplier_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          column_schema?: Json
+          created_at?: string
+          file_name: string
+          file_type: string
+          id?: string
+          name: string
+          product_count?: number
+          supplier_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          column_schema?: Json
+          created_at?: string
+          file_name?: string
+          file_type?: string
+          id?: string
+          name?: string
+          product_count?: number
+          supplier_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_lists_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "suppliers"
             referencedColumns: ["id"]
           },
         ]

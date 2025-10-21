@@ -274,15 +274,6 @@ const Proveedores = () => {
           open={isDetailDialogOpen}
           onOpenChange={setIsDetailDialogOpen}
           supplier={selectedSupplier}
-          products={stockItems.filter(
-            (item) => item.supplierId === selectedSupplier.id
-          )}
-          suppliers={suppliers}
-          onImportProducts={handleImportProducts}
-          onAddImportRecord={handleAddImportRecord}
-          importRecords={importRecords}
-          onAddProduct={handleAddProduct}
-          onDeleteProduct={handleDeleteProduct}
         />
       )}
 
