@@ -10,8 +10,7 @@ import {
 } from "@tanstack/react-table";
 import { DynamicProduct, ColumnSchema } from "@/types/productList";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Settings2, Search, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, ChevronDown, ChevronUp } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -20,13 +19,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox";
 import { useProductListStore } from "@/stores/productListStore";
+import { ColumnSettingsDrawer } from "./ColumnSettingsDrawer";
+import { cn } from "@/lib/utils";
 
 interface DynamicProductTableProps {
   listId: string;
@@ -42,14 +37,20 @@ export const DynamicProductTable = ({
   const [globalFilter, setGlobalFilter] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
   
-  const { columnVisibility, setColumnVisibility } = useProductListStore();
+  const { columnVisibility, columnOrder, columnPinning } = useProductListStore();
+
+  const currentOrder = columnOrder[listId] || columnSchema.map((c) => c.key);
+  const visibilityState = columnVisibility[listId] || {};
 
   const columns = useMemo<ColumnDef<DynamicProduct>[]>(() => {
-    const visibilityState = columnVisibility[listId] || {};
-    
-    return columnSchema
-      .sort((a, b) => a.order - b.order)
-      .map((schema) => ({
+    const orderedSchema = currentOrder
+      .map((key) => columnSchema.find((c) => c.key === key))
+      .filter(Boolean) as ColumnSchema[];
+
+    return orderedSchema.map((schema) => {
+      const isVisible = visibilityState[schema.key] !== false;
+      
+      return {
         id: schema.key,
         accessorFn: (row: DynamicProduct) => {
           // Check standard fields first
@@ -71,10 +72,11 @@ export const DynamicProductTable = ({
         },
         meta: {
           isStandard: schema.isStandard,
-          visible: visibilityState[schema.key] !== false,
+          visible: isVisible,
         },
-      }));
-  }, [columnSchema, listId, columnVisibility]);
+      };
+    });
+  }, [columnSchema, listId, currentOrder, visibilityState]);
 
   const visibleColumns = useMemo(() => {
     return columns.filter((col) => {
@@ -94,12 +96,9 @@ export const DynamicProductTable = ({
     state: {
       sorting,
       globalFilter,
+      columnPinning: columnPinning[listId] || {},
     },
   });
-
-  const handleColumnVisibilityChange = (columnKey: string, visible: boolean) => {
-    setColumnVisibility(listId, columnKey, visible);
-  };
 
   return (
     <div className="space-y-4">
@@ -114,47 +113,7 @@ export const DynamicProductTable = ({
             className="pl-10"
           />
         </div>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button variant="outline" size="sm" className="gap-2">
-              <Settings2 className="w-4 h-4" />
-              Columnas
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-64" align="end">
-            <div className="space-y-4">
-              <h4 className="font-semibold text-sm">Visibilidad de columnas</h4>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {columnSchema.map((schema) => {
-                  const isVisible = columnVisibility[listId]?.[schema.key] !== false;
-                  return (
-                    <div key={schema.key} className="flex items-center gap-2">
-                      <Checkbox
-                        id={`col-${schema.key}`}
-                        checked={isVisible}
-                        onCheckedChange={(checked) =>
-                          handleColumnVisibilityChange(schema.key, checked as boolean)
-                        }
-                        disabled={schema.isStandard}
-                      />
-                      <label
-                        htmlFor={`col-${schema.key}`}
-                        className="text-sm flex-1 cursor-pointer"
-                      >
-                        {schema.label}
-                        {schema.isStandard && (
-                          <span className="text-xs text-muted-foreground ml-1">
-                            (fija)
-                          </span>
-                        )}
-                      </label>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </PopoverContent>
-        </Popover>
+        <ColumnSettingsDrawer listId={listId} columnSchema={columnSchema} />
       </div>
 
       {/* Table */}
@@ -195,14 +154,26 @@ export const DynamicProductTable = ({
             ) : (
               table.getRowModel().rows.map((row) => (
                 <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  ))}
+                  {row.getVisibleCells().map((cell) => {
+                    const column = cell.column;
+                    const meta = column.columnDef.meta as any;
+                    const isHiddenButVisible = meta?.visible === false;
+                    
+                    return (
+                      <TableCell
+                        key={cell.id}
+                        className={cn(
+                          isHiddenButVisible &&
+                            "opacity-30 bg-stripes"
+                        )}
+                      >
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext()
+                        )}
+                      </TableCell>
+                    );
+                  })}
                 </TableRow>
               ))
             )}
