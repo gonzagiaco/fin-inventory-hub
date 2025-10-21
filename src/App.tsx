@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "./components/ProtectedRoute";
-import Sidebar from "./components/Sidebar";
+import CollapsibleSidebar from "./components/CollapsibleSidebar";
 import Stock from "./pages/Stock";
 import ClientesDeudores from "./pages/ClientesDeudores";
 import Proveedores from "./pages/Proveedores";
@@ -29,7 +29,7 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <div className="flex min-h-screen w-full">
-                    <Sidebar />
+                    <CollapsibleSidebar />
                     <Stock />
                   </div>
                 </ProtectedRoute>
@@ -40,7 +40,7 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <div className="flex min-h-screen w-full">
-                    <Sidebar />
+                    <CollapsibleSidebar />
                     <ClientesDeudores />
                   </div>
                 </ProtectedRoute>
@@ -51,7 +51,7 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <div className="flex min-h-screen w-full">
-                    <Sidebar />
+                    <CollapsibleSidebar />
                     <Proveedores />
                   </div>
                 </ProtectedRoute>
@@ -62,7 +62,7 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <div className="flex min-h-screen w-full">
-                    <Sidebar />
+                    <CollapsibleSidebar />
                     <Ayuda />
                   </div>
                 </ProtectedRoute>

@@ -96,6 +96,7 @@ function findValidSheet(workbook: XLSX.WorkBook): { sheetName: string; data: any
 
 /**
  * Imports products from an Excel file with robust column detection and normalization
+ * Supports dynamic columns - unrecognized columns are stored in the extras field
  * 
  * @param file - The Excel file to import
  * @param existingProducts - Array of existing products to check for updates
@@ -127,7 +128,7 @@ export async function importProductsFromExcel(
     // Get the headers from the first data row
     const headers = Object.keys(jsonData[0]);
     
-    // Find the column names
+    // Find the column names for standard fields
     const codeColumn = findColumn(headers, COLUMN_MAPPINGS.code);
     const nameColumn = findColumn(headers, COLUMN_MAPPINGS.name);
     const priceColumn = findColumn(headers, COLUMN_MAPPINGS.price);
@@ -135,6 +136,12 @@ export async function importProductsFromExcel(
     if (!priceColumn) {
       throw new Error("Could not find price column. Expected columns: code, name/description, price");
     }
+    
+    // Identify standard columns that have been mapped
+    const mappedColumns = new Set<string>();
+    if (codeColumn) mappedColumns.add(codeColumn);
+    if (nameColumn) mappedColumns.add(nameColumn);
+    if (priceColumn) mappedColumns.add(priceColumn);
     
     let newCount = 0;
     let updateCount = 0;
@@ -162,18 +169,28 @@ export async function importProductsFromExcel(
         continue; // Skip invalid rows
       }
       
+      // Extract dynamic fields (extras)
+      const extras: Record<string, any> = {};
+      for (const header of headers) {
+        if (!mappedColumns.has(header) && row[header] !== undefined && row[header] !== null && row[header] !== "") {
+          // Store any non-standard column in extras
+          extras[header] = row[header];
+        }
+      }
+      
       // Check if product already exists (by code and supplierId)
       const existingProduct = existingProducts.find(
         (p) => p.code === code && p.supplierId === supplierId
       );
       
       if (existingProduct) {
-        // Update existing product
+        // Update existing product, merge extras
         updateCount++;
         importedProducts.push({
           ...existingProduct,
           name: name || existingProduct.name,
           costPrice,
+          extras: Object.keys(extras).length > 0 ? { ...existingProduct.extras, ...extras } : existingProduct.extras,
         });
       } else {
         // Create new product
@@ -188,6 +205,7 @@ export async function importProductsFromExcel(
           supplierId,
           specialDiscount: false,
           minStockLimit: 10,
+          extras: Object.keys(extras).length > 0 ? extras : undefined,
         });
       }
     }

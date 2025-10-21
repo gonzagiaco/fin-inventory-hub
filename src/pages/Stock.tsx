@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { StockItem, CategoryFilter, QuantityFilter, RequestItem, Supplier } from "@/types";
 import * as XLSX from "xlsx";
 import { importProductsFromExcel } from "@/utils/importExcel";
+import { exportOrdersBySupplier } from "@/utils/exportOrdersBySupplier";
 
 const ITEMS_PER_PAGE = 5;
 
@@ -71,6 +72,8 @@ const Stock = () => {
         matchesQuantity = item.quantity >= 100 && item.quantity <= 200;
       } else if (quantityFilter === "> 200") {
         matchesQuantity = item.quantity > 200;
+      } else if (quantityFilter === "Bajo Stock") {
+        matchesQuantity = item.quantity <= item.minStockLimit;
       }
 
       // Filtro de proveedor
@@ -270,35 +273,20 @@ const Stock = () => {
   };
 
   const handleExportToExcel = () => {
-    // Create worksheet data
-    const worksheetData = [
-      ["Código", "Nombre", "Proveedor", "Cantidad", "Precio Unitario", "Subtotal"],
-      ...requestList.map((item) => [
-        item.code,
-        item.name,
-        getSupplierName(item.supplierId),
-        item.quantity,
-        item.costPrice.toFixed(2),
-        (item.costPrice * item.quantity).toFixed(2),
-      ]),
-      [],
-      ["", "", "", "", "TOTAL:", requestList.reduce((sum, item) => sum + item.costPrice * item.quantity, 0).toFixed(2)],
-    ];
+    if (requestList.length === 0) {
+      toast.error("No hay productos para exportar");
+      return;
+    }
 
-    // Create workbook and worksheet
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(worksheetData);
-
-    // Add worksheet to workbook
-    XLSX.utils.book_append_sheet(wb, ws, "Pedido");
-
-    // Generate file name with date
-    const fileName = `pedido_${new Date().toISOString().split("T")[0]}.xlsx`;
-
-    // Save file
-    XLSX.writeFile(wb, fileName);
+    // Export one file per supplier
+    exportOrdersBySupplier(requestList, suppliers);
     
-    toast.success("Lista exportada correctamente");
+    // Count unique suppliers
+    const uniqueSuppliers = new Set(requestList.map(item => item.supplierId)).size;
+    
+    toast.success("Pedidos exportados", {
+      description: `Se generaron ${uniqueSuppliers} archivo${uniqueSuppliers > 1 ? 's' : ''} (uno por proveedor)`,
+    });
   };
 
   const calculatePublicPrice = (item: StockItem) => {
@@ -329,8 +317,8 @@ const Stock = () => {
       </div>
 
       <main>
-        {/* Contenedores superiores - Solo en desktop */}
-        <div className="hidden xl:grid xl:grid-cols-3 gap-8 mb-8">
+        {/* Contenedores superiores - Solo en desktop (Import container removed) */}
+        <div className="hidden xl:grid xl:grid-cols-2 gap-8 mb-8">
           {/* Lista de Pedidos */}
           <RequestCart
             requests={requestList}
@@ -353,45 +341,6 @@ const Stock = () => {
               <Plus className="mr-2 h-5 w-5" />
               <span>Nuevo Producto</span>
             </button>
-          </div>
-
-          {/* Importar desde Excel */}
-          <div className="glassmorphism rounded-xl shadow-lg p-6">
-            <h2 className="text-xl font-bold mb-4 text-foreground">Importar desde Excel</h2>
-            <div className="space-y-4">
-              <label
-                htmlFor="file-upload"
-                className="cursor-pointer w-full flex flex-col items-center justify-center p-6 rounded-lg border-2 border-dashed border-primary/50 hover:bg-primary/10 transition-colors duration-300"
-              >
-                <Upload className="h-10 w-10 text-primary" />
-                <span className="mt-2 text-sm text-center text-muted-foreground">
-                  {selectedFile ? selectedFile.name : "Cargar Archivo Excel"}
-                </span>
-              </label>
-              <input
-                id="file-upload"
-                type="file"
-                accept=".xlsx, .xls"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-              {isUploading && (
-                <div className="flex items-center space-x-3">
-                  <div className="animate-spin h-9 w-9 border-4 border-primary/20 border-t-primary rounded-full" />
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Cargando archivo...
-                  </span>
-                </div>
-              )}
-              <button
-                onClick={handleUpdateStock}
-                disabled={isUploading}
-                className="w-full bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-300 flex items-center justify-center"
-              >
-                <Upload className="mr-2 h-5 w-5" />
-                <span>Actualizar Stock</span>
-              </button>
-            </div>
           </div>
         </div>
 
@@ -440,6 +389,7 @@ const Stock = () => {
                   <option>&lt; 100</option>
                   <option>100 - 200</option>
                   <option>&gt; 200</option>
+                  <option>Bajo Stock</option>
                 </select>
               </div>
               <div className="relative">
@@ -694,44 +644,6 @@ const Stock = () => {
             </button>
           </div>
 
-          {/* Importar desde Excel */}
-          <div className="glassmorphism rounded-xl shadow-lg p-6">
-            <h2 className="text-xl font-bold mb-4 text-foreground">Importar desde Excel</h2>
-            <div className="space-y-4">
-              <label
-                htmlFor="file-upload-mobile"
-                className="cursor-pointer w-full flex flex-col items-center justify-center p-6 rounded-lg border-2 border-dashed border-primary/50 hover:bg-primary/10 transition-colors duration-300"
-              >
-                <Upload className="h-10 w-10 text-primary" />
-                <span className="mt-2 text-sm text-center text-muted-foreground">
-                  {selectedFile ? selectedFile.name : "Cargar Archivo Excel"}
-                </span>
-              </label>
-              <input
-                id="file-upload-mobile"
-                type="file"
-                accept=".xlsx, .xls"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-              {isUploading && (
-                <div className="flex items-center space-x-3">
-                  <div className="animate-spin h-9 w-9 border-4 border-primary/20 border-t-primary rounded-full" />
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Cargando archivo...
-                  </span>
-                </div>
-              )}
-              <button
-                onClick={handleUpdateStock}
-                disabled={isUploading}
-                className="w-full bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-primary-foreground font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-300 flex items-center justify-center"
-              >
-                <Upload className="mr-2 h-5 w-5" />
-                <span>Actualizar Stock</span>
-              </button>
-            </div>
-          </div>
         </div>
       </main>
 

@@ -302,6 +302,7 @@ export type Database = {
           code: string
           cost_price: number | null
           created_at: string | null
+          extras: Json | null
           id: string
           min_stock_limit: number | null
           name: string
@@ -316,6 +317,7 @@ export type Database = {
           code: string
           cost_price?: number | null
           created_at?: string | null
+          extras?: Json | null
           id?: string
           min_stock_limit?: number | null
           name: string
@@ -330,6 +332,7 @@ export type Database = {
           code?: string
           cost_price?: number | null
           created_at?: string | null
+          extras?: Json | null
           id?: string
           min_stock_limit?: number | null
           name?: string

@@ -8,6 +8,7 @@ export interface StockItem {
   supplierId: string;
   specialDiscount: boolean;
   minStockLimit: number;
+  extras?: Record<string, any>; // Dynamic fields from Excel imports
 }
 
 export interface RequestItem {
@@ -67,4 +68,4 @@ export interface ImportRecord {
 }
 
 export type CategoryFilter = "Todas" | "Fruits" | "Bakery" | "Dairy" | "Produce";
-export type QuantityFilter = "Cualquiera" | "< 100" | "100 - 200" | "> 200";
+export type QuantityFilter = "Cualquiera" | "< 100" | "100 - 200" | "> 200" | "Bajo Stock";
