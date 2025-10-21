@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const PYTHON_BACKEND_URL = Deno.env.get("PYTHON_BACKEND_URL") || "http://localhost:8000";
+const PYTHON_BACKEND_URL = "https://dario-herramientas-api.onrender.com";
 
 serve(async (req) => {
   // Handle CORS
