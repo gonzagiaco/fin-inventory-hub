@@ -2,78 +2,28 @@ import { useState } from "react";
 import Header from "@/components/Header";
 import { Button } from "@/components/ui/button";
 import { Plus, Pencil, Trash2, Building2 } from "lucide-react";
-import { Supplier, StockItem, ImportRecord } from "@/types";
+import { Supplier } from "@/types";
 import SupplierDialog from "@/components/SupplierDialog";
 import SupplierDetailDialog from "@/components/SupplierDetailDialog";
 import DeleteConfirmDialog from "@/components/DeleteConfirmDialog";
-import { toast } from "@/hooks/use-toast";
 import {
   Card,
-  CardContent,
   CardFooter,
   CardHeader,
 } from "@/components/ui/card";
+import { useSuppliers } from "@/hooks/useSuppliers";
+import { useProductLists } from "@/hooks/useProductLists";
 
 const Proveedores = () => {
-  const [suppliers, setSuppliers] = useState<Supplier[]>([
-    {
-      id: "1",
-      name: "Fresh Farms",
-      logo: "https://images.unsplash.com/photo-1560493676-04071c5f467b?w=200&h=200&fit=crop",
-    },
-    {
-      id: "2",
-      name: "Bakery Co",
-      logo: "https://images.unsplash.com/photo-1628088062854-d1870b4553da?w=200&h=200&fit=crop",
-    },
-    {
-      id: "3",
-      name: "Dairy Express",
-      logo: "https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&h=200&fit=crop",
-    },
-    {
-      id: "4",
-      name: "Farm Direct",
-      logo: "",
-    },
-    {
-      id: "5",
-      name: "Tropical Imports",
-      logo: "",
-    },
-  ]);
-
-  const [stockItems, setStockItems] = useState<StockItem[]>([
-    {
-      id: "1",
-      code: "PROD001",
-      name: "Fresh Apples",
-      quantity: 150,
-      category: "Fruits",
-      costPrice: 1.5,
-      supplierId: "1",
-      specialDiscount: true,
-      minStockLimit: 50,
-    },
-    {
-      id: "2",
-      code: "PROD002",
-      name: "Organic Milk",
-      quantity: 80,
-      category: "Dairy",
-      costPrice: 2.0,
-      supplierId: "3",
-      specialDiscount: false,
-      minStockLimit: 30,
-    },
-  ]);
-
-  const [importRecords, setImportRecords] = useState<ImportRecord[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null);
+
+  // Use Supabase hooks for data
+  const { suppliers, isLoading: isLoadingSuppliers, createSupplier, updateSupplier, deleteSupplier } = useSuppliers();
+  const { productLists, isLoading: isLoadingLists } = useProductLists();
 
   const handleCreateSupplier = () => {
     setSelectedSupplier(null);
@@ -92,24 +42,20 @@ const Proveedores = () => {
 
   const handleDeleteConfirm = () => {
     if (supplierToDelete) {
-      setSuppliers(suppliers.filter((s) => s.id !== supplierToDelete.id));
-      setStockItems(stockItems.filter((item) => item.supplierId !== supplierToDelete.id));
-      toast({
-        title: "Proveedor eliminado",
-        description: `${supplierToDelete.name} y sus productos han sido eliminados.`,
-      });
+      deleteSupplier(supplierToDelete.id);
       setSupplierToDelete(null);
     }
   };
 
-  const handleSaveSupplier = (supplier: Supplier) => {
-    if (selectedSupplier) {
-      setSuppliers(
-        suppliers.map((s) => (s.id === supplier.id ? supplier : s))
-      );
+  const handleSaveSupplier = (supplier: Omit<Supplier, "id"> & { id?: string }) => {
+    if (supplier.id) {
+      // Edit existing
+      updateSupplier({ id: supplier.id, name: supplier.name, logo: supplier.logo });
     } else {
-      setSuppliers([...suppliers, supplier]);
+      // Create new
+      createSupplier({ name: supplier.name, logo: supplier.logo });
     }
+    setSelectedSupplier(null);
   };
 
   const handleViewDetails = (supplier: Supplier) => {
@@ -117,52 +63,11 @@ const Proveedores = () => {
     setIsDetailDialogOpen(true);
   };
 
-  const handleImportProducts = (products: StockItem[], supplierId: string) => {
-    const updatedItems = [...stockItems];
-    
-    products.forEach((importedProduct) => {
-      const existingIndex = updatedItems.findIndex(
-        (item) => item.code === importedProduct.code
-      );
-      
-      if (existingIndex !== -1) {
-        updatedItems[existingIndex] = importedProduct;
-      } else {
-        updatedItems.push(importedProduct);
-      }
-    });
-
-    setStockItems(updatedItems);
-  };
-
-  const handleAddImportRecord = (record: ImportRecord) => {
-    setImportRecords([record, ...importRecords]);
-  };
-
-  const handleAddProduct = (product: Omit<StockItem, "id"> & { id?: string }) => {
-    if (product.id) {
-      setStockItems((prev) =>
-        prev.map((item) => (item.id === product.id ? { ...product, id: product.id } : item))
-      );
-      toast({
-        title: "Producto actualizado",
-        description: "El producto ha sido actualizado correctamente.",
-      });
-    } else {
-      const newProduct: StockItem = {
-        ...product,
-        id: crypto.randomUUID(),
-      };
-      setStockItems((prev) => [...prev, newProduct]);
-      toast({
-        title: "Producto agregado",
-        description: "El producto ha sido agregado correctamente.",
-      });
-    }
-  };
-
-  const handleDeleteProduct = (productId: string) => {
-    setStockItems((prev) => prev.filter((item) => item.id !== productId));
+  const getProductCount = (supplierId: string) => {
+    // Count products from all lists of this supplier
+    return productLists
+      .filter(list => list.supplierId === supplierId)
+      .reduce((total, list) => total + list.productCount, 0);
   };
 
   return (
@@ -180,7 +85,11 @@ const Proveedores = () => {
         </Button>
       </div>
 
-      {suppliers.length === 0 ? (
+      {isLoadingSuppliers ? (
+        <div className="glassmorphism rounded-xl shadow-lg p-12 text-center">
+          <p className="text-muted-foreground">Cargando proveedores...</p>
+        </div>
+      ) : suppliers.length === 0 ? (
         <div className="glassmorphism rounded-xl shadow-lg p-12 text-center">
           <Building2 className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
           <h2 className="text-2xl font-bold text-foreground mb-2">
@@ -197,9 +106,7 @@ const Proveedores = () => {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {suppliers.map((supplier) => {
-            const supplierProducts = stockItems.filter(
-              (item) => item.supplierId === supplier.id
-            );
+            const productCount = getProductCount(supplier.id);
 
             return (
               <Card
@@ -225,7 +132,7 @@ const Proveedores = () => {
                         {supplier.name}
                       </h3>
                       <p className="text-sm text-muted-foreground">
-                        {supplierProducts.length} productos
+                        {productCount} productos
                       </p>
                     </div>
                   </div>

@@ -1,49 +1,26 @@
 import { useState, useMemo } from "react";
 import Header from "@/components/Header";
-import StockDialog from "@/components/StockDialog";
 import DeleteConfirmDialog from "@/components/DeleteConfirmDialog";
 import RequestCart from "@/components/RequestCart";
-import { Upload, QrCode, Edit, Trash2, ChevronLeft, ChevronRight, Filter, Plus, RefreshCw, ShoppingCart } from "lucide-react";
+import { ChevronLeft, ChevronRight, Filter, ShoppingCart } from "lucide-react";
 import { toast } from "sonner";
-import { StockItem, CategoryFilter, QuantityFilter, RequestItem, Supplier } from "@/types";
-import * as XLSX from "xlsx";
-import { importProductsFromExcel } from "@/utils/importExcel";
+import { QuantityFilter, RequestItem } from "@/types";
 import { exportOrdersBySupplier } from "@/utils/exportOrdersBySupplier";
+import { useAllDynamicProducts, EnrichedProduct } from "@/hooks/useAllDynamicProducts";
 
 const ITEMS_PER_PAGE = 5;
 
 const Stock = () => {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("Todas");
   const [quantityFilter, setQuantityFilter] = useState<QuantityFilter>("Cualquiera");
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
-  
-  // Mock suppliers list
-  const [suppliers] = useState<Supplier[]>([
-    { id: "1", name: "Fresh Farms", logo: "" },
-    { id: "2", name: "Bakery Co", logo: "" },
-    { id: "3", name: "Dairy Express", logo: "" },
-    { id: "4", name: "Farm Direct", logo: "" },
-    { id: "5", name: "Tropical Imports", logo: "" },
-  ]);
 
-  const [stockItems, setStockItems] = useState<StockItem[]>([
-    { id: "1", code: "A123", name: "Organic Apples", quantity: 150, category: "Fruits", costPrice: 25.50, supplierId: "1", specialDiscount: false, minStockLimit: 100 },
-    { id: "2", code: "B456", name: "Whole Wheat Bread", quantity: 80, category: "Bakery", costPrice: 15.00, supplierId: "2", specialDiscount: true, minStockLimit: 50 },
-    { id: "3", code: "C789", name: "Fresh Milk", quantity: 120, category: "Dairy", costPrice: 12.00, supplierId: "3", specialDiscount: false, minStockLimit: 100 },
-    { id: "4", code: "D012", name: "Tomatoes", quantity: 95, category: "Produce", costPrice: 8.50, supplierId: "4", specialDiscount: true, minStockLimit: 80 },
-    { id: "5", code: "E345", name: "Bananas", quantity: 200, category: "Fruits", costPrice: 18.00, supplierId: "5", specialDiscount: false, minStockLimit: 150 },
-    { id: "6", code: "F678", name: "Croissants", quantity: 45, category: "Bakery", costPrice: 20.00, supplierId: "2", specialDiscount: false, minStockLimit: 60 },
-  ]);
+  // Use Supabase hook for data
+  const { allProducts, suppliers, isLoading } = useAllDynamicProducts();
 
   const [requestList, setRequestList] = useState<RequestItem[]>([]);
-  const [isUpdatingFromSupplier, setIsUpdatingFromSupplier] = useState(false);
 
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingItem, setEditingItem] = useState<StockItem | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
 
@@ -54,35 +31,34 @@ const Stock = () => {
 
   // Filtrado y búsqueda
   const filteredItems = useMemo(() => {
-    return stockItems.filter((item) => {
+    return allProducts.filter((item) => {
       // Búsqueda
       const matchesSearch =
-        item.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.name.toLowerCase().includes(searchQuery.toLowerCase());
-
-      // Filtro de categoría
-      const matchesCategory =
-        categoryFilter === "Todas" || item.category === categoryFilter;
+        (item.code?.toLowerCase() || "").includes(searchQuery.toLowerCase()) ||
+        (item.name?.toLowerCase() || "").includes(searchQuery.toLowerCase());
 
       // Filtro de cantidad
       let matchesQuantity = true;
+      const quantity = item.quantity || 0;
       if (quantityFilter === "< 100") {
-        matchesQuantity = item.quantity < 100;
+        matchesQuantity = quantity < 100;
       } else if (quantityFilter === "100 - 200") {
-        matchesQuantity = item.quantity >= 100 && item.quantity <= 200;
+        matchesQuantity = quantity >= 100 && quantity <= 200;
       } else if (quantityFilter === "> 200") {
-        matchesQuantity = item.quantity > 200;
+        matchesQuantity = quantity > 200;
       } else if (quantityFilter === "Bajo Stock") {
-        matchesQuantity = item.quantity <= item.minStockLimit;
+        // For dynamic products, we don't have minStockLimit, so use a default threshold
+        matchesQuantity = quantity < 50;
       }
 
-      // Filtro de proveedor
+      // Filtro de proveedor - need to find supplier from product's listId
       const matchesSupplier =
-        supplierFilter === "all" || item.supplierId === supplierFilter;
+        supplierFilter === "all" || 
+        suppliers.some(s => s.id === supplierFilter && s.name === item.supplierName);
 
-      return matchesSearch && matchesCategory && matchesQuantity && matchesSupplier;
+      return matchesSearch && matchesQuantity && matchesSupplier;
     });
-  }, [stockItems, searchQuery, categoryFilter, quantityFilter, supplierFilter]);
+  }, [allProducts, searchQuery, quantityFilter, supplierFilter, suppliers]);
 
   // Paginación
   const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
@@ -94,150 +70,19 @@ const Stock = () => {
   // Resetear página cuando cambien los filtros
   useMemo(() => {
     setCurrentPage(1);
-  }, [searchQuery, categoryFilter, quantityFilter, supplierFilter]);
+  }, [searchQuery, quantityFilter, supplierFilter]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setSelectedFile(file);
-    }
-  };
-
-  const handleUpdateStock = async () => {
-    if (!selectedFile) {
-      toast.error("Por favor, selecciona un archivo primero");
-      return;
-    }
-
-    if (supplierFilter === "all") {
-      toast.error("Selecciona un proveedor", {
-        description: "Por favor selecciona un proveedor antes de importar productos.",
-      });
-      return;
-    }
-
-    setIsUploading(true);
-
-    try {
-      // Filter current products by selected supplier
-      const currentProducts = stockItems.filter(
-        (item) => item.supplierId === supplierFilter
-      );
-
-      const { importedProducts, newCount, updateCount } = await importProductsFromExcel(
-        selectedFile,
-        currentProducts,
-        supplierFilter
-      );
-
-      if (importedProducts.length === 0) {
-        toast.error("Error en importación", {
-          description: "No se encontraron productos válidos en el archivo. Asegúrate de que tenga columnas: code, name/description, price.",
-        });
-        return;
-      }
-
-      // Merge imported products into stock items
-      setStockItems((prev) => {
-        const updatedItems = [...prev];
-        
-        importedProducts.forEach((importedProduct) => {
-          const existingIndex = updatedItems.findIndex(
-            (item) => item.id === importedProduct.id || 
-            (item.code === importedProduct.code && item.supplierId === importedProduct.supplierId)
-          );
-
-          if (existingIndex !== -1) {
-            // Update existing product
-            updatedItems[existingIndex] = importedProduct;
-          } else {
-            // Add new product
-            updatedItems.push(importedProduct);
-          }
-        });
-
-        return updatedItems;
-      });
-
-      toast.success("Importación exitosa", {
-        description: `${newCount} productos nuevos agregados, ${updateCount} productos actualizados.`,
-      });
-
-      setSelectedFile(null);
-      // Reset file input
-      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-      if (fileInput) {
-        fileInput.value = "";
-      }
-    } catch (error) {
-      console.error("Error importing file:", error);
-      toast.error("Error", {
-        description: error instanceof Error ? error.message : "No se pudo procesar el archivo Excel.",
-      });
-    } finally {
-      setIsUploading(false);
-    }
-  };
-
-  const handleSaveItem = (item: Omit<StockItem, "id"> & { id?: string }) => {
-    if (item.id) {
-      // Editar
-      setStockItems((prev) =>
-        prev.map((i) => (i.id === item.id ? { ...item, id: item.id } : i))
-      );
-      toast.success("Producto actualizado correctamente");
-    } else {
-      // Crear
-      const newItem: StockItem = {
-        ...item,
-        id: Date.now().toString(),
-      };
-      setStockItems((prev) => [...prev, newItem]);
-      toast.success("Producto creado correctamente");
-    }
-    setEditingItem(null);
-  };
-
-  const handleDeleteItem = (id: string) => {
-    setDeletingItemId(id);
-    setDeleteDialogOpen(true);
-  };
-
-  const confirmDelete = () => {
-    if (deletingItemId) {
-      setStockItems((prev) => prev.filter((item) => item.id !== deletingItemId));
-      toast.success("Producto eliminado correctamente");
-      setDeletingItemId(null);
-    }
-  };
-
-  const handleEditItem = (item: StockItem) => {
-    setEditingItem(item);
-    setDialogOpen(true);
-  };
 
   const applyFilters = () => {
     toast.success("Filtros aplicados");
   };
 
-  const handleUpdateFromSupplier = () => {
-    setIsUpdatingFromSupplier(true);
-    
-    setTimeout(() => {
-      setStockItems((prev) =>
-        prev.map((item) => ({
-          ...item,
-          quantity: item.quantity + Math.floor(Math.random() * 20 - 5),
-          costPrice: item.costPrice + (Math.random() * 4 - 2),
-        }))
-      );
-      setIsUpdatingFromSupplier(false);
-      toast.success("Datos actualizados desde proveedores");
-    }, 2000);
-  };
-
-  const handleAddToRequest = (item: StockItem) => {
+  const handleAddToRequest = (item: EnrichedProduct) => {
     const existingItem = requestList.find((r) => r.productId === item.id);
+    
+    // Find supplier ID from suppliers array
+    const supplier = suppliers.find(s => s.name === item.supplierName);
+    const supplierId = supplier?.id || "";
     
     if (existingItem) {
       setRequestList((prev) =>
@@ -250,10 +95,10 @@ const Stock = () => {
       const newRequest: RequestItem = {
         id: Date.now().toString(),
         productId: item.id,
-        code: item.code,
-        name: item.name,
-        supplierId: item.supplierId,
-        costPrice: item.costPrice,
+        code: item.code || "",
+        name: item.name || "",
+        supplierId: supplierId,
+        costPrice: item.price || 0,
         quantity: 1,
       };
       setRequestList((prev) => [...prev, newRequest]);
@@ -289,11 +134,10 @@ const Stock = () => {
     });
   };
 
-  const calculatePublicPrice = (item: StockItem) => {
-    if (item.specialDiscount) {
-      return (item.costPrice * 0.92) * 2;
-    }
-    return item.costPrice * 2;
+  const calculatePublicPrice = (item: EnrichedProduct) => {
+    const price = item.price || 0;
+    // Since we don't have specialDiscount info, use standard calculation
+    return price * 2;
   };
 
   return (
@@ -317,8 +161,8 @@ const Stock = () => {
       </div>
 
       <main>
-        {/* Contenedores superiores - Solo en desktop (Import container removed) */}
-        <div className="hidden xl:grid xl:grid-cols-2 gap-8 mb-8">
+        {/* Contenedores superiores - Solo en desktop */}
+        <div className="hidden xl:grid xl:grid-cols-1 gap-8 mb-8">
           {/* Lista de Pedidos */}
           <RequestCart
             requests={requestList}
@@ -327,55 +171,16 @@ const Stock = () => {
             onExport={handleExportToExcel}
             suppliers={suppliers}
           />
-
-          {/* Botón Nuevo Producto */}
-          <div className="glassmorphism rounded-xl shadow-lg p-6">
-            <h2 className="text-xl font-bold mb-4 text-foreground">Gestionar Productos</h2>
-            <button
-              onClick={() => {
-                setEditingItem(null);
-                setDialogOpen(true);
-              }}
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-300 flex items-center justify-center"
-            >
-              <Plus className="mr-2 h-5 w-5" />
-              <span>Nuevo Producto</span>
-            </button>
-          </div>
         </div>
 
-        {/* Filtros y Tabla - Ancho completo */}
+        {/* Filtros - Ancho completo */}
         <div>
-          {/* Filtros y Actualizar desde Proveedor */}
+          {/* Filtros */}
           <div className="glassmorphism rounded-xl shadow-lg p-6 mb-8">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-foreground">Filtros</h2>
-              <button
-                onClick={handleUpdateFromSupplier}
-                disabled={isUpdatingFromSupplier}
-                className="bg-secondary hover:bg-secondary/80 text-secondary-foreground font-bold py-2 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-300 flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <RefreshCw className={`mr-2 h-4 w-4 ${isUpdatingFromSupplier ? "animate-spin" : ""}`} />
-                <span>Actualizar desde Proveedores</span>
-              </button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="relative">
-                <label className="block text-sm font-medium text-muted-foreground mb-2">
-                  Categoría
-                </label>
-                <select
-                  className="w-full rounded-lg border-transparent bg-muted/50 backdrop-blur-sm py-3 px-4 text-foreground focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-sm appearance-none"
-                  value={categoryFilter}
-                  onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)}
-                >
-                  <option>Todas</option>
-                  <option>Fruits</option>
-                  <option>Bakery</option>
-                  <option>Dairy</option>
-                  <option>Produce</option>
-                </select>
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="relative">
                 <label className="block text-sm font-medium text-muted-foreground mb-2">
                   Cantidad
@@ -425,13 +230,17 @@ const Stock = () => {
           <div className="glassmorphism rounded-xl shadow-lg overflow-hidden">
             {/* Mobile view - Cards */}
             <div className="md:hidden space-y-4 p-4">
-              {paginatedItems.length === 0 ? (
+              {isLoading ? (
                 <div className="p-8 text-center text-muted-foreground">
-                  No se encontraron productos
+                  Cargando productos...
+                </div>
+              ) : paginatedItems.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  No se encontraron productos. Importa productos desde la página de Proveedores.
                 </div>
               ) : (
                 paginatedItems.map((item) => {
-                  const isLowStock = item.quantity < item.minStockLimit;
+                  const isLowStock = (item.quantity || 0) < 50; // Default threshold
                   const publicPrice = calculatePublicPrice(item);
                   
                   return (
@@ -441,25 +250,17 @@ const Stock = () => {
                     >
                       <div className="flex justify-between items-start mb-2">
                         <div>
-                          <p className="font-bold text-foreground">{item.code}</p>
-                          <p className="text-sm text-foreground">{item.name}</p>
-                          {item.specialDiscount && (
-                            <span className="inline-block mt-1 px-2 py-0.5 text-xs font-semibold rounded-full bg-green-500/20 text-green-500">
-                              -8%
-                            </span>
-                          )}
+                          <p className="font-bold text-foreground">{item.code || "N/A"}</p>
+                          <p className="text-sm text-foreground">{item.name || "N/A"}</p>
                         </div>
-                        <span className="px-2 py-1 text-xs font-semibold rounded-full bg-primary/20 text-primary">
-                          {item.category}
-                        </span>
                       </div>
                       <div className="space-y-1 text-sm mb-3">
-                        <p className="text-muted-foreground">Proveedor: <span className="text-foreground">{getSupplierName(item.supplierId)}</span></p>
+                        <p className="text-muted-foreground">Proveedor: <span className="text-foreground">{item.supplierName}</span></p>
                         <p className={isLowStock ? "text-red-500 font-bold" : "text-muted-foreground"}>
-                          Stock: <span className="text-foreground">{item.quantity}</span> / Mín: {item.minStockLimit}
+                          Stock: <span className="text-foreground">{item.quantity || 0}</span>
                           {isLowStock && <span className="ml-2 text-xs">(Bajo stock)</span>}
                         </p>
-                        <p className="text-muted-foreground">Costo: <span className="text-foreground">${item.costPrice.toFixed(2)}</span></p>
+                        <p className="text-muted-foreground">Precio: <span className="text-foreground">${(item.price || 0).toFixed(2)}</span></p>
                         <p className="text-muted-foreground">Público: <span className="text-primary font-bold">${publicPrice.toFixed(2)}</span></p>
                       </div>
                       <div className="flex gap-2">
@@ -469,19 +270,6 @@ const Stock = () => {
                         >
                           <ShoppingCart className="h-4 w-4 inline mr-1" />
                           Solicitar
-                        </button>
-                        <button
-                          onClick={() => handleEditItem(item)}
-                          className="flex-1 p-2 rounded-lg bg-primary/20 text-primary hover:bg-primary/30 transition-colors text-sm font-medium"
-                        >
-                          <Edit className="h-4 w-4 inline mr-1" />
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => handleDeleteItem(item.id)}
-                          className="p-2 rounded-lg bg-red-500/20 text-red-500 hover:bg-red-500/30 transition-colors"
-                        >
-                          <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
                     </div>
@@ -499,25 +287,29 @@ const Stock = () => {
                     <th className="p-4 font-semibold text-sm text-muted-foreground">Nombre</th>
                     <th className="p-4 font-semibold text-sm text-muted-foreground hidden lg:table-cell">Proveedor</th>
                     <th className="p-4 font-semibold text-sm text-muted-foreground">Cantidad</th>
-                    <th className="p-4 font-semibold text-sm text-muted-foreground">Stock Mín</th>
-                    <th className="p-4 font-semibold text-sm text-muted-foreground">Precio Costo</th>
+                    <th className="p-4 font-semibold text-sm text-muted-foreground">Precio</th>
                     <th className="p-4 font-semibold text-sm text-muted-foreground">Precio Público</th>
-                    <th className="p-4 font-semibold text-sm text-muted-foreground hidden xl:table-cell">Categoría</th>
                     <th className="p-4 font-semibold text-sm text-muted-foreground text-center">
                       Acciones
                     </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/10">
-                  {paginatedItems.length === 0 ? (
+                  {isLoading ? (
                     <tr>
-                      <td colSpan={9} className="p-8 text-center text-muted-foreground">
-                        No se encontraron productos
+                      <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                        Cargando productos...
+                      </td>
+                    </tr>
+                  ) : paginatedItems.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                        No se encontraron productos. Importa productos desde la página de Proveedores.
                       </td>
                     </tr>
                   ) : (
                     paginatedItems.map((item) => {
-                      const isLowStock = item.quantity < item.minStockLimit;
+                      const isLowStock = (item.quantity || 0) < 50;
                       const publicPrice = calculatePublicPrice(item);
                       
                       return (
@@ -525,30 +317,19 @@ const Stock = () => {
                           key={item.id}
                           className={`hover:bg-primary/10 transition-colors duration-300 ${isLowStock ? "bg-red-500/10" : ""}`}
                         >
-                          <td className="p-4 text-sm font-medium text-foreground">{item.code}</td>
+                          <td className="p-4 text-sm font-medium text-foreground">{item.code || "N/A"}</td>
                           <td className="p-4 text-sm font-medium text-foreground">
-                            {item.name}
-                            {item.specialDiscount && (
-                              <span className="ml-2 px-2 py-0.5 text-xs font-semibold rounded-full bg-green-500/20 text-green-500">
-                                -8%
-                              </span>
-                            )}
+                            {item.name || "N/A"}
                           </td>
-                          <td className="p-4 text-sm font-medium text-foreground hidden lg:table-cell">{getSupplierName(item.supplierId)}</td>
+                          <td className="p-4 text-sm font-medium text-foreground hidden lg:table-cell">{item.supplierName}</td>
                           <td className={`p-4 text-sm font-medium ${isLowStock ? "text-red-500 font-bold" : "text-foreground"}`}>
-                            {item.quantity}
+                            {item.quantity || 0}
                             {isLowStock && (
                               <span className="ml-2 text-xs">(Bajo stock)</span>
                             )}
                           </td>
-                          <td className="p-4 text-sm font-medium text-muted-foreground">{item.minStockLimit}</td>
-                          <td className="p-4 text-sm font-medium text-foreground">${item.costPrice.toFixed(2)}</td>
+                          <td className="p-4 text-sm font-medium text-foreground">${(item.price || 0).toFixed(2)}</td>
                           <td className="p-4 text-sm font-medium text-primary font-bold">${publicPrice.toFixed(2)}</td>
-                          <td className="p-4 text-sm hidden xl:table-cell">
-                            <span className="px-3 py-1 text-xs font-semibold rounded-full bg-primary/20 text-primary">
-                              {item.category}
-                            </span>
-                          </td>
                           <td className="p-4 text-sm font-semibold">
                             <div className="flex justify-center items-center space-x-2">
                               <button
@@ -557,18 +338,6 @@ const Stock = () => {
                                 title="Solicitar a Proveedor"
                               >
                                 <ShoppingCart className="h-5 w-5" />
-                              </button>
-                              <button
-                                onClick={() => handleEditItem(item)}
-                                className="p-2 rounded-full hover:bg-primary/20 transition-colors duration-300 text-primary"
-                              >
-                                <Edit className="h-5 w-5" />
-                              </button>
-                              <button
-                                onClick={() => handleDeleteItem(item.id)}
-                                className="p-2 rounded-full hover:bg-red-500/20 transition-colors duration-300 text-red-500"
-                              >
-                                <Trash2 className="h-5 w-5" />
                               </button>
                             </div>
                           </td>
@@ -628,39 +397,15 @@ const Stock = () => {
             onExport={handleExportToExcel}
             suppliers={suppliers}
           />
-
-          {/* Botón Nuevo Producto */}
-          <div className="glassmorphism rounded-xl shadow-lg p-6">
-            <h2 className="text-xl font-bold mb-4 text-foreground">Gestionar Productos</h2>
-            <button
-              onClick={() => {
-                setEditingItem(null);
-                setDialogOpen(true);
-              }}
-              className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-300 flex items-center justify-center"
-            >
-              <Plus className="mr-2 h-5 w-5" />
-              <span>Nuevo Producto</span>
-            </button>
-          </div>
-
         </div>
       </main>
-
-      <StockDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        item={editingItem}
-        onSave={handleSaveItem}
-        suppliers={suppliers}
-      />
 
       <DeleteConfirmDialog
         open={deleteDialogOpen}
         onOpenChange={setDeleteDialogOpen}
-        onConfirm={confirmDelete}
-        title="¿Eliminar producto?"
-        description="Esta acción no se puede deshacer. El producto será eliminado permanentemente del inventario."
+        onConfirm={() => setDeleteDialogOpen(false)}
+        title="Eliminar producto"
+        description="Esta funcionalidad estará disponible próximamente."
       />
     </div>
   );
