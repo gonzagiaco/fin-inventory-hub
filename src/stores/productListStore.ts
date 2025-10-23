@@ -36,6 +36,18 @@ interface ActiveViewState {
   [listId: string]: string | null; // View ID or null
 }
 
+interface ViewModeState {
+  [listId: string]: "table" | "cards";
+}
+
+interface CardPreviewFieldsState {
+  [listId: string]: string[];
+}
+
+interface SearchableColumnsState {
+  [listId: string]: string[];
+}
+
 interface ProductListStore {
   columnVisibility: ColumnVisibilityState;
   columnOrder: ColumnOrderState;
@@ -43,12 +55,18 @@ interface ProductListStore {
   savedViews: SavedViewsState;
   activeView: ActiveViewState;
   collapsedLists: Set<string>;
+  viewMode: ViewModeState;
+  cardPreviewFields: CardPreviewFieldsState;
+  searchableColumns: SearchableColumnsState;
   
   setColumnVisibility: (listId: string, columnKey: string, visible: boolean) => void;
   setColumnOrder: (listId: string, order: string[]) => void;
   setColumnPinning: (listId: string, pinning: { left?: string[]; right?: string[] }) => void;
   toggleListCollapse: (listId: string) => void;
   resetColumnSettings: (listId: string) => void;
+  setViewMode: (listId: string, mode: "table" | "cards") => void;
+  setCardPreviewFields: (listId: string, fields: string[]) => void;
+  setSearchableColumns: (listId: string, columns: string[]) => void;
   
   // Saved views
   saveView: (listId: string, name: string) => void;
@@ -68,6 +86,9 @@ export const useProductListStore = create<ProductListStore>()(
       savedViews: {},
       activeView: {},
       collapsedLists: new Set(),
+      viewMode: {},
+      cardPreviewFields: {},
+      searchableColumns: {},
 
       setColumnVisibility: (listId, columnKey, visible) =>
         set((state) => ({
@@ -201,6 +222,30 @@ export const useProductListStore = create<ProductListStore>()(
         // The actual persistence happens through the hook mutation
         console.log('Store: updating column label', { listId, columnKey, newLabel });
       },
+
+      setViewMode: (listId, mode) =>
+        set((state) => ({
+          viewMode: {
+            ...state.viewMode,
+            [listId]: mode,
+          },
+        })),
+
+      setCardPreviewFields: (listId, fields) =>
+        set((state) => ({
+          cardPreviewFields: {
+            ...state.cardPreviewFields,
+            [listId]: fields,
+          },
+        })),
+
+      setSearchableColumns: (listId, columns) =>
+        set((state) => ({
+          searchableColumns: {
+            ...state.searchableColumns,
+            [listId]: columns,
+          },
+        })),
     }),
     {
       name: 'product-list-settings',
@@ -210,6 +255,9 @@ export const useProductListStore = create<ProductListStore>()(
         columnPinning: state.columnPinning,
         savedViews: state.savedViews,
         activeView: state.activeView,
+        viewMode: state.viewMode,
+        cardPreviewFields: state.cardPreviewFields,
+        searchableColumns: state.searchableColumns,
       }),
     }
   )

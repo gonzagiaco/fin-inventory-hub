@@ -14,7 +14,8 @@ import { ProductListDetails, EnrichedProduct } from "@/hooks/useAllDynamicProduc
 import { ColumnSettingsDrawer } from "@/components/ColumnSettingsDrawer";
 import { useProductListStore } from "@/stores/productListStore";
 import { ProductCardView } from "@/components/ProductCardView";
-import { LayoutGrid, List } from "lucide-react";
+import { CardPreviewSettings } from "@/components/CardPreviewSettings";
+import { List, LayoutGrid } from "lucide-react";
 
 interface ProductListStockTableProps {
   list: ProductListDetails;
@@ -28,12 +29,19 @@ export function ProductListStockTable({
   onAddToRequest,
 }: ProductListStockTableProps) {
   const [isExpanded, setIsExpanded] = useState(true);
-  const [viewMode, setViewMode] = useState<"table" | "cards">("table");
-  const { columnVisibility, columnOrder } = useProductListStore();
+  
+  // Get column configuration and view mode from store
+  const { 
+    columnVisibility, 
+    columnOrder,
+    viewMode: storeViewMode,
+    setViewMode
+  } = useProductListStore();
 
   // Automatically use card view if many columns
   const shouldUseCardView = list.columnSchema.length > 8;
-  const effectiveViewMode = shouldUseCardView ? viewMode : "table";
+  const currentViewMode = storeViewMode[list.listId] || "table";
+  const effectiveViewMode = shouldUseCardView ? currentViewMode : "table";
 
   const visibilityState = columnVisibility[list.listId] || {};
   const currentOrder = columnOrder[list.listId] || list.columnSchema.map((col) => col.key);
@@ -74,21 +82,22 @@ export function ProductListStockTable({
             </div>
           </div>
           {shouldUseCardView && (
-            <div className="flex items-center gap-1 border rounded-md">
+            <div className="flex gap-2">
               <Button
-                variant={effectiveViewMode === "table" ? "default" : "ghost"}
+                variant={effectiveViewMode === "table" ? "default" : "outline"}
                 size="sm"
-                onClick={() => setViewMode("table")}
+                onClick={() => setViewMode(list.listId, "table")}
               >
                 <List className="h-4 w-4" />
               </Button>
               <Button
-                variant={effectiveViewMode === "cards" ? "default" : "ghost"}
+                variant={effectiveViewMode === "cards" ? "default" : "outline"}
                 size="sm"
-                onClick={() => setViewMode("cards")}
+                onClick={() => setViewMode(list.listId, "cards")}
               >
                 <LayoutGrid className="h-4 w-4" />
               </Button>
+              <CardPreviewSettings listId={list.listId} columnSchema={list.columnSchema} />
             </div>
           )}
           <ColumnSettingsDrawer listId={list.listId} columnSchema={list.columnSchema} />
@@ -99,6 +108,7 @@ export function ProductListStockTable({
         effectiveViewMode === "cards" ? (
           <div className="p-4">
             <ProductCardView
+              listId={list.listId}
               products={products}
               columnSchema={list.columnSchema}
               onAddToRequest={onAddToRequest}
@@ -106,8 +116,10 @@ export function ProductListStockTable({
             />
           </div>
         ) : (
-          <div className="overflow-x-auto max-h-[600px]">
-            <Table>
+          <div className="border-t">
+            <div className="overflow-x-auto">
+              <div className="max-h-[600px] overflow-y-auto">
+                <Table>
               <TableHeader>
                 <TableRow>
                   {visibleColumns.map((column) => (
@@ -187,6 +199,8 @@ export function ProductListStockTable({
                 )}
               </TableBody>
             </Table>
+              </div>
+            </div>
           </div>
         )
       )}

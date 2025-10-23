@@ -24,7 +24,8 @@ import { ColumnSettingsDrawer } from "./ColumnSettingsDrawer";
 import { cn } from "@/lib/utils";
 import { ProductCardView } from "./ProductCardView";
 import { Button } from "@/components/ui/button";
-import { LayoutGrid, List } from "lucide-react";
+import { CardPreviewSettings } from "./CardPreviewSettings";
+import { List, LayoutGrid } from "lucide-react";
 
 interface DynamicProductTableProps {
   listId: string;
@@ -39,13 +40,20 @@ export const DynamicProductTable = ({
 }: DynamicProductTableProps) => {
   const [globalFilter, setGlobalFilter] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   
-  const { columnVisibility, columnOrder, columnPinning } = useProductListStore();
+  // Get column configuration and view mode from store
+  const { 
+    columnVisibility, 
+    columnOrder, 
+    columnPinning,
+    viewMode: storeViewMode,
+    setViewMode
+  } = useProductListStore();
 
-  // Automatically switch to card view if many columns
+  // Determine if we should use card view based on column count
   const shouldUseCardView = columnSchema.length > 8;
-  const effectiveViewMode = shouldUseCardView ? viewMode : "table";
+  const currentViewMode = storeViewMode[listId] || "table";
+  const effectiveViewMode = shouldUseCardView ? currentViewMode : "table";
 
   const currentOrder = columnOrder[listId] || columnSchema.map((c) => c.key);
   const visibilityState = columnVisibility[listId] || {};
@@ -122,21 +130,22 @@ export const DynamicProductTable = ({
           />
         </div>
         {shouldUseCardView && (
-          <div className="flex items-center gap-1 border rounded-md">
+          <div className="flex gap-2">
             <Button
-              variant={effectiveViewMode === "table" ? "default" : "ghost"}
+              variant={effectiveViewMode === "table" ? "default" : "outline"}
               size="sm"
-              onClick={() => setViewMode("table")}
+              onClick={() => setViewMode(listId, "table")}
             >
               <List className="h-4 w-4" />
             </Button>
             <Button
-              variant={effectiveViewMode === "cards" ? "default" : "ghost"}
+              variant={effectiveViewMode === "cards" ? "default" : "outline"}
               size="sm"
-              onClick={() => setViewMode("cards")}
+              onClick={() => setViewMode(listId, "cards")}
             >
               <LayoutGrid className="h-4 w-4" />
             </Button>
+            <CardPreviewSettings listId={listId} columnSchema={columnSchema} />
           </div>
         )}
         <ColumnSettingsDrawer listId={listId} columnSchema={columnSchema} />
@@ -145,12 +154,15 @@ export const DynamicProductTable = ({
       {/* Content - Table or Card View */}
       {effectiveViewMode === "cards" ? (
         <ProductCardView
+          listId={listId}
           products={table.getFilteredRowModel().rows.map((row) => row.original)}
           columnSchema={columnSchema}
         />
       ) : (
-        <div className="border border-primary/20 rounded-lg overflow-x-auto max-h-[600px]">
-          <Table>
+        <div className="border rounded-lg">
+          <div className="overflow-x-auto">
+            <div className="max-h-[600px] overflow-y-auto">
+              <Table>
             <TableHeader>
               <TableRow>
                 {table.getHeaderGroups()[0]?.headers.map((header) => (
@@ -211,6 +223,8 @@ export const DynamicProductTable = ({
               )}
             </TableBody>
           </Table>
+            </div>
+          </div>
         </div>
       )}
 

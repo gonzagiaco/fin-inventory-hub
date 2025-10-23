@@ -43,6 +43,7 @@ import {
   Edit2,
   Check,
   X,
+  Search,
 } from "lucide-react";
 import { ColumnSchema } from "@/types/productList";
 import { useProductListStore } from "@/stores/productListStore";
@@ -59,11 +60,13 @@ interface SortableItemProps {
   column: ColumnSchema;
   isVisible: boolean;
   isDisabled: boolean;
+  isSearchable: boolean;
   onToggle: (key: string, visible: boolean) => void;
   onLabelChange: (key: string, newLabel: string) => void;
+  onSearchableToggle: (key: string, searchable: boolean) => void;
 }
 
-function SortableItem({ id, column, isVisible, isDisabled, onToggle, onLabelChange }: SortableItemProps) {
+function SortableItem({ id, column, isVisible, isDisabled, isSearchable, onToggle, onLabelChange, onSearchableToggle }: SortableItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editLabel, setEditLabel] = useState(column.label);
   
@@ -143,11 +146,20 @@ function SortableItem({ id, column, isVisible, isDisabled, onToggle, onLabelChan
         </>
       )}
       
-      {isVisible ? (
-        <Eye className="w-4 h-4 text-muted-foreground" />
-      ) : (
-        <EyeOff className="w-4 h-4 text-muted-foreground" />
-      )}
+      <div className="flex items-center gap-1">
+        {isVisible ? (
+          <Eye className="w-4 h-4 text-muted-foreground" />
+        ) : (
+          <EyeOff className="w-4 h-4 text-muted-foreground" />
+        )}
+        <Checkbox
+          id={`search-${column.key}`}
+          checked={isSearchable}
+          onCheckedChange={(checked) => onSearchableToggle(column.key, checked as boolean)}
+          title="Incluir en búsqueda"
+        />
+        <Search className={`w-3 h-3 ${isSearchable ? 'text-primary' : 'text-muted-foreground'}`} />
+      </div>
     </div>
   );
 }
@@ -158,8 +170,10 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDra
     columnOrder,
     savedViews,
     activeView,
+    searchableColumns,
     setColumnVisibility,
     setColumnOrder,
+    setSearchableColumns,
     resetColumnSettings,
     saveView,
     applyView,
@@ -200,6 +214,14 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDra
 
   const handleToggleColumn = (key: string, visible: boolean) => {
     setColumnVisibility(listId, key, visible);
+  };
+
+  const handleSearchableToggle = (key: string, searchable: boolean) => {
+    const currentSearchable = searchableColumns[listId] || ['code', 'name'];
+    const newSearchable = searchable
+      ? [...currentSearchable, key]
+      : currentSearchable.filter(k => k !== key);
+    setSearchableColumns(listId, newSearchable);
   };
 
   const handleShowAll = () => {
@@ -335,6 +357,8 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDra
                   <div className="space-y-2">
                      {orderedColumns.map((column) => {
                       const isVisible = columnVisibility[listId]?.[column.key] !== false;
+                      const currentSearchable = searchableColumns[listId] || ['code', 'name'];
+                      const isSearchable = currentSearchable.includes(column.key);
                       return (
                         <SortableItem
                           key={column.key}
@@ -342,8 +366,10 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDra
                           column={column}
                           isVisible={isVisible}
                           isDisabled={column.isStandard || false}
+                          isSearchable={isSearchable}
                           onToggle={handleToggleColumn}
                           onLabelChange={handleLabelChange}
+                          onSearchableToggle={handleSearchableToggle}
                         />
                       );
                     })}

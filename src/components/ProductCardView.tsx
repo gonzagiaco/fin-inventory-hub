@@ -6,8 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DynamicProduct, ColumnSchema } from "@/types/productList";
 import { EnrichedProduct } from "@/hooks/useAllDynamicProducts";
+import { useProductListStore } from "@/stores/productListStore";
 
 interface ProductCardViewProps {
+  listId: string;
   products: DynamicProduct[] | EnrichedProduct[];
   columnSchema: ColumnSchema[];
   onAddToRequest?: (product: any) => void;
@@ -15,12 +17,17 @@ interface ProductCardViewProps {
 }
 
 export function ProductCardView({
+  listId,
   products,
   columnSchema,
   onAddToRequest,
   showActions = false,
 }: ProductCardViewProps) {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const { cardPreviewFields } = useProductListStore();
+
+  const previewFieldKeys = cardPreviewFields[listId] || 
+    columnSchema.slice(0, 4).map(c => c.key);
 
   const toggleCard = (productId: string) => {
     const newExpanded = new Set(expandedCards);
@@ -51,9 +58,13 @@ export function ProductCardView({
     return String(value);
   };
 
-  // Separate key fields (first 4) and other fields
-  const keyFields = columnSchema.slice(0, 4);
-  const otherFields = columnSchema.slice(4);
+  // Separate key fields based on user configuration and other fields
+  const keyFields = columnSchema.filter(col => 
+    previewFieldKeys.includes(col.key)
+  );
+  const otherFields = columnSchema.filter(col => 
+    !previewFieldKeys.includes(col.key)
+  );
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

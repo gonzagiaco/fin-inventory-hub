@@ -131,4 +131,17 @@ All colors MUST be HSL.
       hsl(var(--muted) / 0.3) 20px
     );
   }
+
+  /* Responsive content container that respects sidebar */
+  .content-with-sidebar {
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+  }
+
+  @media (min-width: 1024px) {
+    .content-with-sidebar {
+      width: calc(100vw - 280px);
+    }
+  }
 }

@@ -77,7 +77,7 @@ const Proveedores = () => {
   };
 
   return (
-    <div className="flex-1 p-6 lg:p-10">
+    <div className="flex-1 p-6 lg:p-10 w-full max-w-full overflow-hidden">
       <Header
         title="Proveedores"
         subtitle="Gestiona tus proveedores y sus productos."

@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { exportOrdersBySupplier } from "@/utils/exportOrdersBySupplier";
 import { SupplierStockSection } from "@/components/stock/SupplierStockSection";
 import { toast } from "sonner";
+import { useProductListStore } from "@/stores/productListStore";
 
 export default function Stock() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -18,6 +19,7 @@ export default function Stock() {
   const [requestList, setRequestList] = useState<RequestItem[]>([]);
   
   const { productsByList, listDetails, suppliers, isLoading } = useAllDynamicProducts();
+  const { searchableColumns } = useProductListStore();
 
   // Group lists by supplier and apply filters
   const supplierSections = useMemo(() => {
@@ -55,12 +57,21 @@ export default function Stock() {
     const filtered = new Map<string, EnrichedProduct[]>();
 
     productsByList.forEach((products, listId) => {
+      const list = listDetails.get(listId);
+      const searchableCols = searchableColumns[listId] || ['code', 'name'];
+
       const filteredProducts = products.filter((item) => {
-        // Search filter (applies across all lists)
-        const matchesSearch =
-          !searchQuery ||
-          item.code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          item.name?.toLowerCase().includes(searchQuery.toLowerCase());
+        // Search filter using configurable searchable columns
+        const matchesSearch = !searchQuery || searchableCols.some(colKey => {
+          const value = colKey === 'code' ? item.code :
+                        colKey === 'name' ? item.name :
+                        colKey === 'price' ? item.price :
+                        colKey === 'quantity' ? item.quantity :
+                        item.data?.[colKey];
+          
+          return value?.toString().toLowerCase()
+            .includes(searchQuery.toLowerCase());
+        });
 
         // Quantity filter (applies across all lists)
         const quantity = item.quantity || 0;
@@ -156,7 +167,7 @@ export default function Stock() {
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-10 bg-background border-b">
-        <div className="container mx-auto px-4 py-6">
+        <div className="w-full px-4 py-6 max-w-full">
           <h1 className="text-3xl font-bold mb-6">Stock de Productos</h1>
           
           {/* Search and Filters */}
@@ -219,8 +230,8 @@ export default function Stock() {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-6">
-        <div className="flex gap-6">
+      <div className="w-full px-4 py-6 max-w-full">
+        <div className="flex gap-6 max-w-full">
           {/* Main content */}
           <div className="flex-1">
             {isLoading ? (
