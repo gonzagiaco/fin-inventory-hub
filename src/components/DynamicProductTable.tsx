@@ -4,13 +4,14 @@ import {
   getCoreRowModel,
   getFilteredRowModel,
   getSortedRowModel,
+  getPaginationRowModel,
   flexRender,
   ColumnDef,
   SortingState,
 } from "@tanstack/react-table";
 import { DynamicProduct, ColumnSchema } from "@/types/productList";
 import { Input } from "@/components/ui/input";
-import { Search, ChevronDown, ChevronUp } from "lucide-react";
+import { Search, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -107,12 +108,18 @@ export const DynamicProductTable = ({
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
     state: {
       sorting,
       globalFilter,
       columnPinning: columnPinning[listId] || {},
+    },
+    initialState: {
+      pagination: {
+        pageSize: 50,
+      },
     },
   });
 
@@ -155,7 +162,7 @@ export const DynamicProductTable = ({
       {effectiveViewMode === "cards" ? (
         <ProductCardView
           listId={listId}
-          products={table.getFilteredRowModel().rows.map((row) => row.original)}
+          products={table.getRowModel().rows.map((row) => row.original)}
           columnSchema={columnSchema}
         />
       ) : (
@@ -228,11 +235,47 @@ export const DynamicProductTable = ({
         </div>
       )}
 
-      {/* Results info */}
-      <div className="text-sm text-muted-foreground">
-        Mostrando {table.getFilteredRowModel().rows.length} de {products.length}{" "}
-        productos
-      </div>
+      {/* Pagination Controls */}
+      {table.getFilteredRowModel().rows.length > 50 && (
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-muted-foreground">
+            Mostrando {table.getState().pagination.pageIndex * 50 + 1} a{" "}
+            {Math.min((table.getState().pagination.pageIndex + 1) * 50, table.getFilteredRowModel().rows.length)} de{" "}
+            {table.getFilteredRowModel().rows.length} productos
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Anterior
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Página {table.getState().pagination.pageIndex + 1} de{" "}
+              {table.getPageCount()}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+            >
+              Siguiente
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Results info when no pagination needed */}
+      {table.getFilteredRowModel().rows.length <= 50 && (
+        <div className="text-sm text-muted-foreground">
+          Mostrando {table.getFilteredRowModel().rows.length} de {products.length} productos
+        </div>
+      )}
     </div>
   );
 };

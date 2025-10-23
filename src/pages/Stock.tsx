@@ -231,49 +231,8 @@ export default function Stock() {
       </header>
 
       <div className="w-full px-4 py-6 max-w-full">
-        <div className="flex gap-6 max-w-full">
-          {/* Main content */}
-          <div className="flex-1">
-            {isLoading ? (
-              <div className="text-center py-12">
-                <p className="text-muted-foreground">Cargando productos...</p>
-              </div>
-            ) : visibleSupplierSections.length === 0 ? (
-              <Card className="p-12 text-center">
-                <p className="text-muted-foreground">No se encontraron productos</p>
-              </Card>
-            ) : (
-              <div className="space-y-6">
-                {visibleSupplierSections.map(([supplierId, section]) => (
-                  <SupplierStockSection
-                    key={supplierId}
-                    supplierName={section.supplierName}
-                    supplierLogo={section.supplierLogo}
-                    lists={section.lists}
-                    productsByList={filteredProductsByList}
-                    onAddToRequest={handleAddToRequest}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Request Cart - Sidebar */}
-          <div className="hidden xl:block w-96">
-            <div className="sticky top-24">
-              <RequestCart
-                requests={requestList}
-                onUpdateQuantity={handleUpdateRequestQuantity}
-                onRemove={handleRemoveFromRequest}
-                onExport={handleExportToExcel}
-                suppliers={suppliers}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile Request Cart */}
-        <div className="xl:hidden mt-6">
+        {/* Request Cart at the top */}
+        <div className="mb-6">
           <RequestCart
             requests={requestList}
             onUpdateQuantity={handleUpdateRequestQuantity}
@@ -281,6 +240,32 @@ export default function Stock() {
             onExport={handleExportToExcel}
             suppliers={suppliers}
           />
+        </div>
+
+        {/* Main content - Full width */}
+        <div className="w-full">
+          {isLoading ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">Cargando productos...</p>
+            </div>
+          ) : visibleSupplierSections.length === 0 ? (
+            <Card className="p-12 text-center">
+              <p className="text-muted-foreground">No se encontraron productos</p>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              {visibleSupplierSections.map(([supplierId, section]) => (
+                <SupplierStockSection
+                  key={supplierId}
+                  supplierName={section.supplierName}
+                  supplierLogo={section.supplierLogo}
+                  lists={section.lists}
+                  productsByList={filteredProductsByList}
+                  onAddToRequest={handleAddToRequest}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

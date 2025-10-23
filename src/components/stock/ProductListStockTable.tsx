@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { ChevronDown, ChevronUp, ShoppingCart, AlertCircle } from "lucide-react";
+import { useState, useMemo } from "react";
+import { ChevronDown, ChevronUp, ShoppingCart, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -29,6 +29,8 @@ export function ProductListStockTable({
   onAddToRequest,
 }: ProductListStockTableProps) {
   const [isExpanded, setIsExpanded] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
   
   // Get column configuration and view mode from store
   const { 
@@ -54,6 +56,20 @@ export function ProductListStockTable({
     );
 
   const lowStockCount = products.filter((p) => (p.quantity || 0) < 50).length;
+
+  // Pagination
+  const totalPages = Math.ceil(products.length / itemsPerPage);
+  const paginatedProducts = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return products.slice(startIndex, startIndex + itemsPerPage);
+  }, [products, currentPage, itemsPerPage]);
+
+  // Reset to page 1 when products change
+  useMemo(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+  }, [products.length, totalPages]);
 
   return (
     <div className="border rounded-lg">
@@ -105,17 +121,18 @@ export function ProductListStockTable({
       </div>
 
       {isExpanded && (
-        effectiveViewMode === "cards" ? (
-          <div className="p-4">
-            <ProductCardView
-              listId={list.listId}
-              products={products}
-              columnSchema={list.columnSchema}
-              onAddToRequest={onAddToRequest}
-              showActions={true}
-            />
-          </div>
-        ) : (
+        <>
+          {effectiveViewMode === "cards" ? (
+            <div className="p-4">
+              <ProductCardView
+                listId={list.listId}
+                products={paginatedProducts}
+                columnSchema={list.columnSchema}
+                onAddToRequest={onAddToRequest}
+                showActions={true}
+              />
+            </div>
+          ) : (
           <div className="border-t">
             <div className="overflow-x-auto">
               <div className="max-h-[600px] overflow-y-auto">
@@ -136,7 +153,7 @@ export function ProductListStockTable({
                     </TableCell>
                   </TableRow>
                 ) : (
-                  products.map((product) => {
+                  paginatedProducts.map((product) => {
                     const quantity = product.quantity || 0;
                     const isLowStock = quantity < 50;
 
@@ -202,7 +219,40 @@ export function ProductListStockTable({
               </div>
             </div>
           </div>
-        )
+          )}
+          
+          {/* Pagination Controls */}
+          {products.length > itemsPerPage && (
+            <div className="flex items-center justify-between px-4 py-3 border-t">
+              <div className="text-sm text-muted-foreground">
+                Mostrando {((currentPage - 1) * itemsPerPage) + 1} a {Math.min(currentPage * itemsPerPage, products.length)} de {products.length} productos
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Anterior
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Página {currentPage} de {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Siguiente
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

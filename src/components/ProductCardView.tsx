@@ -59,9 +59,11 @@ export function ProductCardView({
   };
 
   // Separate key fields based on user configuration and other fields
-  const keyFields = columnSchema.filter(col => 
-    previewFieldKeys.includes(col.key)
-  );
+  // Sort keyFields based on the order in previewFieldKeys
+  const keyFields = previewFieldKeys
+    .map(key => columnSchema.find(col => col.key === key))
+    .filter((col): col is ColumnSchema => col !== undefined);
+  
   const otherFields = columnSchema.filter(col => 
     !previewFieldKeys.includes(col.key)
   );
@@ -81,6 +83,7 @@ export function ProductCardView({
                   const value = getFieldValue(product, field.key);
                   const displayValue = formatValue(value, field.type);
 
+                  // Special styling for common fields
                   if (field.key === 'code') {
                     return (
                       <div key={field.key} className="font-mono text-sm text-muted-foreground">
@@ -114,7 +117,14 @@ export function ProductCardView({
                       </div>
                     );
                   }
-                  return null;
+                  
+                  // Default display for other configured fields
+                  return (
+                    <div key={field.key} className="text-sm border-b pb-1">
+                      <span className="text-muted-foreground">{field.label}:</span>{" "}
+                      <span className="font-medium">{displayValue}</span>
+                    </div>
+                  );
                 })}
               </div>
             </CardHeader>
