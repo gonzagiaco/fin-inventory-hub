@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   DndContext,
   closestCenter,
@@ -46,6 +46,7 @@ import {
 } from "lucide-react";
 import { ColumnSchema } from "@/types/productList";
 import { useProductListStore } from "@/stores/productListStore";
+import { useProductLists } from "@/hooks/useProductLists";
 import { toast } from "sonner";
 
 interface ColumnSettingsDrawerProps {
@@ -59,9 +60,13 @@ interface SortableItemProps {
   isVisible: boolean;
   isDisabled: boolean;
   onToggle: (key: string, visible: boolean) => void;
+  onLabelChange: (key: string, newLabel: string) => void;
 }
 
-function SortableItem({ id, column, isVisible, isDisabled, onToggle }: SortableItemProps) {
+function SortableItem({ id, column, isVisible, isDisabled, onToggle, onLabelChange }: SortableItemProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editLabel, setEditLabel] = useState(column.label);
+  
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
   });
@@ -70,6 +75,18 @@ function SortableItem({ id, column, isVisible, isDisabled, onToggle }: SortableI
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
+  };
+
+  const handleSaveLabel = () => {
+    if (editLabel.trim() && editLabel !== column.label) {
+      onLabelChange(column.key, editLabel.trim());
+    }
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditLabel(column.label);
+    setIsEditing(false);
   };
 
   return (
@@ -87,12 +104,45 @@ function SortableItem({ id, column, isVisible, isDisabled, onToggle }: SortableI
         onCheckedChange={(checked) => onToggle(column.key, checked as boolean)}
         disabled={isDisabled}
       />
-      <Label htmlFor={`col-${column.key}`} className="flex-1 cursor-pointer text-sm">
-        {column.label}
-        {column.isStandard && (
-          <span className="text-xs text-muted-foreground ml-1">(fija)</span>
-        )}
-      </Label>
+      
+      {isEditing ? (
+        <div className="flex-1 flex items-center gap-1">
+          <Input
+            value={editLabel}
+            onChange={(e) => setEditLabel(e.target.value)}
+            className="h-7 text-sm"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSaveLabel();
+              if (e.key === "Escape") handleCancelEdit();
+            }}
+          />
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleSaveLabel}>
+            <Check className="h-3 w-3" />
+          </Button>
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleCancelEdit}>
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      ) : (
+        <>
+          <Label htmlFor={`col-${column.key}`} className="flex-1 cursor-pointer text-sm">
+            {column.label}
+            {column.isStandard && (
+              <span className="text-xs text-muted-foreground ml-1">(fija)</span>
+            )}
+          </Label>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            onClick={() => setIsEditing(true)}
+          >
+            <Edit2 className="h-3 w-3" />
+          </Button>
+        </>
+      )}
+      
       {isVisible ? (
         <Eye className="w-4 h-4 text-muted-foreground" />
       ) : (
@@ -115,7 +165,10 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDra
     applyView,
     renameView,
     deleteView,
+    updateColumnLabel,
   } = useProductListStore();
+
+  const { updateColumnSchema } = useProductLists();
 
   const [open, setOpen] = useState(false);
   const [newViewName, setNewViewName] = useState("");
@@ -205,6 +258,21 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDra
     toast.success(`Vista "${view?.name}" eliminada`);
   };
 
+  const handleLabelChange = async (columnKey: string, newLabel: string) => {
+    // Update the label in the column schema
+    const updatedSchema = columnSchema.map((col) =>
+      col.key === columnKey ? { ...col, label: newLabel } : col
+    );
+
+    // Persist to database
+    try {
+      await updateColumnSchema({ listId, columnSchema: updatedSchema });
+      updateColumnLabel(listId, columnKey, newLabel);
+    } catch (error) {
+      console.error("Error updating column label:", error);
+    }
+  };
+
   const currentActiveView = activeView[listId];
   const activeViewName = savedViews[listId]?.find((v) => v.id === currentActiveView)?.name;
 
@@ -265,7 +333,7 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDra
               >
                 <SortableContext items={currentOrder} strategy={verticalListSortingStrategy}>
                   <div className="space-y-2">
-                    {orderedColumns.map((column) => {
+                     {orderedColumns.map((column) => {
                       const isVisible = columnVisibility[listId]?.[column.key] !== false;
                       return (
                         <SortableItem
@@ -275,6 +343,7 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDra
                           isVisible={isVisible}
                           isDisabled={column.isStandard || false}
                           onToggle={handleToggleColumn}
+                          onLabelChange={handleLabelChange}
                         />
                       );
                     })}

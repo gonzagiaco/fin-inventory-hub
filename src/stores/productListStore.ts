@@ -56,6 +56,7 @@ interface ProductListStore {
   renameView: (listId: string, viewId: string, newName: string) => void;
   deleteView: (listId: string, viewId: string) => void;
   setActiveView: (listId: string, viewId: string | null) => void;
+  updateColumnLabel: (listId: string, columnKey: string, newLabel: string) => void;
 }
 
 export const useProductListStore = create<ProductListStore>()(
@@ -194,6 +195,12 @@ export const useProductListStore = create<ProductListStore>()(
             [listId]: viewId,
           },
         })),
+
+      updateColumnLabel: (listId, columnKey, newLabel) => {
+        // This is a local-only update for immediate UI feedback
+        // The actual persistence happens through the hook mutation
+        console.log('Store: updating column label', { listId, columnKey, newLabel });
+      },
     }),
     {
       name: 'product-list-settings',

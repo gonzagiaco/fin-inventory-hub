@@ -167,11 +167,31 @@ export const useProductLists = (supplierId?: string) => {
     },
   });
 
+  const updateColumnSchemaMutation = useMutation({
+    mutationFn: async ({ listId, columnSchema }: { listId: string; columnSchema: ColumnSchema[] }) => {
+      const { error } = await supabase
+        .from("product_lists")
+        .update({ column_schema: JSON.parse(JSON.stringify(columnSchema)) })
+        .eq("id", listId);
+
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["product-lists"] });
+      queryClient.invalidateQueries({ queryKey: ["all-product-lists"] });
+      toast.success("Esquema de columnas actualizado");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Error al actualizar columnas");
+    },
+  });
+
   return {
     productLists,
     productsMap,
     isLoading,
     createList: createListMutation.mutate,
     deleteList: deleteListMutation.mutate,
+    updateColumnSchema: updateColumnSchemaMutation.mutateAsync,
   };
 };

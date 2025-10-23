@@ -1,104 +1,125 @@
 import { useState, useMemo } from "react";
-import Header from "@/components/Header";
-import DeleteConfirmDialog from "@/components/DeleteConfirmDialog";
+import { Search, Filter, FileDown } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import RequestCart from "@/components/RequestCart";
-import { ChevronLeft, ChevronRight, Filter, ShoppingCart } from "lucide-react";
-import { toast } from "sonner";
-import { QuantityFilter, RequestItem } from "@/types";
-import { exportOrdersBySupplier } from "@/utils/exportOrdersBySupplier";
+import { RequestItem } from "@/types";
 import { useAllDynamicProducts, EnrichedProduct } from "@/hooks/useAllDynamicProducts";
+import { Card } from "@/components/ui/card";
+import { exportOrdersBySupplier } from "@/utils/exportOrdersBySupplier";
+import { SupplierStockSection } from "@/components/stock/SupplierStockSection";
+import { toast } from "sonner";
 
-const ITEMS_PER_PAGE = 5;
-
-const Stock = () => {
+export default function Stock() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [quantityFilter, setQuantityFilter] = useState<QuantityFilter>("Cualquiera");
+  const [quantityFilter, setQuantityFilter] = useState<string>("all");
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
-  const [currentPage, setCurrentPage] = useState(1);
-
-  // Use Supabase hook for data
-  const { allProducts, suppliers, isLoading } = useAllDynamicProducts();
-
   const [requestList, setRequestList] = useState<RequestItem[]>([]);
+  
+  const { productsByList, listDetails, suppliers, isLoading } = useAllDynamicProducts();
 
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
+  // Group lists by supplier and apply filters
+  const supplierSections = useMemo(() => {
+    const sections = new Map<string, { 
+      supplierName: string; 
+      supplierLogo: string | null;
+      lists: Array<{
+        listId: string;
+        listName: string;
+        supplierId: string;
+        supplierName: string;
+        supplierLogo: string | null;
+        columnSchema: any[];
+        productCount: number;
+      }>;
+    }>();
 
-  // Helper function to get supplier name
-  const getSupplierName = (supplierId: string) => {
-    return suppliers.find((s) => s.id === supplierId)?.name || "Unknown";
-  };
-
-  // Filtrado y búsqueda
-  const filteredItems = useMemo(() => {
-    return allProducts.filter((item) => {
-      // Búsqueda
-      const matchesSearch =
-        (item.code?.toLowerCase() || "").includes(searchQuery.toLowerCase()) ||
-        (item.name?.toLowerCase() || "").includes(searchQuery.toLowerCase());
-
-      // Filtro de cantidad
-      let matchesQuantity = true;
-      const quantity = item.quantity || 0;
-      if (quantityFilter === "< 100") {
-        matchesQuantity = quantity < 100;
-      } else if (quantityFilter === "100 - 200") {
-        matchesQuantity = quantity >= 100 && quantity <= 200;
-      } else if (quantityFilter === "> 200") {
-        matchesQuantity = quantity > 200;
-      } else if (quantityFilter === "Bajo Stock") {
-        // For dynamic products, we don't have minStockLimit, so use a default threshold
-        matchesQuantity = quantity < 50;
+    // Group lists by supplier
+    listDetails.forEach((list) => {
+      if (!sections.has(list.supplierId)) {
+        sections.set(list.supplierId, {
+          supplierName: list.supplierName,
+          supplierLogo: list.supplierLogo,
+          lists: [],
+        });
       }
-
-      // Filtro de proveedor - need to find supplier from product's listId
-      const matchesSupplier =
-        supplierFilter === "all" || 
-        suppliers.some(s => s.id === supplierFilter && s.name === item.supplierName);
-
-      return matchesSearch && matchesQuantity && matchesSupplier;
+      sections.get(list.supplierId)!.lists.push(list);
     });
-  }, [allProducts, searchQuery, quantityFilter, supplierFilter, suppliers]);
 
-  // Paginación
-  const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
-  const paginatedItems = useMemo(() => {
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    return filteredItems.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  }, [filteredItems, currentPage]);
+    return sections;
+  }, [listDetails]);
 
-  // Resetear página cuando cambien los filtros
-  useMemo(() => {
-    setCurrentPage(1);
-  }, [searchQuery, quantityFilter, supplierFilter]);
+  // Apply filters to products in each list
+  const filteredProductsByList = useMemo(() => {
+    const filtered = new Map<string, EnrichedProduct[]>();
 
+    productsByList.forEach((products, listId) => {
+      const filteredProducts = products.filter((item) => {
+        // Search filter (applies across all lists)
+        const matchesSearch =
+          !searchQuery ||
+          item.code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          item.name?.toLowerCase().includes(searchQuery.toLowerCase());
 
-  const applyFilters = () => {
-    toast.success("Filtros aplicados");
-  };
+        // Quantity filter (applies across all lists)
+        const quantity = item.quantity || 0;
+        const matchesQuantity =
+          quantityFilter === "all" ||
+          (quantityFilter === "low" && quantity < 50) ||
+          (quantityFilter === "medium" && quantity >= 50 && quantity < 100) ||
+          (quantityFilter === "high" && quantity >= 100);
 
-  const handleAddToRequest = (item: EnrichedProduct) => {
-    const existingItem = requestList.find((r) => r.productId === item.id);
+        return matchesSearch && matchesQuantity;
+      });
+
+      filtered.set(listId, filteredProducts);
+    });
+
+    return filtered;
+  }, [productsByList, searchQuery, quantityFilter]);
+
+  // Filter suppliers based on supplier filter
+  const visibleSupplierSections = useMemo(() => {
+    if (supplierFilter === "all") {
+      return Array.from(supplierSections.entries());
+    }
     
-    // Find supplier ID from suppliers array
-    const supplier = suppliers.find(s => s.name === item.supplierName);
-    const supplierId = supplier?.id || "";
+    return Array.from(supplierSections.entries()).filter(
+      ([supplierId]) => supplierId === supplierFilter
+    );
+  }, [supplierSections, supplierFilter]);
+
+  // Calculate total filtered products
+  const totalFilteredProducts = useMemo(() => {
+    let count = 0;
+    visibleSupplierSections.forEach(([_, section]) => {
+      section.lists.forEach((list) => {
+        const products = filteredProductsByList.get(list.listId) || [];
+        count += products.length;
+      });
+    });
+    return count;
+  }, [visibleSupplierSections, filteredProductsByList]);
+
+  const handleAddToRequest = (product: EnrichedProduct) => {
+    const existingItem = requestList.find((r) => r.productId === product.id);
     
     if (existingItem) {
       setRequestList((prev) =>
         prev.map((r) =>
-          r.productId === item.id ? { ...r, quantity: r.quantity + 1 } : r
+          r.productId === product.id ? { ...r, quantity: r.quantity + 1 } : r
         )
       );
       toast.success("Cantidad actualizada en la lista de pedidos");
     } else {
       const newRequest: RequestItem = {
         id: Date.now().toString(),
-        productId: item.id,
-        code: item.code || "",
-        name: item.name || "",
-        supplierId: supplierId,
-        costPrice: item.price || 0,
+        productId: product.id,
+        code: product.code || "",
+        name: product.name || "",
+        supplierId: product.supplierId,
+        costPrice: product.price || 0,
         quantity: 1,
       };
       setRequestList((prev) => [...prev, newRequest]);
@@ -123,10 +144,8 @@ const Stock = () => {
       return;
     }
 
-    // Export one file per supplier
     exportOrdersBySupplier(requestList, suppliers);
     
-    // Count unique suppliers
     const uniqueSuppliers = new Set(requestList.map(item => item.supplierId)).size;
     
     toast.success("Pedidos exportados", {
@@ -134,281 +153,125 @@ const Stock = () => {
     });
   };
 
-  const calculatePublicPrice = (item: EnrichedProduct) => {
-    const price = item.price || 0;
-    // Since we don't have specialDiscount info, use standard calculation
-    return price * 2;
-  };
-
   return (
-    <div className="flex-1 p-6 lg:p-10">
-      <div className="mb-8">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Stock</h1>
+    <div className="min-h-screen bg-background">
+      <header className="sticky top-0 z-10 bg-background border-b">
+        <div className="container mx-auto px-4 py-6">
+          <h1 className="text-3xl font-bold mb-6">Stock de Productos</h1>
+          
+          {/* Search and Filters */}
+          <div className="flex flex-col md:flex-row gap-4 mb-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <Input
+                placeholder="Buscar por código o nombre..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <Select value={quantityFilter} onValueChange={setQuantityFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <Filter className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="Cantidad" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas las cantidades</SelectItem>
+                  <SelectItem value="low">Bajo stock (&lt; 50)</SelectItem>
+                  <SelectItem value="medium">Stock medio (50-100)</SelectItem>
+                  <SelectItem value="high">Stock alto (&gt; 100)</SelectItem>
+                </SelectContent>
+              </Select>
+
+              <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+                <SelectTrigger className="w-[200px]">
+                  <Filter className="mr-2 h-4 w-4" />
+                  <SelectValue placeholder="Proveedor" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos los proveedores</SelectItem>
+                  {suppliers.map((supplier) => (
+                    <SelectItem key={supplier.id} value={supplier.id}>
+                      {supplier.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Button
+                variant="outline"
+                onClick={handleExportToExcel}
+                disabled={requestList.length === 0}
+              >
+                <FileDown className="mr-2 h-4 w-4" />
+                Exportar Pedido
+              </Button>
+            </div>
           </div>
 
-          <div className="relative flex-1 max-w-lg">
-            <input
-              className="w-full rounded-lg border-transparent bg-muted/50 backdrop-blur-sm py-3 px-4 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-sm"
-              placeholder="Buscar por código, nombre..."
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          {/* Results summary */}
+          <div className="text-sm text-muted-foreground">
+            Mostrando {totalFilteredProducts} productos en {visibleSupplierSections.length}{" "}
+            {visibleSupplierSections.length === 1 ? "proveedor" : "proveedores"}
           </div>
+        </div>
+      </header>
+
+      <div className="container mx-auto px-4 py-6">
+        <div className="flex gap-6">
+          {/* Main content */}
+          <div className="flex-1">
+            {isLoading ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">Cargando productos...</p>
+              </div>
+            ) : visibleSupplierSections.length === 0 ? (
+              <Card className="p-12 text-center">
+                <p className="text-muted-foreground">No se encontraron productos</p>
+              </Card>
+            ) : (
+              <div className="space-y-6">
+                {visibleSupplierSections.map(([supplierId, section]) => (
+                  <SupplierStockSection
+                    key={supplierId}
+                    supplierName={section.supplierName}
+                    supplierLogo={section.supplierLogo}
+                    lists={section.lists}
+                    productsByList={filteredProductsByList}
+                    onAddToRequest={handleAddToRequest}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Request Cart - Sidebar */}
+          <div className="hidden xl:block w-96">
+            <div className="sticky top-24">
+              <RequestCart
+                requests={requestList}
+                onUpdateQuantity={handleUpdateRequestQuantity}
+                onRemove={handleRemoveFromRequest}
+                onExport={handleExportToExcel}
+                suppliers={suppliers}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile Request Cart */}
+        <div className="xl:hidden mt-6">
+          <RequestCart
+            requests={requestList}
+            onUpdateQuantity={handleUpdateRequestQuantity}
+            onRemove={handleRemoveFromRequest}
+            onExport={handleExportToExcel}
+            suppliers={suppliers}
+          />
         </div>
       </div>
-
-      <main>
-        {/* Contenedores superiores - Solo en desktop */}
-        <div className="hidden xl:grid xl:grid-cols-1 gap-8 mb-8">
-          {/* Lista de Pedidos */}
-          <RequestCart
-            requests={requestList}
-            onUpdateQuantity={handleUpdateRequestQuantity}
-            onRemove={handleRemoveFromRequest}
-            onExport={handleExportToExcel}
-            suppliers={suppliers}
-          />
-        </div>
-
-        {/* Filtros - Ancho completo */}
-        <div>
-          {/* Filtros */}
-          <div className="glassmorphism rounded-xl shadow-lg p-6 mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-foreground">Filtros</h2>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div className="relative">
-                <label className="block text-sm font-medium text-muted-foreground mb-2">
-                  Cantidad
-                </label>
-                <select
-                  className="w-full rounded-lg border-transparent bg-muted/50 backdrop-blur-sm py-3 px-4 text-foreground focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-sm appearance-none"
-                  value={quantityFilter}
-                  onChange={(e) => setQuantityFilter(e.target.value as QuantityFilter)}
-                >
-                  <option>Cualquiera</option>
-                  <option>&lt; 100</option>
-                  <option>100 - 200</option>
-                  <option>&gt; 200</option>
-                  <option>Bajo Stock</option>
-                </select>
-              </div>
-              <div className="relative">
-                <label className="block text-sm font-medium text-muted-foreground mb-2">
-                  Proveedor
-                </label>
-                <select
-                  className="w-full rounded-lg border-transparent bg-muted/50 backdrop-blur-sm py-3 px-4 text-foreground focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-sm appearance-none"
-                  value={supplierFilter}
-                  onChange={(e) => setSupplierFilter(e.target.value)}
-                >
-                  <option value="all">Todos los Proveedores</option>
-                  {suppliers.map((supplier) => (
-                    <option key={supplier.id} value={supplier.id}>
-                      {supplier.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-end">
-                <button
-                  onClick={applyFilters}
-                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-300 flex items-center justify-center"
-                >
-                  <Filter className="mr-2 h-5 w-5" />
-                  <span>Aplicar</span>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Tabla de Stock - Responsive */}
-          <div className="glassmorphism rounded-xl shadow-lg overflow-hidden">
-            {/* Mobile view - Cards */}
-            <div className="md:hidden space-y-4 p-4">
-              {isLoading ? (
-                <div className="p-8 text-center text-muted-foreground">
-                  Cargando productos...
-                </div>
-              ) : paginatedItems.length === 0 ? (
-                <div className="p-8 text-center text-muted-foreground">
-                  No se encontraron productos. Importa productos desde la página de Proveedores.
-                </div>
-              ) : (
-                paginatedItems.map((item) => {
-                  const isLowStock = (item.quantity || 0) < 50; // Default threshold
-                  const publicPrice = calculatePublicPrice(item);
-                  
-                  return (
-                    <div
-                      key={item.id}
-                      className={`p-4 rounded-lg border ${isLowStock ? "border-red-500 bg-red-500/10" : "border-primary/20"}`}
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="font-bold text-foreground">{item.code || "N/A"}</p>
-                          <p className="text-sm text-foreground">{item.name || "N/A"}</p>
-                        </div>
-                      </div>
-                      <div className="space-y-1 text-sm mb-3">
-                        <p className="text-muted-foreground">Proveedor: <span className="text-foreground">{item.supplierName}</span></p>
-                        <p className={isLowStock ? "text-red-500 font-bold" : "text-muted-foreground"}>
-                          Stock: <span className="text-foreground">{item.quantity || 0}</span>
-                          {isLowStock && <span className="ml-2 text-xs">(Bajo stock)</span>}
-                        </p>
-                        <p className="text-muted-foreground">Precio: <span className="text-foreground">${(item.price || 0).toFixed(2)}</span></p>
-                        <p className="text-muted-foreground">Público: <span className="text-primary font-bold">${publicPrice.toFixed(2)}</span></p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleAddToRequest(item)}
-                          className="flex-1 p-2 rounded-lg bg-green-500/20 text-green-500 hover:bg-green-500/30 transition-colors text-sm font-medium"
-                        >
-                          <ShoppingCart className="h-4 w-4 inline mr-1" />
-                          Solicitar
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            {/* Desktop view - Table */}
-            <div className="hidden md:block overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="border-b border-white/10">
-                    <th className="p-4 font-semibold text-sm text-muted-foreground">Código</th>
-                    <th className="p-4 font-semibold text-sm text-muted-foreground">Nombre</th>
-                    <th className="p-4 font-semibold text-sm text-muted-foreground hidden lg:table-cell">Proveedor</th>
-                    <th className="p-4 font-semibold text-sm text-muted-foreground">Cantidad</th>
-                    <th className="p-4 font-semibold text-sm text-muted-foreground">Precio</th>
-                    <th className="p-4 font-semibold text-sm text-muted-foreground">Precio Público</th>
-                    <th className="p-4 font-semibold text-sm text-muted-foreground text-center">
-                      Acciones
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-white/10">
-                  {isLoading ? (
-                    <tr>
-                      <td colSpan={7} className="p-8 text-center text-muted-foreground">
-                        Cargando productos...
-                      </td>
-                    </tr>
-                  ) : paginatedItems.length === 0 ? (
-                    <tr>
-                      <td colSpan={7} className="p-8 text-center text-muted-foreground">
-                        No se encontraron productos. Importa productos desde la página de Proveedores.
-                      </td>
-                    </tr>
-                  ) : (
-                    paginatedItems.map((item) => {
-                      const isLowStock = (item.quantity || 0) < 50;
-                      const publicPrice = calculatePublicPrice(item);
-                      
-                      return (
-                        <tr
-                          key={item.id}
-                          className={`hover:bg-primary/10 transition-colors duration-300 ${isLowStock ? "bg-red-500/10" : ""}`}
-                        >
-                          <td className="p-4 text-sm font-medium text-foreground">{item.code || "N/A"}</td>
-                          <td className="p-4 text-sm font-medium text-foreground">
-                            {item.name || "N/A"}
-                          </td>
-                          <td className="p-4 text-sm font-medium text-foreground hidden lg:table-cell">{item.supplierName}</td>
-                          <td className={`p-4 text-sm font-medium ${isLowStock ? "text-red-500 font-bold" : "text-foreground"}`}>
-                            {item.quantity || 0}
-                            {isLowStock && (
-                              <span className="ml-2 text-xs">(Bajo stock)</span>
-                            )}
-                          </td>
-                          <td className="p-4 text-sm font-medium text-foreground">${(item.price || 0).toFixed(2)}</td>
-                          <td className="p-4 text-sm font-medium text-primary font-bold">${publicPrice.toFixed(2)}</td>
-                          <td className="p-4 text-sm font-semibold">
-                            <div className="flex justify-center items-center space-x-2">
-                              <button
-                                onClick={() => handleAddToRequest(item)}
-                                className="p-2 rounded-full hover:bg-green-500/20 transition-colors duration-300 text-green-500"
-                                title="Solicitar a Proveedor"
-                              >
-                                <ShoppingCart className="h-5 w-5" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <div className="p-4 flex items-center justify-between border-t border-white/10">
-              <span className="text-sm text-muted-foreground">
-                Mostrando {paginatedItems.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0}-
-                {Math.min(currentPage * ITEMS_PER_PAGE, filteredItems.length)} de{" "}
-                {filteredItems.length} resultados
-              </span>
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  className="p-2 rounded-md hover:bg-primary/10 transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={currentPage === 1}
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <button
-                    key={page}
-                    onClick={() => setCurrentPage(page)}
-                    className={`p-2 px-4 rounded-md font-bold transition-colors ${
-                      currentPage === page
-                        ? "bg-primary/20 text-primary"
-                        : "hover:bg-primary/10 text-muted-foreground"
-                    }`}
-                  >
-                    {page}
-                  </button>
-                ))}
-                <button
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  className="p-2 rounded-md hover:bg-primary/10 transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={currentPage === totalPages}
-                >
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Contenedores inferiores - Solo en tablet y mobile */}
-        <div className="xl:hidden space-y-8 mt-8">
-          {/* Lista de Pedidos */}
-          <RequestCart
-            requests={requestList}
-            onUpdateQuantity={handleUpdateRequestQuantity}
-            onRemove={handleRemoveFromRequest}
-            onExport={handleExportToExcel}
-            suppliers={suppliers}
-          />
-        </div>
-      </main>
-
-      <DeleteConfirmDialog
-        open={deleteDialogOpen}
-        onOpenChange={setDeleteDialogOpen}
-        onConfirm={() => setDeleteDialogOpen(false)}
-        title="Eliminar producto"
-        description="Esta funcionalidad estará disponible próximamente."
-      />
     </div>
   );
-};
-
-export default Stock;
+}

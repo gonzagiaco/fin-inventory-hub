@@ -16,6 +16,16 @@ export interface EnrichedProduct {
   supplierId: string;
 }
 
+export interface ProductListDetails {
+  listId: string;
+  listName: string;
+  supplierId: string;
+  supplierName: string;
+  supplierLogo: string | null;
+  columnSchema: ColumnSchema[];
+  productCount: number;
+}
+
 export const useAllDynamicProducts = () => {
   // Fetch all suppliers
   const { data: suppliers = [], isLoading: isLoadingSuppliers } = useQuery({
@@ -69,7 +79,7 @@ export const useAllDynamicProducts = () => {
   });
 
   // Fetch all dynamic products
-  const { data: allProducts = [], isLoading: isLoadingProducts } = useQuery({
+  const { data: dynamicProducts = [], isLoading: isLoadingProducts } = useQuery({
     queryKey: ["all-dynamic-products"],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -78,39 +88,68 @@ export const useAllDynamicProducts = () => {
 
       if (error) throw error;
 
-      // Create a map of listId to supplierId
-      const listToSupplierMap = new Map(
-        productLists.map((list) => [list.id, list.supplierId])
-      );
-
-      // Create a map of supplierId to supplier info
-      const supplierMap = new Map(
-        suppliers.map((supplier) => [supplier.id, supplier])
-      );
-
-      return (data || []).map((product): EnrichedProduct => {
-        const supplierId = listToSupplierMap.get(product.list_id) || "";
-        const supplier = supplierMap.get(supplierId);
-
-        return {
-          id: product.id,
-          listId: product.list_id,
-          code: product.code,
-          name: product.name,
-          price: product.price ? Number(product.price) : undefined,
-          quantity: product.quantity,
-          data: product.data as Record<string, any>,
-          supplierName: supplier?.name || "Unknown",
-          supplierLogo: supplier?.logo,
-          supplierId: supplierId,
-        };
-      });
+      return (data || []).map((item) => ({
+        id: item.id,
+        listId: item.list_id,
+        code: item.code || undefined,
+        name: item.name || undefined,
+        price: item.price ? Number(item.price) : undefined,
+        quantity: item.quantity || undefined,
+        data: (item.data as Record<string, any>) || {},
+      })) as DynamicProduct[];
     },
-    enabled: productLists.length > 0 && suppliers.length > 0,
+    enabled: !isLoadingSuppliers && !isLoadingLists && suppliers.length > 0 && productLists.length > 0,
+  });
+
+  // Create productsByList and listDetails maps
+  const productsByList = new Map<string, EnrichedProduct[]>();
+  const listDetails = new Map<string, ProductListDetails>();
+
+  // Group products by list and enrich with supplier info
+  productLists.forEach((list) => {
+    const supplier = suppliers.find((s) => s.id === list.supplierId);
+    
+    // Store list details
+    listDetails.set(list.id, {
+      listId: list.id,
+      listName: list.name,
+      supplierId: list.supplierId,
+      supplierName: supplier?.name || "Unknown",
+      supplierLogo: supplier?.logo || null,
+      columnSchema: list.columnSchema,
+      productCount: list.productCount,
+    });
+
+    // Get products for this list
+    const listProducts = dynamicProducts
+      .filter((product) => product.listId === list.id)
+      .map((product) => ({
+        ...product,
+        supplierName: supplier?.name || "Unknown",
+        supplierLogo: supplier?.logo,
+        supplierId: list.supplierId,
+      }));
+
+    productsByList.set(list.id, listProducts);
+  });
+
+  // Also create flat array for backwards compatibility
+  const allProducts: EnrichedProduct[] = dynamicProducts.map((product) => {
+    const list = productLists.find((list) => list.id === product.listId);
+    const supplier = list ? suppliers.find((s) => s.id === list.supplierId) : undefined;
+
+    return {
+      ...product,
+      supplierName: supplier?.name || "Unknown",
+      supplierLogo: supplier?.logo,
+      supplierId: list?.supplierId || "",
+    };
   });
 
   return {
     allProducts,
+    productsByList,
+    listDetails,
     suppliers,
     productLists,
     isLoading: isLoadingSuppliers || isLoadingLists || isLoadingProducts,
