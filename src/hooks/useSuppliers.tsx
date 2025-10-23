@@ -101,8 +101,8 @@ export const useSuppliers = () => {
   return {
     suppliers,
     isLoading,
-    createSupplier: createMutation.mutate,
-    updateSupplier: updateMutation.mutate,
-    deleteSupplier: deleteMutation.mutate,
+    createSupplier: createMutation.mutateAsync,
+    updateSupplier: updateMutation.mutateAsync,
+    deleteSupplier: deleteMutation.mutateAsync,
   };
 };

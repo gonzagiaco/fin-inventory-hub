@@ -63,10 +63,6 @@ const SupplierDialog = ({
 
     onSave(supplierData);
     onOpenChange(false);
-    toast({
-      title: supplier ? "Proveedor actualizado" : "Proveedor creado",
-      description: `${supplierData.name} se ha ${supplier ? "actualizado" : "agregado"} correctamente.`,
-    });
   };
 
   return (

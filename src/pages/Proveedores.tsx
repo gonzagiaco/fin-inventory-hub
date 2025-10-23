@@ -47,15 +47,21 @@ const Proveedores = () => {
     }
   };
 
-  const handleSaveSupplier = (supplier: Omit<Supplier, "id"> & { id?: string }) => {
-    if (supplier.id) {
-      // Edit existing
-      updateSupplier({ id: supplier.id, name: supplier.name, logo: supplier.logo });
-    } else {
-      // Create new
-      createSupplier({ name: supplier.name, logo: supplier.logo });
+  const handleSaveSupplier = async (supplier: Omit<Supplier, "id"> & { id?: string }) => {
+    try {
+      if (supplier.id) {
+        // Edit existing
+        await updateSupplier({ id: supplier.id, name: supplier.name, logo: supplier.logo });
+      } else {
+        // Create new
+        await createSupplier({ name: supplier.name, logo: supplier.logo });
+      }
+      setIsDialogOpen(false);
+      setSelectedSupplier(null);
+    } catch (error) {
+      // Error handling is done in the hooks with toast
+      console.error('Error saving supplier:', error);
     }
-    setSelectedSupplier(null);
   };
 
   const handleViewDetails = (supplier: Supplier) => {
