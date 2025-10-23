@@ -28,7 +28,7 @@ export function SupplierStockSection({
   }, 0);
 
   return (
-    <Card className="mb-6">
+    <Card className="mb-6 w-full">
       <CardHeader className="cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">

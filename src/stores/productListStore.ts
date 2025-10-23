@@ -48,6 +48,18 @@ interface SearchableColumnsState {
   [listId: string]: string[];
 }
 
+interface QuantityColumnState {
+  [listId: string]: string;
+}
+
+interface PriceColumnState {
+  [listId: string]: string;
+}
+
+interface LowStockThresholdState {
+  [listId: string]: number;
+}
+
 interface ProductListStore {
   columnVisibility: ColumnVisibilityState;
   columnOrder: ColumnOrderState;
@@ -58,6 +70,9 @@ interface ProductListStore {
   viewMode: ViewModeState;
   cardPreviewFields: CardPreviewFieldsState;
   searchableColumns: SearchableColumnsState;
+  quantityColumn: QuantityColumnState;
+  priceColumn: PriceColumnState;
+  lowStockThreshold: LowStockThresholdState;
   
   setColumnVisibility: (listId: string, columnKey: string, visible: boolean) => void;
   setColumnOrder: (listId: string, order: string[]) => void;
@@ -67,6 +82,10 @@ interface ProductListStore {
   setViewMode: (listId: string, mode: "table" | "cards") => void;
   setCardPreviewFields: (listId: string, fields: string[]) => void;
   setSearchableColumns: (listId: string, columns: string[]) => void;
+  initializeSearchableColumns: (listId: string, columnSchema: ColumnSchema[]) => void;
+  setQuantityColumn: (listId: string, columnKey: string) => void;
+  setPriceColumn: (listId: string, columnKey: string) => void;
+  setLowStockThreshold: (listId: string, threshold: number) => void;
   
   // Saved views
   saveView: (listId: string, name: string) => void;
@@ -89,6 +108,9 @@ export const useProductListStore = create<ProductListStore>()(
       viewMode: {},
       cardPreviewFields: {},
       searchableColumns: {},
+      quantityColumn: {},
+      priceColumn: {},
+      lowStockThreshold: {},
 
       setColumnVisibility: (listId, columnKey, visible) =>
         set((state) => ({
@@ -246,6 +268,46 @@ export const useProductListStore = create<ProductListStore>()(
             [listId]: columns,
           },
         })),
+
+      initializeSearchableColumns: (listId, columnSchema) =>
+        set((state) => {
+          if (state.searchableColumns[listId]) return state;
+
+          const defaultSearchable = columnSchema
+            .filter(col => ['code', 'name'].includes(col.key) || columnSchema.indexOf(col) < 3)
+            .map(col => col.key);
+
+          return {
+            searchableColumns: {
+              ...state.searchableColumns,
+              [listId]: defaultSearchable,
+            },
+          };
+        }),
+
+      setQuantityColumn: (listId, columnKey) =>
+        set((state) => ({
+          quantityColumn: {
+            ...state.quantityColumn,
+            [listId]: columnKey,
+          },
+        })),
+
+      setPriceColumn: (listId, columnKey) =>
+        set((state) => ({
+          priceColumn: {
+            ...state.priceColumn,
+            [listId]: columnKey,
+          },
+        })),
+
+      setLowStockThreshold: (listId, threshold) =>
+        set((state) => ({
+          lowStockThreshold: {
+            ...state.lowStockThreshold,
+            [listId]: threshold,
+          },
+        })),
     }),
     {
       name: 'product-list-settings',
@@ -258,6 +320,9 @@ export const useProductListStore = create<ProductListStore>()(
         viewMode: state.viewMode,
         cardPreviewFields: state.cardPreviewFields,
         searchableColumns: state.searchableColumns,
+        quantityColumn: state.quantityColumn,
+        priceColumn: state.priceColumn,
+        lowStockThreshold: state.lowStockThreshold,
       }),
     }
   )

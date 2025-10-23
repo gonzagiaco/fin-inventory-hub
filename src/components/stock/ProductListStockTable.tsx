@@ -2,6 +2,8 @@ import { useState, useMemo } from "react";
 import { ChevronDown, ChevronUp, ShoppingCart, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -15,7 +17,10 @@ import { ColumnSettingsDrawer } from "@/components/ColumnSettingsDrawer";
 import { useProductListStore } from "@/stores/productListStore";
 import { ProductCardView } from "@/components/ProductCardView";
 import { CardPreviewSettings } from "@/components/CardPreviewSettings";
+import { ColumnConfigurationDialog } from "@/components/ColumnConfigurationDialog";
 import { List, LayoutGrid } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface ProductListStockTableProps {
   list: ProductListDetails;
@@ -30,6 +35,8 @@ export function ProductListStockTable({
 }: ProductListStockTableProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [editingQuantity, setEditingQuantity] = useState<string | null>(null);
+  const [tempQuantity, setTempQuantity] = useState<number>(0);
   const itemsPerPage = 50;
   
   // Get column configuration and view mode from store
@@ -37,7 +44,9 @@ export function ProductListStockTable({
     columnVisibility, 
     columnOrder,
     viewMode: storeViewMode,
-    setViewMode
+    setViewMode,
+    quantityColumn,
+    lowStockThreshold,
   } = useProductListStore();
 
   // Automatically use card view if many columns
@@ -55,7 +64,53 @@ export function ProductListStockTable({
       col !== undefined && visibilityState[col.key] !== false
     );
 
-  const lowStockCount = products.filter((p) => (p.quantity || 0) < 50).length;
+  const quantityColumnKey = quantityColumn[list.listId] || "quantity";
+  const threshold = lowStockThreshold[list.listId] || 50;
+
+  const getQuantityValue = (product: EnrichedProduct): number => {
+    const value = quantityColumnKey === "quantity" 
+      ? product.quantity 
+      : product.data?.[quantityColumnKey];
+    return Number(value) || 0;
+  };
+
+  const lowStockCount = products.filter((p) => getQuantityValue(p) < threshold).length;
+
+  const handleStartEditing = (productId: string, currentQty: number) => {
+    setEditingQuantity(productId);
+    setTempQuantity(currentQty);
+  };
+
+  const handleSaveQuantity = async (productId: string) => {
+    try {
+      const updateData: any = {};
+      
+      if (quantityColumnKey === "quantity") {
+        updateData.quantity = tempQuantity;
+      } else {
+        const product = products.find(p => p.id === productId);
+        if (product) {
+          updateData.data = {
+            ...product.data,
+            [quantityColumnKey]: tempQuantity,
+          };
+        }
+      }
+
+      const { error } = await supabase
+        .from("dynamic_products")
+        .update(updateData)
+        .eq("id", productId);
+
+      if (error) throw error;
+
+      toast.success("Cantidad actualizada correctamente");
+      setEditingQuantity(null);
+    } catch (error) {
+      console.error("Error updating quantity:", error);
+      toast.error("Error al actualizar la cantidad");
+    }
+  };
 
   // Pagination
   const totalPages = Math.ceil(products.length / itemsPerPage);
@@ -72,7 +127,7 @@ export function ProductListStockTable({
   }, [products.length, totalPages]);
 
   return (
-    <div className="border rounded-lg">
+    <div className="border rounded-lg w-full">
       <div className="flex items-center justify-between p-4 bg-muted/50">
         <div className="flex items-center gap-3 flex-1">
           <Button
@@ -116,6 +171,7 @@ export function ProductListStockTable({
               <CardPreviewSettings listId={list.listId} columnSchema={list.columnSchema} />
             </div>
           )}
+          <ColumnConfigurationDialog listId={list.listId} columnSchema={list.columnSchema} />
           <ColumnSettingsDrawer listId={list.listId} columnSchema={list.columnSchema} />
         </div>
       </div>
@@ -137,7 +193,7 @@ export function ProductListStockTable({
             <div className="overflow-x-auto">
               <div className="max-h-[600px] overflow-y-auto">
                 <Table>
-              <TableHeader>
+              <TableHeader sticky>
                 <TableRow>
                   {visibleColumns.map((column) => (
                     <TableHead key={column.key}>{column.label}</TableHead>
@@ -154,11 +210,16 @@ export function ProductListStockTable({
                   </TableRow>
                 ) : (
                   paginatedProducts.map((product) => {
-                    const quantity = product.quantity || 0;
-                    const isLowStock = quantity < 50;
+                    const quantity = getQuantityValue(product);
+                    const isLowStock = quantity < threshold;
 
                     return (
-                      <TableRow key={product.id}>
+                      <TableRow 
+                        key={product.id}
+                        className={cn(
+                          isLowStock && "bg-red-50 dark:bg-red-950/20 border-l-4 border-red-500"
+                        )}
+                      >
                         {visibleColumns.map((column) => {
                           let value: any;
                           
@@ -185,14 +246,40 @@ export function ProductListStockTable({
                             displayValue = String(value);
                           }
 
+                          const isQuantityColumn = column.key === quantityColumnKey;
+                          const isEditing = editingQuantity === product.id && isQuantityColumn;
+
                           return (
                             <TableCell key={column.key}>
-                              {column.key === 'quantity' && isLowStock ? (
+                              {isQuantityColumn ? (
                                 <div className="flex items-center gap-2">
-                                  <Badge variant="destructive" className="text-xs">
-                                    Bajo Stock
-                                  </Badge>
-                                  <span>{displayValue}</span>
+                                  {isLowStock && (
+                                    <Badge variant="destructive" className="text-xs">
+                                      Bajo Stock
+                                    </Badge>
+                                  )}
+                                  {isEditing ? (
+                                    <Input
+                                      type="number"
+                                      value={tempQuantity}
+                                      onChange={(e) => setTempQuantity(Number(e.target.value))}
+                                      onBlur={() => handleSaveQuantity(product.id)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleSaveQuantity(product.id);
+                                        if (e.key === 'Escape') setEditingQuantity(null);
+                                      }}
+                                      autoFocus
+                                      className="w-20 h-8"
+                                    />
+                                  ) : (
+                                    <div
+                                      onClick={() => handleStartEditing(product.id, quantity)}
+                                      className="cursor-pointer hover:bg-muted/50 rounded px-2 py-1 min-w-[60px]"
+                                      title="Click para editar"
+                                    >
+                                      {displayValue}
+                                    </div>
+                                  )}
                                 </div>
                               ) : (
                                 displayValue

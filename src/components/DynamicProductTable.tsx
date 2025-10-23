@@ -170,7 +170,7 @@ export const DynamicProductTable = ({
           <div className="overflow-x-auto">
             <div className="max-h-[600px] overflow-y-auto">
               <Table>
-            <TableHeader>
+            <TableHeader sticky>
               <TableRow>
                 {table.getHeaderGroups()[0]?.headers.map((header) => (
                   <TableHead

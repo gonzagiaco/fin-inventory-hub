@@ -17,9 +17,10 @@ export default function Stock() {
   const [quantityFilter, setQuantityFilter] = useState<string>("all");
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
   const [requestList, setRequestList] = useState<RequestItem[]>([]);
+  const [isCartCollapsed, setIsCartCollapsed] = useState(true);
   
   const { productsByList, listDetails, suppliers, isLoading } = useAllDynamicProducts();
-  const { searchableColumns } = useProductListStore();
+  const { searchableColumns, priceColumn, initializeSearchableColumns } = useProductListStore();
 
   // Group lists by supplier and apply filters
   const supplierSections = useMemo(() => {
@@ -58,6 +59,12 @@ export default function Stock() {
 
     productsByList.forEach((products, listId) => {
       const list = listDetails.get(listId);
+      
+      // Initialize searchable columns if not set
+      if (list && !searchableColumns[listId]) {
+        initializeSearchableColumns(listId, list.columnSchema);
+      }
+      
       const searchableCols = searchableColumns[listId] || ['code', 'name'];
 
       const filteredProducts = products.filter((item) => {
@@ -88,7 +95,7 @@ export default function Stock() {
     });
 
     return filtered;
-  }, [productsByList, searchQuery, quantityFilter]);
+  }, [productsByList, searchQuery, quantityFilter, searchableColumns, listDetails, initializeSearchableColumns]);
 
   // Filter suppliers based on supplier filter
   const visibleSupplierSections = useMemo(() => {
@@ -116,6 +123,12 @@ export default function Stock() {
   const handleAddToRequest = (product: EnrichedProduct) => {
     const existingItem = requestList.find((r) => r.productId === product.id);
     
+    // Get configured price column for this list
+    const priceColumnKey = priceColumn[product.listId] || 'price';
+    const productPrice = priceColumnKey === 'price' 
+      ? product.price 
+      : product.data?.[priceColumnKey];
+    
     if (existingItem) {
       setRequestList((prev) =>
         prev.map((r) =>
@@ -130,7 +143,7 @@ export default function Stock() {
         code: product.code || "",
         name: product.name || "",
         supplierId: product.supplierId,
-        costPrice: product.price || 0,
+        costPrice: Number(productPrice) || 0,
         quantity: 1,
       };
       setRequestList((prev) => [...prev, newRequest]);
@@ -231,16 +244,16 @@ export default function Stock() {
       </header>
 
       <div className="w-full px-4 py-6 max-w-full">
-        {/* Request Cart at the top */}
-        <div className="mb-6">
-          <RequestCart
-            requests={requestList}
-            onUpdateQuantity={handleUpdateRequestQuantity}
-            onRemove={handleRemoveFromRequest}
-            onExport={handleExportToExcel}
-            suppliers={suppliers}
-          />
-        </div>
+        {/* Floating Request Cart */}
+        <RequestCart
+          requests={requestList}
+          onUpdateQuantity={handleUpdateRequestQuantity}
+          onRemove={handleRemoveFromRequest}
+          onExport={handleExportToExcel}
+          suppliers={suppliers}
+          isCollapsed={isCartCollapsed}
+          onToggleCollapse={() => setIsCartCollapsed(!isCartCollapsed)}
+        />
 
         {/* Main content - Full width */}
         <div className="w-full">

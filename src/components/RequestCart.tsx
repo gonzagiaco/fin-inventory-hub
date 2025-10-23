@@ -1,6 +1,7 @@
-import { X, Minus, Plus, Download } from "lucide-react";
+import { X, Minus, Plus, Download, ShoppingCart } from "lucide-react";
 import { RequestItem, Supplier } from "@/types";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 
 interface RequestCartProps {
   requests: RequestItem[];
@@ -8,41 +9,64 @@ interface RequestCartProps {
   onRemove: (id: string) => void;
   onExport: () => void;
   suppliers: Supplier[];
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
 }
 
-const RequestCart = ({ requests, onUpdateQuantity, onRemove, onExport, suppliers }: RequestCartProps) => {
+const RequestCart = ({ requests, onUpdateQuantity, onRemove, onExport, suppliers, isCollapsed, onToggleCollapse }: RequestCartProps) => {
   const total = requests.reduce((sum, item) => sum + item.costPrice * item.quantity, 0);
 
   const getSupplierName = (supplierId: string) => {
     return suppliers.find((s) => s.id === supplierId)?.name || "Unknown";
   };
 
-  if (requests.length === 0) {
+  // Collapsed view - floating button
+  if (isCollapsed) {
     return (
-      <div className="glassmorphism rounded-xl shadow-lg p-6">
-        <h2 className="text-xl font-bold mb-4 text-foreground">Lista de Pedidos</h2>
-        <p className="text-muted-foreground text-center py-8">
-          No hay productos en la lista de pedidos
-        </p>
-      </div>
+      <button
+        onClick={onToggleCollapse}
+        className="fixed bottom-6 right-6 z-50 bg-primary hover:bg-primary/90 rounded-full p-4 shadow-2xl transition-transform hover:scale-110"
+      >
+        <ShoppingCart className="h-6 w-6 text-primary-foreground" />
+        {requests.length > 0 && (
+          <Badge className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground">
+            {requests.length}
+          </Badge>
+        )}
+      </button>
     );
   }
 
+  // Expanded view - floating panel
   return (
-    <div className="glassmorphism rounded-xl shadow-lg p-6">
-      <div className="flex items-center justify-between mb-4">
+    <div className="fixed bottom-6 right-6 z-50 w-96 max-h-[600px] glassmorphism rounded-xl shadow-2xl overflow-hidden flex flex-col">
+      <div className="flex items-center justify-between p-4 border-b border-border bg-muted/50">
         <h2 className="text-xl font-bold text-foreground">Lista de Pedidos</h2>
-        <button
-          onClick={onExport}
-          className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-2 px-4 rounded-lg shadow-lg transform hover:scale-105 transition-transform duration-300 flex items-center"
-        >
-          <Download className="mr-2 h-4 w-4" />
-          Exportar Excel
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onExport}
+            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-2 px-3 rounded-lg shadow-lg transition-transform hover:scale-105 flex items-center text-sm"
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Exportar
+          </button>
+          <button
+            onClick={onToggleCollapse}
+            className="p-2 hover:bg-muted rounded-lg transition-colors"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
       </div>
       
-      <div className="space-y-3 mb-4 max-h-[400px] overflow-y-auto">
-        {requests.map((item) => (
+      {requests.length === 0 ? (
+        <div className="p-8 text-center text-muted-foreground">
+          No hay productos en la lista
+        </div>
+      ) : (
+        <>
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            {requests.map((item) => (
           <div
             key={item.id}
             className="bg-muted/30 rounded-lg p-4 flex items-center justify-between"
@@ -82,15 +106,17 @@ const RequestCart = ({ requests, onUpdateQuantity, onRemove, onExport, suppliers
               </button>
             </div>
           </div>
-        ))}
-      </div>
-      
-      <div className="border-t border-white/10 pt-4">
-        <div className="flex justify-between items-center">
-          <span className="text-lg font-bold text-foreground">Total:</span>
-          <span className="text-2xl font-bold text-primary">${total.toFixed(2)}</span>
-        </div>
-      </div>
+            ))}
+          </div>
+          
+          <div className="border-t border-border p-4 bg-muted/30">
+            <div className="flex justify-between items-center">
+              <span className="text-lg font-bold text-foreground">Total:</span>
+              <span className="text-2xl font-bold text-primary">${total.toFixed(2)}</span>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

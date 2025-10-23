@@ -88,7 +88,7 @@ export const useAllDynamicProducts = () => {
 
       if (error) throw error;
 
-      return (data || []).map((item) => ({
+      const products = (data || []).map((item) => ({
         id: item.id,
         listId: item.list_id,
         code: item.code || undefined,
@@ -97,6 +97,19 @@ export const useAllDynamicProducts = () => {
         quantity: item.quantity || undefined,
         data: (item.data as Record<string, any>) || {},
       })) as DynamicProduct[];
+
+      // Debug logs
+      console.log('📊 Total dynamic products fetched:', products.length);
+      console.log('📋 Products by list:', 
+        Array.from(
+          products.reduce((acc, p) => {
+            acc.set(p.listId, (acc.get(p.listId) || 0) + 1);
+            return acc;
+          }, new Map<string, number>())
+        ).map(([listId, count]) => ({ listId, count }))
+      );
+
+      return products;
     },
     enabled: !isLoadingSuppliers && !isLoadingLists && suppliers.length > 0 && productLists.length > 0,
   });
