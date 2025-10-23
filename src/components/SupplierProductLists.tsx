@@ -27,6 +27,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ListUpdateDialog } from "./ListUpdateDialog";
 
 interface SupplierProductListsProps {
   supplierId: string;
@@ -40,9 +41,15 @@ export const SupplierProductLists = ({
   const [isUploading, setIsUploading] = useState(false);
   const [listToDelete, setListToDelete] = useState<string | null>(null);
   const [similarWarning, setSimilarWarning] = useState<string | null>(null);
+  const [pendingUpload, setPendingUpload] = useState<{
+    fileName: string;
+    columnSchema: ColumnSchema[];
+    products: DynamicProduct[];
+    similarList: any;
+  } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { productLists, productsMap, isLoading, createList, deleteList } =
+  const { productLists, productsMap, isLoading, createList, deleteList, updateList, findSimilarList } =
     useProductLists(supplierId);
   const { collapsedLists, toggleListCollapse } = useProductListStore();
 
@@ -144,18 +151,6 @@ export const SupplierProductLists = ({
         }
       });
 
-      // Check for similar column schemas
-      const existingSchemas = productLists.map((list) => 
-        list.columnSchema.map((c) => c.key).sort().join(',')
-      );
-      const newSchema = columnSchema.map((c) => c.key).sort().join(',');
-      
-      if (existingSchemas.includes(newSchema)) {
-        setSimilarWarning(
-          `Ya existe una lista con columnas similares. ¿Deseas importar de todas formas?`
-        );
-      }
-
       // Transform products
       const dynamicProducts: DynamicProduct[] = productos.map((prod: any) => {
         const data: Record<string, any> = {};
@@ -176,15 +171,28 @@ export const SupplierProductLists = ({
         };
       });
 
-      // Create list
-      createList({
-        supplierId,
-        name: `${file.name} - ${new Date().toLocaleDateString()}`,
-        fileName: file.name,
-        fileType: file.name.split('.').pop() || 'unknown',
-        columnSchema,
-        products: dynamicProducts,
-      });
+      // Check for similar list
+      const similarList = findSimilarList(file.name, columnSchema);
+      
+      if (similarList) {
+        // Store pending upload and show dialog
+        setPendingUpload({
+          fileName: file.name,
+          columnSchema,
+          products: dynamicProducts,
+          similarList,
+        });
+      } else {
+        // Create new list directly
+        createList({
+          supplierId,
+          name: `${file.name} - ${new Date().toLocaleDateString()}`,
+          fileName: file.name,
+          fileType: file.name.split('.').pop() || 'unknown',
+          columnSchema,
+          products: dynamicProducts,
+        });
+      }
 
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -201,6 +209,38 @@ export const SupplierProductLists = ({
     if (listToDelete) {
       deleteList(listToDelete);
       setListToDelete(null);
+    }
+  };
+
+  const handleUpdateExisting = () => {
+    if (pendingUpload) {
+      updateList({
+        listId: pendingUpload.similarList.id,
+        fileName: pendingUpload.fileName,
+        columnSchema: pendingUpload.columnSchema,
+        products: pendingUpload.products,
+      });
+      setPendingUpload(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleCreateNew = () => {
+    if (pendingUpload) {
+      createList({
+        supplierId,
+        name: `${pendingUpload.fileName} - ${new Date().toLocaleDateString()}`,
+        fileName: pendingUpload.fileName,
+        fileType: pendingUpload.fileName.split('.').pop() || 'unknown',
+        columnSchema: pendingUpload.columnSchema,
+        products: pendingUpload.products,
+      });
+      setPendingUpload(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -317,6 +357,16 @@ export const SupplierProductLists = ({
           })}
         </div>
       )}
+
+      {/* Update Dialog */}
+      <ListUpdateDialog
+        open={!!pendingUpload}
+        onOpenChange={(open) => !open && setPendingUpload(null)}
+        existingList={pendingUpload?.similarList || null}
+        newProductCount={pendingUpload?.products.length || 0}
+        onUpdate={handleUpdateExisting}
+        onCreateNew={handleCreateNew}
+      />
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!listToDelete} onOpenChange={() => setListToDelete(null)}>

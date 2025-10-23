@@ -186,6 +186,96 @@ export const useProductLists = (supplierId?: string) => {
     },
   });
 
+  const updateListMutation = useMutation({
+    mutationFn: async ({
+      listId,
+      fileName,
+      columnSchema,
+      products,
+    }: {
+      listId: string;
+      fileName: string;
+      columnSchema: ColumnSchema[];
+      products: DynamicProduct[];
+    }) => {
+      const { data: userData, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !userData.user) {
+        throw new Error("Usuario no autenticado");
+      }
+
+      // 1. Update list metadata
+      const { error: updateError } = await supabase
+        .from("product_lists")
+        .update({
+          file_name: fileName,
+          updated_at: new Date().toISOString(),
+          product_count: products.length,
+          column_schema: JSON.parse(JSON.stringify(columnSchema)),
+        })
+        .eq("id", listId);
+
+      if (updateError) throw updateError;
+
+      // 2. Delete old products
+      const { error: deleteError } = await supabase
+        .from("dynamic_products")
+        .delete()
+        .eq("list_id", listId);
+
+      if (deleteError) throw deleteError;
+
+      // 3. Insert new products
+      const productsToInsert = products.map((product) => ({
+        user_id: userData.user.id,
+        list_id: listId,
+        code: product.code,
+        name: product.name,
+        price: product.price,
+        quantity: product.quantity,
+        data: product.data,
+      }));
+
+      const { error: insertError } = await supabase
+        .from("dynamic_products")
+        .insert(productsToInsert);
+
+      if (insertError) throw insertError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["product-lists"] });
+      queryClient.invalidateQueries({ queryKey: ["dynamic-products"] });
+      toast.success("Lista actualizada exitosamente");
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Error al actualizar lista");
+    },
+  });
+
+  // Helper function to find similar list
+  const findSimilarList = (fileName: string, columnSchema: ColumnSchema[]) => {
+    // 1. Exact match by file name
+    const exactMatch = productLists.find(
+      (list) => list.fileName === fileName
+    );
+    if (exactMatch) return exactMatch;
+
+    // 2. Match by column similarity (>75%)
+    const newKeys = columnSchema.map((c) => c.key).sort();
+    
+    for (const list of productLists) {
+      const existingKeys = list.columnSchema.map((c) => c.key).sort();
+      const commonKeys = newKeys.filter((k) => existingKeys.includes(k));
+      const similarity = (commonKeys.length / Math.max(newKeys.length, existingKeys.length)) * 100;
+      
+      if (similarity > 75) {
+        return list;
+      }
+    }
+
+    return null;
+  };
+
   return {
     productLists,
     productsMap,
@@ -193,5 +283,7 @@ export const useProductLists = (supplierId?: string) => {
     createList: createListMutation.mutate,
     deleteList: deleteListMutation.mutate,
     updateColumnSchema: updateColumnSchemaMutation.mutateAsync,
+    updateList: updateListMutation.mutate,
+    findSimilarList,
   };
 };

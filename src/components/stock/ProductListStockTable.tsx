@@ -13,6 +13,8 @@ import {
 import { ProductListDetails, EnrichedProduct } from "@/hooks/useAllDynamicProducts";
 import { ColumnSettingsDrawer } from "@/components/ColumnSettingsDrawer";
 import { useProductListStore } from "@/stores/productListStore";
+import { ProductCardView } from "@/components/ProductCardView";
+import { LayoutGrid, List } from "lucide-react";
 
 interface ProductListStockTableProps {
   list: ProductListDetails;
@@ -26,7 +28,12 @@ export function ProductListStockTable({
   onAddToRequest,
 }: ProductListStockTableProps) {
   const [isExpanded, setIsExpanded] = useState(true);
+  const [viewMode, setViewMode] = useState<"table" | "cards">("table");
   const { columnVisibility, columnOrder } = useProductListStore();
+
+  // Automatically use card view if many columns
+  const shouldUseCardView = list.columnSchema.length > 8;
+  const effectiveViewMode = shouldUseCardView ? viewMode : "table";
 
   const visibilityState = columnVisibility[list.listId] || {};
   const currentOrder = columnOrder[list.listId] || list.columnSchema.map((col) => col.key);
@@ -66,93 +73,122 @@ export function ProductListStockTable({
               )}
             </div>
           </div>
+          {shouldUseCardView && (
+            <div className="flex items-center gap-1 border rounded-md">
+              <Button
+                variant={effectiveViewMode === "table" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("table")}
+              >
+                <List className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={effectiveViewMode === "cards" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setViewMode("cards")}
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
           <ColumnSettingsDrawer listId={list.listId} columnSchema={list.columnSchema} />
         </div>
       </div>
 
       {isExpanded && (
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                {visibleColumns.map((column) => (
-                  <TableHead key={column.key}>{column.label}</TableHead>
-                ))}
-                <TableHead className="text-right">Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {products.length === 0 ? (
+        effectiveViewMode === "cards" ? (
+          <div className="p-4">
+            <ProductCardView
+              products={products}
+              columnSchema={list.columnSchema}
+              onAddToRequest={onAddToRequest}
+              showActions={true}
+            />
+          </div>
+        ) : (
+          <div className="overflow-x-auto max-h-[600px]">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={visibleColumns.length + 1} className="text-center text-muted-foreground">
-                    No hay productos en esta lista
-                  </TableCell>
+                  {visibleColumns.map((column) => (
+                    <TableHead key={column.key}>{column.label}</TableHead>
+                  ))}
+                  <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
-              ) : (
-                products.map((product) => {
-                  const quantity = product.quantity || 0;
-                  const isLowStock = quantity < 50;
+              </TableHeader>
+              <TableBody>
+                {products.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={visibleColumns.length + 1} className="text-center text-muted-foreground">
+                      No hay productos en esta lista
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  products.map((product) => {
+                    const quantity = product.quantity || 0;
+                    const isLowStock = quantity < 50;
 
-                  return (
-                    <TableRow key={product.id}>
-                      {visibleColumns.map((column) => {
-                        let value: any;
-                        
-                        // Get value from standard fields or data
-                        if (column.key === 'code') value = product.code;
-                        else if (column.key === 'name') value = product.name;
-                        else if (column.key === 'price') value = product.price;
-                        else if (column.key === 'quantity') value = product.quantity;
-                        else value = product.data[column.key];
+                    return (
+                      <TableRow key={product.id}>
+                        {visibleColumns.map((column) => {
+                          let value: any;
+                          
+                          // Get value from standard fields or data
+                          if (column.key === 'code') value = product.code;
+                          else if (column.key === 'name') value = product.name;
+                          else if (column.key === 'price') value = product.price;
+                          else if (column.key === 'quantity') value = product.quantity;
+                          else value = product.data[column.key];
 
-                        // Format value based on type
-                        let displayValue: string;
-                        if (value == null) {
-                          displayValue = '-';
-                        } else if (column.type === 'number') {
-                          displayValue = typeof value === 'number' 
-                            ? value.toLocaleString('es-AR')
-                            : String(value);
-                        } else if (column.type === 'date') {
-                          displayValue = value instanceof Date
-                            ? value.toLocaleDateString('es-AR')
-                            : String(value);
-                        } else {
-                          displayValue = String(value);
-                        }
+                          // Format value based on type
+                          let displayValue: string;
+                          if (value == null) {
+                            displayValue = '-';
+                          } else if (column.type === 'number') {
+                            displayValue = typeof value === 'number' 
+                              ? value.toLocaleString('es-AR')
+                              : String(value);
+                          } else if (column.type === 'date') {
+                            displayValue = value instanceof Date
+                              ? value.toLocaleDateString('es-AR')
+                              : String(value);
+                          } else {
+                            displayValue = String(value);
+                          }
 
-                        return (
-                          <TableCell key={column.key}>
-                            {column.key === 'quantity' && isLowStock ? (
-                              <div className="flex items-center gap-2">
-                                <Badge variant="destructive" className="text-xs">
-                                  Bajo Stock
-                                </Badge>
-                                <span>{displayValue}</span>
-                              </div>
-                            ) : (
-                              displayValue
-                            )}
-                          </TableCell>
-                        );
-                      })}
-                      <TableCell className="text-right">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => onAddToRequest(product)}
-                        >
-                          <ShoppingCart className="h-4 w-4 mr-2" />
-                          Agregar
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                          return (
+                            <TableCell key={column.key}>
+                              {column.key === 'quantity' && isLowStock ? (
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="destructive" className="text-xs">
+                                    Bajo Stock
+                                  </Badge>
+                                  <span>{displayValue}</span>
+                                </div>
+                              ) : (
+                                displayValue
+                              )}
+                            </TableCell>
+                          );
+                        })}
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => onAddToRequest(product)}
+                          >
+                            <ShoppingCart className="h-4 w-4 mr-2" />
+                            Agregar
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        )
       )}
     </div>
   );
