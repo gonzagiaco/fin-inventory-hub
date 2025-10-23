@@ -33,12 +33,16 @@ export const useStock = () => {
 
   const createMutation = useMutation({
     mutationFn: async (item: Omit<StockItem, "id">) => {
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: userData, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !userData.user) {
+        throw new Error("Usuario no autenticado");
+      }
       
       const { data, error } = await supabase
         .from("stock_items")
         .insert([{
-          user_id: userData.user?.id,
+          user_id: userData.user.id,
           code: item.code,
           name: item.name,
           quantity: item.quantity,
@@ -49,9 +53,10 @@ export const useStock = () => {
           min_stock_limit: item.minStockLimit,
         }])
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+      if (!data) throw new Error("No se pudo crear el producto");
       return data;
     },
     onSuccess: () => {
@@ -81,9 +86,10 @@ export const useStock = () => {
         .update(updates)
         .eq("id", id)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+      if (!data) throw new Error("No se pudo actualizar el producto");
       return data;
     },
     onSuccess: () => {

@@ -94,14 +94,18 @@ export const useProductLists = (supplierId?: string) => {
       columnSchema: ColumnSchema[];
       products: DynamicProduct[];
     }) => {
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: userData, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !userData.user) {
+        throw new Error("Usuario no autenticado");
+      }
 
       // Create the list
       const { data: listData, error: listError } = await supabase
         .from("product_lists")
         .insert([
           {
-            user_id: userData.user?.id,
+            user_id: userData.user.id,
             supplier_id: supplierId,
             name,
             file_name: fileName,
@@ -111,13 +115,14 @@ export const useProductLists = (supplierId?: string) => {
           },
         ])
         .select()
-        .single();
+        .maybeSingle();
 
       if (listError) throw listError;
+      if (!listData) throw new Error("No se pudo crear la lista de productos");
 
       // Insert products
       const productsToInsert = products.map((product) => ({
-        user_id: userData.user?.id,
+        user_id: userData.user.id,
         list_id: listData.id,
         code: product.code,
         name: product.name,

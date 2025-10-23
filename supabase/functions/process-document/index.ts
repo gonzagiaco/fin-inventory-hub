@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const PYTHON_BACKEND_URL = "https://dario-herramientas-api.onrender.com";
+const PYTHON_BACKEND_URL = "https://normalizador-327794609851.us-central1.run.app";
 
 serve(async (req) => {
   // Handle CORS

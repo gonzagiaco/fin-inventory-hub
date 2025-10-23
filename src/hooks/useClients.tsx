@@ -90,28 +90,33 @@ export const useClients = () => {
 
   const createMutation = useMutation({
     mutationFn: async (client: Omit<Client, "id">) => {
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: userData, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !userData.user) {
+        throw new Error("Usuario no autenticado");
+      }
       
       // Create client
       const { data: clientData, error: clientError } = await supabase
         .from("clients")
         .insert([{
-          user_id: userData.user?.id,
+          user_id: userData.user.id,
           name: client.name,
           phone: client.phone,
           email: client.email,
           address: client.address,
         }])
         .select()
-        .single();
+        .maybeSingle();
 
       if (clientError) throw clientError;
+      if (!clientData) throw new Error("No se pudo crear el cliente");
 
       // Create invoice
       const { data: invoiceData, error: invoiceError } = await supabase
         .from("invoices")
         .insert([{
-          user_id: userData.user?.id,
+          user_id: userData.user.id,
           client_id: clientData.id,
           total_amount: client.amount,
           amount_paid: client.amountPaid,
@@ -120,9 +125,10 @@ export const useClients = () => {
           due_date: client.dueDate,
         }])
         .select()
-        .single();
+        .maybeSingle();
 
       if (invoiceError) throw invoiceError;
+      if (!invoiceData) throw new Error("No se pudo crear la factura");
 
       // Create invoice products
       if (client.products && client.products.length > 0) {

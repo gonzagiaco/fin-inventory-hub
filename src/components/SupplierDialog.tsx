@@ -15,7 +15,7 @@ import { toast } from "@/hooks/use-toast";
 interface SupplierDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSave: (supplier: Supplier) => void;
+  onSave: (supplier: Omit<Supplier, "id"> & { id?: string }) => void;
   supplier?: Supplier | null;
 }
 
@@ -50,11 +50,16 @@ const SupplierDialog = ({
       return;
     }
 
-    const supplierData: Supplier = {
-      id: supplier?.id || crypto.randomUUID(),
-      name: name.trim(),
-      logo: logo.trim() || undefined,
-    };
+    const supplierData = supplier?.id 
+      ? {
+          id: supplier.id,
+          name: name.trim(),
+          logo: logo.trim() || undefined,
+        }
+      : {
+          name: name.trim(),
+          logo: logo.trim() || undefined,
+        };
 
     onSave(supplierData);
     onOpenChange(false);
