@@ -27,19 +27,24 @@ export const useSuppliers = () => {
 
   const createMutation = useMutation({
     mutationFn: async (supplier: Omit<Supplier, "id">) => {
-      const { data: userData } = await supabase.auth.getUser();
+      const { data: userData, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !userData.user) {
+        throw new Error("Usuario no autenticado");
+      }
       
       const { data, error } = await supabase
         .from("suppliers")
         .insert([{
-          user_id: userData.user?.id,
+          user_id: userData.user.id,
           name: supplier.name,
           logo_url: supplier.logo,
         }])
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+      if (!data) throw new Error("No se pudo crear el proveedor");
       return data;
     },
     onSuccess: () => {
@@ -63,9 +68,10 @@ export const useSuppliers = () => {
         .update(updates)
         .eq("id", id)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+      if (!data) throw new Error("No se pudo actualizar el proveedor");
       return data;
     },
     onSuccess: () => {
