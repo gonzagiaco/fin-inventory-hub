@@ -21,7 +21,7 @@ const SupplierDetailDialog = ({
 }: SupplierDetailDialogProps) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-card border-primary/20 max-w-6xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="bg-card border-primary/20 max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-foreground flex items-center gap-3">
             {supplier.logo && (
@@ -35,7 +35,9 @@ const SupplierDetailDialog = ({
           </DialogTitle>
         </DialogHeader>
 
-        <SupplierProductLists supplierId={supplier.id} supplierName={supplier.name} />
+        <div className="flex-1 overflow-y-auto overflow-x-hidden">
+          <SupplierProductLists supplierId={supplier.id} supplierName={supplier.name} />
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -177,10 +177,20 @@ export default function Stock() {
     });
   };
 
+  const hasActiveFilters = searchQuery !== "" || quantityFilter !== "all" || supplierFilter !== "all";
+  
+  const totalProducts = useMemo(() => {
+    let count = 0;
+    productsByList.forEach((products) => {
+      count += products.length;
+    });
+    return count;
+  }, [productsByList]);
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background overflow-x-hidden">
       <header className="sticky top-0 z-10 bg-background border-b">
-        <div className="w-full px-4 py-6 max-w-full">
+        <div className="w-full px-4 py-6 max-w-full overflow-hidden">
           <h1 className="text-3xl font-bold mb-6">Stock de Productos</h1>
           
           {/* Search and Filters */}
@@ -235,15 +245,33 @@ export default function Stock() {
             </div>
           </div>
 
-          {/* Results summary */}
-          <div className="text-sm text-muted-foreground">
-            Mostrando {totalFilteredProducts} productos en {visibleSupplierSections.length}{" "}
-            {visibleSupplierSections.length === 1 ? "proveedor" : "proveedores"}
+          {/* Results summary with filter indicators */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="text-sm text-muted-foreground">
+              Mostrando {totalFilteredProducts} de {totalProducts} productos
+              {" • "}
+              {visibleSupplierSections.length}{" "}
+              {visibleSupplierSections.length === 1 ? "proveedor" : "proveedores"}
+            </div>
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSearchQuery("");
+                  setQuantityFilter("all");
+                  setSupplierFilter("all");
+                }}
+                className="text-xs h-7"
+              >
+                Limpiar filtros
+              </Button>
+            )}
           </div>
         </div>
       </header>
 
-      <div className="w-full px-4 py-6 max-w-full">
+      <div className="w-full px-4 py-6 max-w-full overflow-hidden">
         {/* Floating Request Cart */}
         <RequestCart
           requests={requestList}

@@ -28,7 +28,7 @@ export function SupplierStockSection({
   }, 0);
 
   return (
-    <Card className="mb-6 w-full">
+    <Card className="mb-6 w-full max-w-full overflow-hidden">
       <CardHeader className="cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -47,7 +47,7 @@ export function SupplierStockSection({
       </CardHeader>
 
       {isExpanded && (
-        <CardContent className="space-y-6 overflow-hidden">
+        <CardContent className="space-y-6 w-full overflow-hidden">
           {lists.map((list) => {
             const products = productsByList.get(list.listId) || [];
             return (

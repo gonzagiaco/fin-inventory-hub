@@ -12,7 +12,7 @@ import {
   CardHeader,
 } from "@/components/ui/card";
 import { useSuppliers } from "@/hooks/useSuppliers";
-import { useProductLists } from "@/hooks/useProductLists";
+import { useAllDynamicProducts } from "@/hooks/useAllDynamicProducts";
 
 const Proveedores = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -23,7 +23,7 @@ const Proveedores = () => {
 
   // Use Supabase hooks for data
   const { suppliers, isLoading: isLoadingSuppliers, createSupplier, updateSupplier, deleteSupplier } = useSuppliers();
-  const { productLists, isLoading: isLoadingLists } = useProductLists();
+  const { productsByList, listDetails } = useAllDynamicProducts();
 
   const handleCreateSupplier = () => {
     setSelectedSupplier(null);
@@ -70,10 +70,15 @@ const Proveedores = () => {
   };
 
   const getProductCount = (supplierId: string) => {
-    // Count products from all lists of this supplier
-    return productLists
-      .filter(list => list.supplierId === supplierId)
-      .reduce((total, list) => total + list.productCount, 0);
+    // Count products in real-time from all lists of this supplier
+    let count = 0;
+    listDetails.forEach((list) => {
+      if (list.supplierId === supplierId) {
+        const products = productsByList.get(list.listId) || [];
+        count += products.length;
+      }
+    });
+    return count;
   };
 
   return (

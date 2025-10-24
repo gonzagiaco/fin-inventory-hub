@@ -189,10 +189,11 @@ export function ProductListStockTable({
               />
             </div>
           ) : (
-          <div className="border-t">
-            <div className="overflow-x-auto">
-              <div className="max-h-[600px] overflow-y-auto">
-                <Table>
+          <div className="w-full border-t overflow-hidden">
+            <div className="w-full overflow-x-auto">
+              <div className="w-full overflow-y-auto max-h-[600px]">
+                <div className="min-w-max">
+                  <Table className="min-w-full">
               <TableHeader sticky>
                 <TableRow>
                   {visibleColumns.map((column) => (
@@ -302,7 +303,8 @@ export function ProductListStockTable({
                   })
                 )}
               </TableBody>
-            </Table>
+                  </Table>
+                </div>
               </div>
             </div>
           </div>
