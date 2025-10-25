@@ -34,7 +34,7 @@ serve(async (req) => {
       method: "POST",
       body: pythonFormData,
       headers: {
-        Authorization: `Bearer ${AUTH_TOKEN}`,
+        Authorization: `Bearer ${Deno.env.get("AUTH_TOKEN")}`,
       },
     });
 
