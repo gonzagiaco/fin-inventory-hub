@@ -20,13 +20,10 @@ serve(async (req) => {
     const supplierId = formData.get("supplierId") as string;
 
     if (!file) {
-      return new Response(
-        JSON.stringify({ error: "No file provided" }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
+      return new Response(JSON.stringify({ error: "No file provided" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     // Forward to Python backend
@@ -36,6 +33,9 @@ serve(async (req) => {
     const response = await fetch(`${PYTHON_BACKEND_URL}/procesar/${supplierId}`, {
       method: "POST",
       body: pythonFormData,
+      headers: {
+        Authorization: `Bearer ${AUTH_TOKEN}`,
+      },
     });
 
     if (!response.ok) {
@@ -53,15 +53,12 @@ serve(async (req) => {
   } catch (error) {
     console.error("Error processing document:", error);
     const errorMessage = error instanceof Error ? error.message : "Failed to process document";
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      {
-        status: 500,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Origin": "*",
-        },
-      }
-    );
+    return new Response(JSON.stringify({ error: errorMessage }), {
+      status: 500,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      },
+    });
   }
 });
