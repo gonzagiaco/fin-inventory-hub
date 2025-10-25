@@ -3,19 +3,23 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 const PYTHON_BACKEND_URL = "https://normalizador-327794609851.us-central1.run.app";
 const AUTH_TOKEN = Deno.env.get("AUTH_TOKEN");
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
 serve(async (req) => {
   if (!AUTH_TOKEN) {
-    return new Response(JSON.stringify({ error: "AUTH_TOKEN no configurado" }), { status: 500, headers: corsHeaders });
+    return new Response(JSON.stringify({ error: "AUTH_TOKEN no configurado" }), { 
+      status: 500, 
+      headers: { ...corsHeaders, "Content-Type": "application/json" } 
+    });
   }
+  
   // Handle CORS
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-      },
-    });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
