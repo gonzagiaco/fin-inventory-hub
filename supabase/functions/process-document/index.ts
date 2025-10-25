@@ -38,7 +38,7 @@ serve(async (req) => {
       method: "POST",
       body: pythonFormData,
       headers: {
-        Authorization: `Bearer ${AUTH_TOKEN}`,
+        Authorization: `Bearer 3p1L5RWzLTXbgDxlCB25scZJR1wkp172Vmay5iAE07CXlTJWZ9TpazTgWIMYbc1j`,
       },
     });
 
