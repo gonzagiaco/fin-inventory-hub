@@ -47,7 +47,7 @@ const RequestCart = ({
 
   // Expanded view - floating panel
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-96 max-h-[600px] glassmorphism rounded-xl shadow-2xl overflow-hidden flex flex-col">
+    <div className="fixed top-6 right-6 z-50 w-96 max-h-[600px] glassmorphism rounded-xl shadow-2xl overflow-hidden flex flex-col">
       <div className="flex items-center justify-between p-4 border-b border-border bg-muted/50">
         <h2 className="text-xl font-bold text-foreground">Lista de Pedidos</h2>
         <div className="flex items-center gap-2">
