@@ -32,19 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import {
-  Settings2,
-  GripVertical,
-  Eye,
-  EyeOff,
-  RotateCcw,
-  Save,
-  Trash2,
-  Edit2,
-  Check,
-  X,
-  Search,
-} from "lucide-react";
+import { Settings2, GripVertical, Eye, EyeOff, RotateCcw, Save, Trash2, Edit2, Check, X, Search } from "lucide-react";
 import { ColumnSchema } from "@/types/productList";
 import { useProductListStore } from "@/stores/productListStore";
 import { useProductLists } from "@/hooks/useProductLists";
@@ -66,10 +54,19 @@ interface SortableItemProps {
   onSearchableToggle: (key: string, searchable: boolean) => void;
 }
 
-function SortableItem({ id, column, isVisible, isDisabled, isSearchable, onToggle, onLabelChange, onSearchableToggle }: SortableItemProps) {
+function SortableItem({
+  id,
+  column,
+  isVisible,
+  isDisabled,
+  isSearchable,
+  onToggle,
+  onLabelChange,
+  onSearchableToggle,
+}: SortableItemProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editLabel, setEditLabel] = useState(column.label);
-  
+
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
   });
@@ -107,7 +104,7 @@ function SortableItem({ id, column, isVisible, isDisabled, isSearchable, onToggl
         onCheckedChange={(checked) => onToggle(column.key, checked as boolean)}
         disabled={isDisabled}
       />
-      
+
       {isEditing ? (
         <div className="flex-1 flex items-center gap-1">
           <Input
@@ -131,21 +128,14 @@ function SortableItem({ id, column, isVisible, isDisabled, isSearchable, onToggl
         <>
           <Label htmlFor={`col-${column.key}`} className="flex-1 cursor-pointer text-sm">
             {column.label}
-            {column.isStandard && (
-              <span className="text-xs text-muted-foreground ml-1">(fija)</span>
-            )}
+            {column.isStandard && <span className="text-xs text-muted-foreground ml-1">(fija)</span>}
           </Label>
-          <Button
-            size="icon"
-            variant="ghost"
-            className="h-7 w-7"
-            onClick={() => setIsEditing(true)}
-          >
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setIsEditing(true)}>
             <Edit2 className="h-3 w-3" />
           </Button>
         </>
       )}
-      
+
       <div className="flex items-center gap-1">
         {isVisible ? (
           <Eye className="w-4 h-4 text-muted-foreground" />
@@ -158,7 +148,7 @@ function SortableItem({ id, column, isVisible, isDisabled, isSearchable, onToggl
           onCheckedChange={(checked) => onSearchableToggle(column.key, checked as boolean)}
           title="Incluir en búsqueda"
         />
-        <Search className={`w-3 h-3 ${isSearchable ? 'text-primary' : 'text-muted-foreground'}`} />
+        <Search className={`w-3 h-3 ${isSearchable ? "text-primary" : "text-muted-foreground"}`} />
       </div>
     </div>
   );
@@ -193,7 +183,7 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDra
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
-    })
+    }),
   );
 
   const currentOrder = columnOrder[listId] || columnSchema.map((c) => c.key);
@@ -217,11 +207,19 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDra
   };
 
   const handleSearchableToggle = (key: string, searchable: boolean) => {
-    const currentSearchable = searchableColumns[listId] || ['code', 'name'];
-    const newSearchable = searchable
-      ? [...currentSearchable, key]
-      : currentSearchable.filter(k => k !== key);
-    setSearchableColumns(listId, newSearchable);
+    const current = searchableColumns[listId] ? [...searchableColumns[listId]] : ["code", "name"];
+
+    let updated;
+    if (searchable) {
+      // agregar si no existe
+      updated = Array.from(new Set([...current, key]));
+    } else {
+      // quitar de forma segura
+      updated = current.filter((k) => k !== key);
+    }
+
+    // asegurar nueva referencia para el store
+    setSearchableColumns(listId, [...updated]);
   };
 
   const handleShowAll = () => {
@@ -282,9 +280,7 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDra
 
   const handleLabelChange = async (columnKey: string, newLabel: string) => {
     // Update the label in the column schema
-    const updatedSchema = columnSchema.map((col) =>
-      col.key === columnKey ? { ...col, label: newLabel } : col
-    );
+    const updatedSchema = columnSchema.map((col) => (col.key === columnKey ? { ...col, label: newLabel } : col));
 
     // Persist to database
     try {
@@ -304,9 +300,7 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDra
         <Button variant="outline" size="sm" className="gap-2">
           <Settings2 className="w-4 h-4" />
           Columnas
-          {activeViewName && (
-            <span className="text-xs text-muted-foreground">({activeViewName})</span>
-          )}
+          {activeViewName && <span className="text-xs text-muted-foreground">({activeViewName})</span>}
         </Button>
       </DrawerTrigger>
       <DrawerContent className="max-h-[90vh]">
@@ -348,16 +342,12 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDra
             {/* Column List */}
             <div className="space-y-2">
               <h4 className="text-sm font-semibold">Columnas</h4>
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-              >
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                 <SortableContext items={currentOrder} strategy={verticalListSortingStrategy}>
                   <div className="space-y-2">
-                     {orderedColumns.map((column) => {
+                    {orderedColumns.map((column) => {
                       const isVisible = columnVisibility[listId]?.[column.key] !== false;
-                      const currentSearchable = searchableColumns[listId] || ['code', 'name'];
+                      const currentSearchable = searchableColumns[listId] || ["code", "name"];
                       const isSearchable = currentSearchable.includes(column.key);
                       return (
                         <SortableItem
@@ -383,7 +373,7 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDra
             {/* Saved Views */}
             <div className="space-y-2">
               <h4 className="text-sm font-semibold">Vistas Guardadas</h4>
-              
+
               {/* Save New View */}
               <div className="flex gap-2">
                 <Input
@@ -405,9 +395,7 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDra
                     <div
                       key={view.id}
                       className={`flex items-center gap-2 p-2 rounded-md border ${
-                        currentActiveView === view.id
-                          ? "border-primary bg-primary/10"
-                          : "border-border bg-card"
+                        currentActiveView === view.id ? "border-primary bg-primary/10" : "border-border bg-card"
                       }`}
                     >
                       {editingViewId === view.id ? (
@@ -421,18 +409,10 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDra
                             }}
                             className="h-8"
                           />
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleRenameView(view.id)}
-                          >
+                          <Button size="sm" variant="ghost" onClick={() => handleRenameView(view.id)}>
                             <Check className="w-4 h-4" />
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setEditingViewId(null)}
-                          >
+                          <Button size="sm" variant="ghost" onClick={() => setEditingViewId(null)}>
                             <X className="w-4 h-4" />
                           </Button>
                         </>
@@ -457,11 +437,7 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDra
                           >
                             <Edit2 className="w-4 h-4" />
                           </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => handleDeleteView(view.id)}
-                          >
+                          <Button size="sm" variant="ghost" onClick={() => handleDeleteView(view.id)}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </>
