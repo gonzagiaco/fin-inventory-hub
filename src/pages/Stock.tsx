@@ -156,11 +156,26 @@ export default function Stock() {
       );
       toast.success("Cantidad actualizada en la lista de pedidos");
     } else {
+      // Extract code and name with fallbacks from product.data
+      const code = product.code || 
+                   product.data?.['code'] || 
+                   product.data?.['Código'] || 
+                   product.data?.['CODIGO'] || 
+                   "";
+      
+      const name = product.name || 
+                   product.data?.['name'] || 
+                   product.data?.['Producto'] || 
+                   product.data?.['Nombre'] || 
+                   product.data?.['DESCRIPCIÓN'] || 
+                   product.data?.['Descripción'] ||
+                   "";
+      
       const newRequest: RequestItem = {
         id: Date.now().toString(),
         productId: product.id,
-        code: product.code || "",
-        name: product.name || "",
+        code,
+        name,
         supplierId: product.supplierId,
         costPrice: Number(productPrice) || 0,
         quantity: 1,
@@ -296,6 +311,7 @@ export default function Stock() {
         requests={requestList}
         onUpdateQuantity={handleUpdateRequestQuantity}
         onRemove={handleRemoveFromRequest}
+        onExport={handleExportToExcel}
         suppliers={suppliers}
         isCollapsed={isCartCollapsed}
         onToggleCollapse={() => setIsCartCollapsed(!isCartCollapsed)}

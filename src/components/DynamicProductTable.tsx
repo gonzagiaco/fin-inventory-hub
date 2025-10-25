@@ -51,10 +51,11 @@ export const DynamicProductTable = ({
     setViewMode
   } = useProductListStore();
 
-  // Determine if we should use card view based on column count
-  const shouldUseCardView = columnSchema.length > 8;
-  const currentViewMode = storeViewMode[listId] || "table";
-  const effectiveViewMode = shouldUseCardView ? currentViewMode : "table";
+  // Always allow card view with intelligent default
+  const shouldUseCardView = true;
+  const defaultViewMode = columnSchema.length > 8 ? "cards" : "table";
+  const currentViewMode = storeViewMode[listId] || defaultViewMode;
+  const effectiveViewMode = currentViewMode;
 
   const currentOrder = columnOrder[listId] || columnSchema.map((c) => c.key);
   const visibilityState = columnVisibility[listId] || {};

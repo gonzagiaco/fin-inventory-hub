@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -37,6 +37,13 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
   const [sorting, setSorting] = useState<SortingState>([]);
   const itemsPerPage = 50;
 
+  // Debug sorting
+  useEffect(() => {
+    if (sorting.length > 0) {
+      console.log("🔄 Sorting changed:", sorting);
+    }
+  }, [sorting]);
+
   const {
     columnVisibility,
     columnOrder,
@@ -46,9 +53,10 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
     lowStockThreshold,
   } = useProductListStore();
 
-  const shouldUseCardView = list.columnSchema.length > 8;
-  const currentViewMode = storeViewMode[list.listId] || "table";
-  const effectiveViewMode = shouldUseCardView ? currentViewMode : "table";
+  const shouldUseCardView = true; // Always allow card view
+  const defaultViewMode = list.columnSchema.length > 8 ? "cards" : "table";
+  const currentViewMode = storeViewMode[list.listId] || defaultViewMode;
+  const effectiveViewMode = currentViewMode;
 
   const visibilityState = columnVisibility[list.listId] || {};
   const currentOrder = columnOrder[list.listId] || list.columnSchema.map((col) => col.key);
@@ -150,14 +158,15 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
 
   return (
     <div className="border rounded-lg w-full">
-      <div className="flex items-center justify-between p-4 bg-muted/50">
-        <div className="flex items-center gap-3 flex-1">
-          <Button variant="ghost" size="icon" onClick={() => setIsExpanded(!isExpanded)}>
+      <div className="flex flex-col lg:flex-row items-start lg:items-center gap-3 p-4 bg-muted/50">
+        {/* Primera línea en mobile: botón colapsar + info */}
+        <div className="flex items-center gap-3 w-full lg:flex-1">
+          <Button variant="ghost" size="icon" onClick={() => setIsExpanded(!isExpanded)} className="shrink-0">
             {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>
-          <div className="flex-1">
-            <h3 className="font-semibold">{list.listName}</h3>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold truncate">{list.listName}</h3>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
               <span>{products.length} productos</span>
               {lowStockCount > 0 && (
                 <>
@@ -170,25 +179,29 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
               )}
             </div>
           </div>
-          {shouldUseCardView && (
-            <div className="flex gap-2">
-              <Button
-                variant={effectiveViewMode === "table" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode(list.listId, "table")}
-              >
-                <List className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={effectiveViewMode === "cards" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode(list.listId, "cards")}
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </Button>
-              <CardPreviewSettings listId={list.listId} columnSchema={list.columnSchema} />
-            </div>
-          )}
+        </div>
+        
+        {/* Segunda línea en mobile: controles */}
+        <div className="flex flex-wrap gap-2 w-full lg:w-auto justify-end">
+          <div className="flex gap-2">
+            <Button
+              variant={effectiveViewMode === "table" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode(list.listId, "table")}
+              title="Vista de tabla"
+            >
+              <List className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={effectiveViewMode === "cards" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode(list.listId, "cards")}
+              title="Vista de tarjetas"
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <CardPreviewSettings listId={list.listId} columnSchema={list.columnSchema} />
+          </div>
           <ColumnConfigurationDialog listId={list.listId} columnSchema={list.columnSchema} />
           <ColumnSettingsDrawer listId={list.listId} columnSchema={list.columnSchema} />
         </div>
@@ -318,7 +331,7 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
 
           {/* Pagination */}
           {table.getRowModel().rows.length > itemsPerPage && (
-            <div className="flex items-center justify-between px-4 py-3 border-t">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t">
               <div className="text-sm text-muted-foreground">
                 Mostrando {(currentPage - 1) * itemsPerPage + 1} a{" "}
                 {Math.min(currentPage * itemsPerPage, table.getRowModel().rows.length)} de{" "}
@@ -332,7 +345,7 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
                   disabled={currentPage === 1}
                 >
                   <ChevronLeft className="h-4 w-4" />
-                  Anterior
+                  <span className="hidden sm:inline ml-1">Anterior</span>
                 </Button>
                 <span className="text-sm text-muted-foreground">
                   Página {currentPage} de {totalPages}
@@ -343,7 +356,7 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
                   onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                   disabled={currentPage === totalPages}
                 >
-                  Siguiente
+                  <span className="hidden sm:inline mr-1">Siguiente</span>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>

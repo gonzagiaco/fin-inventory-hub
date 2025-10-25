@@ -1,12 +1,14 @@
-import { X, Minus, Plus, ShoppingCart } from "lucide-react";
+import { X, Minus, Plus, ShoppingCart, FileDown } from "lucide-react";
 import { RequestItem, Supplier } from "@/types";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 interface RequestCartProps {
   requests: RequestItem[];
   onUpdateQuantity: (id: string, quantity: number) => void;
   onRemove: (id: string) => void;
+  onExport: () => void;
   suppliers: Supplier[];
   isCollapsed: boolean;
   onToggleCollapse: () => void;
@@ -16,6 +18,7 @@ const RequestCart = ({
   requests,
   onUpdateQuantity,
   onRemove,
+  onExport,
   suppliers,
   isCollapsed,
   onToggleCollapse,
@@ -45,7 +48,7 @@ const RequestCart = ({
 
   // Expanded view - floating panel
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-96 max-h-[600px] glassmorphism rounded-xl shadow-2xl overflow-hidden flex flex-col">
+    <div className="fixed bottom-4 right-4 z-50 w-[calc(100vw-2rem)] sm:w-96 max-w-md max-h-[80vh] sm:max-h-[600px] glassmorphism rounded-xl shadow-2xl overflow-hidden flex flex-col">
       <div className="flex items-center justify-between p-4 border-b border-border bg-muted/50">
         <h2 className="text-xl font-bold text-foreground">Lista de Pedidos</h2>
         <button onClick={onToggleCollapse} className="p-2 hover:bg-muted rounded-lg transition-colors">
@@ -96,7 +99,16 @@ const RequestCart = ({
             ))}
           </div>
 
-          <div className="border-t border-border p-4 bg-muted/30">
+          <div className="border-t border-border p-4 bg-muted/30 space-y-3">
+            <Button 
+              onClick={onExport} 
+              className="w-full"
+              variant="default"
+              disabled={requests.length === 0}
+            >
+              <FileDown className="mr-2 h-4 w-4" />
+              Exportar Pedidos ({requests.length} productos)
+            </Button>
             <div className="flex justify-between items-center">
               <span className="text-lg font-bold text-foreground">Total:</span>
               <span className="text-2xl font-bold text-primary">${total.toFixed(2)}</span>
