@@ -11,12 +11,12 @@ const corsHeaders = {
 
 serve(async (req) => {
   if (!AUTH_TOKEN) {
-    return new Response(JSON.stringify({ error: "AUTH_TOKEN no configurado" }), { 
-      status: 500, 
-      headers: { ...corsHeaders, "Content-Type": "application/json" } 
+    return new Response(JSON.stringify({ error: "AUTH_TOKEN no configurado" }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-  
+
   // Handle CORS
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -42,7 +42,7 @@ serve(async (req) => {
       method: "POST",
       body: pythonFormData,
       headers: {
-        Authorization: `Bearer 3p1L5RWzLTXbgDxlCB25scZJR1wkp172Vmay5iAE07CXlTJWZ9TpazTgWIMYbc1j`,
+        Authorization: `Bearer ${AUTH_TOKEN}`,
       },
     });
 
