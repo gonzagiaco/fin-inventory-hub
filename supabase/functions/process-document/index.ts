@@ -1,8 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const PYTHON_BACKEND_URL = "https://normalizador-327794609851.us-central1.run.app";
+const AUTH_TOKEN = Deno.env.get("AUTH_TOKEN");
 
 serve(async (req) => {
+  if (!AUTH_TOKEN) {
+    return new Response(JSON.stringify({ error: "AUTH_TOKEN no configurado" }), { status: 500, headers: corsHeaders });
+  }
   // Handle CORS
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -34,7 +38,7 @@ serve(async (req) => {
       method: "POST",
       body: pythonFormData,
       headers: {
-        Authorization: `Bearer ${Deno.env.get("AUTH_TOKEN")}`,
+        Authorization: `Bearer ${AUTH_TOKEN}`,
       },
     });
 
