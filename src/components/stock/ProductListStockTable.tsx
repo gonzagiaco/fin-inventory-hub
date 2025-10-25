@@ -1,4 +1,12 @@
 import { useState, useMemo } from "react";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  flexRender,
+  ColumnDef,
+  SortingState,
+} from "@tanstack/react-table";
 import { ChevronDown, ChevronUp, ShoppingCart, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,9 +34,9 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
   const [currentPage, setCurrentPage] = useState(1);
   const [editingQuantity, setEditingQuantity] = useState<string | null>(null);
   const [tempQuantity, setTempQuantity] = useState<number>(0);
+  const [sorting, setSorting] = useState<SortingState>([]);
   const itemsPerPage = 50;
 
-  // Get column configuration and view mode from store
   const {
     columnVisibility,
     columnOrder,
@@ -38,7 +46,6 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
     lowStockThreshold,
   } = useProductListStore();
 
-  // Automatically use card view if many columns
   const shouldUseCardView = list.columnSchema.length > 8;
   const currentViewMode = storeViewMode[list.listId] || "table";
   const effectiveViewMode = shouldUseCardView ? currentViewMode : "table";
@@ -46,7 +53,6 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
   const visibilityState = columnVisibility[list.listId] || {};
   const currentOrder = columnOrder[list.listId] || list.columnSchema.map((col) => col.key);
 
-  // Get visible columns in order
   const visibleColumns = currentOrder
     .map((key) => list.columnSchema.find((col) => col.key === key))
     .filter(
@@ -96,19 +102,44 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
     }
   };
 
-  // Pagination
-  const totalPages = Math.ceil(products.length / itemsPerPage);
-  const paginatedProducts = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    return products.slice(startIndex, startIndex + itemsPerPage);
-  }, [products, currentPage, itemsPerPage]);
+  // Define columns for TanStack Table
+  const columns = useMemo<ColumnDef<EnrichedProduct>[]>(() => {
+    return visibleColumns.map((col) => ({
+      id: col.key,
+      accessorFn: (row: EnrichedProduct) => {
+        if (col.key === "code") return row.code;
+        if (col.key === "name") return row.name;
+        if (col.key === "price") return row.price;
+        if (col.key === "quantity") return row.quantity;
+        return row.data[col.key];
+      },
+      header: col.label,
+      cell: (info) => {
+        const value = info.getValue();
+        if (value == null) return "-";
+        if (col.type === "number") return Number(value).toLocaleString("es-AR");
+        if (col.type === "date") return value instanceof Date ? value.toLocaleDateString("es-AR") : String(value);
+        return String(value);
+      },
+    }));
+  }, [visibleColumns]);
 
-  // Reset to page 1 when products change
-  useMemo(() => {
-    if (currentPage > totalPages && totalPages > 0) {
-      setCurrentPage(1);
-    }
-  }, [products.length, totalPages]);
+  // Initialize table
+  const table = useReactTable({
+    data: products,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
+  // Pagination
+  const totalPages = Math.ceil(table.getRowModel().rows.length / itemsPerPage);
+  const paginatedRows = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return table.getRowModel().rows.slice(start, start + itemsPerPage);
+  }, [table, currentPage, itemsPerPage]);
 
   return (
     <div className="border rounded-lg w-full">
@@ -162,7 +193,7 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
             <div className="p-4">
               <ProductCardView
                 listId={list.listId}
-                products={paginatedProducts}
+                products={products}
                 columnSchema={list.columnSchema}
                 onAddToRequest={onAddToRequest}
                 showActions={true}
@@ -175,15 +206,30 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
                   <div className="min-w-max">
                     <Table className="min-w-full">
                       <TableHeader sticky>
-                        <TableRow>
-                          {visibleColumns.map((column) => (
-                            <TableHead key={column.key}>{column.label}</TableHead>
-                          ))}
-                          <TableHead className="text-right">Acciones</TableHead>
-                        </TableRow>
+                        {table.getHeaderGroups().map((headerGroup) => (
+                          <TableRow key={headerGroup.id}>
+                            {headerGroup.headers.map((header) => (
+                              <TableHead
+                                key={header.id}
+                                onClick={header.column.getToggleSortingHandler()}
+                                className="cursor-pointer select-none"
+                              >
+                                <div className="flex items-center gap-1">
+                                  {flexRender(header.column.columnDef.header, header.getContext())}
+                                  {{
+                                    asc: <ChevronUp className="w-4 h-4" />,
+                                    desc: <ChevronDown className="w-4 h-4" />,
+                                  }[header.column.getIsSorted() as string] ?? null}
+                                </div>
+                              </TableHead>
+                            ))}
+                            <TableHead className="text-right">Acciones</TableHead>
+                          </TableRow>
+                        ))}
                       </TableHeader>
+
                       <TableBody>
-                        {products.length === 0 ? (
+                        {paginatedRows.length === 0 ? (
                           <TableRow>
                             <TableCell
                               colSpan={visibleColumns.length + 1}
@@ -193,44 +239,24 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
                             </TableCell>
                           </TableRow>
                         ) : (
-                          paginatedProducts.map((product) => {
+                          paginatedRows.map((row) => {
+                            const product = row.original;
                             const quantity = getQuantityValue(product);
                             const isLowStock = quantity < threshold;
 
                             return (
                               <TableRow
-                                key={product.id}
+                                key={row.id}
                                 className={cn(isLowStock && "dark:bg-red-950/20 border-l-4 border-red-500")}
                               >
-                                {visibleColumns.map((column) => {
-                                  let value: any;
-
-                                  // Get value from standard fields or data
-                                  if (column.key === "code") value = product.code;
-                                  else if (column.key === "name") value = product.name;
-                                  else if (column.key === "price") value = product.price;
-                                  else if (column.key === "quantity") value = product.quantity;
-                                  else value = product.data[column.key];
-
-                                  // Format value based on type
-                                  let displayValue: string;
-                                  if (value == null) {
-                                    displayValue = "-";
-                                  } else if (column.type === "number") {
-                                    displayValue =
-                                      typeof value === "number" ? value.toLocaleString("es-AR") : String(value);
-                                  } else if (column.type === "date") {
-                                    displayValue =
-                                      value instanceof Date ? value.toLocaleDateString("es-AR") : String(value);
-                                  } else {
-                                    displayValue = String(value);
-                                  }
-
-                                  const isQuantityColumn = column.key === quantityColumnKey;
+                                {row.getVisibleCells().map((cell) => {
+                                  const columnKey = cell.column.id;
+                                  const isQuantityColumn = columnKey === quantityColumnKey;
                                   const isEditing = editingQuantity === product.id && isQuantityColumn;
+                                  const displayValue = flexRender(cell.column.columnDef.cell, cell.getContext());
 
                                   return (
-                                    <TableCell key={column.key}>
+                                    <TableCell key={cell.id}>
                                       {isQuantityColumn ? (
                                         <div className="flex items-center gap-2">
                                           {isLowStock && (
@@ -285,18 +311,19 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
             </div>
           )}
 
-          {/* Pagination Controls */}
-          {products.length > itemsPerPage && (
+          {/* Pagination */}
+          {table.getRowModel().rows.length > itemsPerPage && (
             <div className="flex items-center justify-between px-4 py-3 border-t">
               <div className="text-sm text-muted-foreground">
                 Mostrando {(currentPage - 1) * itemsPerPage + 1} a{" "}
-                {Math.min(currentPage * itemsPerPage, products.length)} de {products.length} productos
+                {Math.min(currentPage * itemsPerPage, table.getRowModel().rows.length)} de{" "}
+                {table.getRowModel().rows.length} productos
               </div>
               <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                   disabled={currentPage === 1}
                 >
                   <ChevronLeft className="h-4 w-4" />
@@ -308,7 +335,7 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
                   disabled={currentPage === totalPages}
                 >
                   Siguiente
