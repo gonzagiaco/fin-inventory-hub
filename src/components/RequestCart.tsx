@@ -33,7 +33,7 @@ const RequestCart = ({
     return (
       <button
         onClick={onToggleCollapse}
-        className="fixed bottom-6 md:top-6 right-6 z-50 bg-primary hover:bg-primary/90 rounded-full p-4 shadow-2xl transition-transform hover:scale-110"
+        className="fixed bottom-6 right-6 z-50 bg-primary hover:bg-primary/90 rounded-full p-4 shadow-2xl transition-transform hover:scale-110"
       >
         <ShoppingCart className="h-6 w-6 text-primary-foreground" />
         {requests.length > 0 && (
@@ -47,7 +47,7 @@ const RequestCart = ({
 
   // Expanded view - floating panel
   return (
-    <div className="fixed bottom-6 md:top-6 right-6 z-50 w-96 max-h-[600px] glassmorphism rounded-xl shadow-2xl overflow-hidden flex flex-col">
+    <div className="fixed bottom-6 right-6 z-50 w-96 max-h-[600px] glassmorphism rounded-xl shadow-2xl overflow-hidden flex flex-col">
       <div className="flex items-center justify-between p-4 border-b border-border bg-muted/50">
         <h2 className="text-xl font-bold text-foreground">Lista de Pedidos</h2>
         <div className="flex items-center gap-2">
