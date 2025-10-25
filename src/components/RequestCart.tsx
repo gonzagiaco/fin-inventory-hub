@@ -1,4 +1,4 @@
-import { X, Minus, Plus, Download, ShoppingCart } from "lucide-react";
+import { X, Minus, Plus, ShoppingCart } from "lucide-react";
 import { RequestItem, Supplier } from "@/types";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -7,7 +7,6 @@ interface RequestCartProps {
   requests: RequestItem[];
   onUpdateQuantity: (id: string, quantity: number) => void;
   onRemove: (id: string) => void;
-  onExport: () => void;
   suppliers: Supplier[];
   isCollapsed: boolean;
   onToggleCollapse: () => void;
@@ -17,7 +16,6 @@ const RequestCart = ({
   requests,
   onUpdateQuantity,
   onRemove,
-  onExport,
   suppliers,
   isCollapsed,
   onToggleCollapse,
@@ -50,18 +48,9 @@ const RequestCart = ({
     <div className="fixed bottom-6 right-6 z-50 w-96 max-h-[600px] glassmorphism rounded-xl shadow-2xl overflow-hidden flex flex-col">
       <div className="flex items-center justify-between p-4 border-b border-border bg-muted/50">
         <h2 className="text-xl font-bold text-foreground">Lista de Pedidos</h2>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onExport}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-2 px-3 rounded-lg shadow-lg transition-transform hover:scale-105 flex items-center text-sm"
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Exportar
-          </button>
-          <button onClick={onToggleCollapse} className="p-2 hover:bg-muted rounded-lg transition-colors">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+        <button onClick={onToggleCollapse} className="p-2 hover:bg-muted rounded-lg transition-colors">
+          <X className="h-5 w-5" />
+        </button>
       </div>
 
       {requests.length === 0 ? (

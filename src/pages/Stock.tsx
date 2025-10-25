@@ -57,8 +57,18 @@ export default function Stock() {
   const filteredProductsByList = useMemo(() => {
     const filtered = new Map<string, EnrichedProduct[]>();
 
+    console.log("🔍 Debugging filteredProductsByList:");
+    console.log("Total productsByList entries:", productsByList.size);
+    console.log("Current filters:", { searchQuery, quantityFilter, supplierFilter });
+
     productsByList.forEach((products, listId) => {
       const list = listDetails.get(listId);
+      
+      console.log(`📋 Processing list ${listId}:`, {
+        totalProducts: products.length,
+        listName: list?.listName,
+        supplierId: list?.supplierId
+      });
       
       // Initialize searchable columns if not set
       if (list && !searchableColumns[listId]) {
@@ -66,6 +76,7 @@ export default function Stock() {
       }
       
       const searchableCols = searchableColumns[listId] || ['code', 'name'];
+      console.log(`  Searchable columns for ${listId}:`, searchableCols);
 
       const filteredProducts = products.filter((item) => {
         // Search filter using configurable searchable columns
@@ -91,9 +102,17 @@ export default function Stock() {
         return matchesSearch && matchesQuantity;
       });
 
+      console.log(`  After filters: ${filteredProducts.length} products`);
       filtered.set(listId, filteredProducts);
     });
 
+    // Calculate total
+    let totalCount = 0;
+    filtered.forEach((products) => {
+      totalCount += products.length;
+    });
+    console.log("✅ Total filtered products across all lists:", totalCount);
+    
     return filtered;
   }, [productsByList, searchQuery, quantityFilter, searchableColumns, listDetails, initializeSearchableColumns]);
 
@@ -273,15 +292,14 @@ export default function Stock() {
 
       <div className="w-full px-4 py-6 max-w-full overflow-hidden">
         {/* Floating Request Cart */}
-        <RequestCart
-          requests={requestList}
-          onUpdateQuantity={handleUpdateRequestQuantity}
-          onRemove={handleRemoveFromRequest}
-          onExport={handleExportToExcel}
-          suppliers={suppliers}
-          isCollapsed={isCartCollapsed}
-          onToggleCollapse={() => setIsCartCollapsed(!isCartCollapsed)}
-        />
+      <RequestCart
+        requests={requestList}
+        onUpdateQuantity={handleUpdateRequestQuantity}
+        onRemove={handleRemoveFromRequest}
+        suppliers={suppliers}
+        isCollapsed={isCartCollapsed}
+        onToggleCollapse={() => setIsCartCollapsed(!isCartCollapsed)}
+      />
 
         {/* Main content - Full width */}
         <div className="w-full">

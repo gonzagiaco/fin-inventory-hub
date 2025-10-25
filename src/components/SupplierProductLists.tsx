@@ -101,7 +101,17 @@ export const SupplierProductLists = ({
       const columnSchema: ColumnSchema[] = [];
       let order = 0;
 
-      // Add standard columns first
+      // Add "Stock Disponible" column first (system column)
+      columnSchema.push({
+        key: 'quantity',
+        label: 'Stock Disponible',
+        type: 'number',
+        visible: true,
+        order: order++,
+        isStandard: true,
+      });
+
+      // Add standard columns
       if (allKeys.has('code')) {
         columnSchema.push({
           key: 'code',

@@ -114,9 +114,9 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
       },
       header: col.label,
       enableSorting: true,
-      sortingFn: (a, b) => {
-        const va = a.getValue<string | number>() ?? "";
-        const vb = b.getValue<string | number>() ?? "";
+      sortingFn: (rowA, rowB, columnId) => {
+        const va = rowA.getValue(columnId) ?? "";
+        const vb = rowB.getValue(columnId) ?? "";
         // Comparación numérica o alfabética
         if (!isNaN(Number(va)) && !isNaN(Number(vb))) return Number(va) - Number(vb);
         return String(va).localeCompare(String(vb), "es", { sensitivity: "base" });
@@ -207,112 +207,110 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
               />
             </div>
           ) : (
-            <div className="w-full border-t overflow-hidden">
+            <div className="w-full border-t">
               <div className="w-full overflow-x-auto">
                 <div className="w-full overflow-y-auto max-h-[600px]">
-                  <div className="min-w-max">
-                    <Table className="min-w-full">
-                      <TableHeader sticky>
-                        {table.getHeaderGroups().map((headerGroup) => (
-                          <TableRow key={headerGroup.id}>
-                            {headerGroup.headers.map((header) => (
-                              <TableHead
-                                key={header.id}
-                                onClick={header.column.getToggleSortingHandler()}
-                                className="cursor-pointer select-none"
-                              >
-                                <div className="flex items-center gap-1">
-                                  {flexRender(header.column.columnDef.header, header.getContext())}
-                                  {{
-                                    asc: <ChevronUp className="w-4 h-4" />,
-                                    desc: <ChevronDown className="w-4 h-4" />,
-                                  }[header.column.getIsSorted() as string] ?? null}
-                                </div>
-                              </TableHead>
-                            ))}
-                            <TableHead className="text-right">Acciones</TableHead>
-                          </TableRow>
-                        ))}
-                      </TableHeader>
-
-                      <TableBody>
-                        {paginatedRows.length === 0 ? (
-                          <TableRow>
-                            <TableCell
-                              colSpan={visibleColumns.length + 1}
-                              className="text-center text-muted-foreground"
+                  <Table className="min-w-full">
+                    <TableHeader sticky>
+                      {table.getHeaderGroups().map((headerGroup) => (
+                        <TableRow key={headerGroup.id}>
+                          {headerGroup.headers.map((header) => (
+                            <TableHead
+                              key={header.id}
+                              onClick={header.column.getToggleSortingHandler()}
+                              className="cursor-pointer select-none bg-background"
                             >
-                              No hay productos en esta lista
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          paginatedRows.map((row) => {
-                            const product = row.original;
-                            const quantity = getQuantityValue(product);
-                            const isLowStock = quantity < threshold;
+                              <div className="flex items-center gap-1">
+                                {flexRender(header.column.columnDef.header, header.getContext())}
+                                {{
+                                  asc: <ChevronUp className="w-4 h-4" />,
+                                  desc: <ChevronDown className="w-4 h-4" />,
+                                }[header.column.getIsSorted() as string] ?? null}
+                              </div>
+                            </TableHead>
+                          ))}
+                          <TableHead className="text-right bg-background">Acciones</TableHead>
+                        </TableRow>
+                      ))}
+                    </TableHeader>
 
-                            return (
-                              <TableRow
-                                key={row.id}
-                                className={cn(isLowStock && "dark:bg-red-950/20 border-l-4 border-red-500")}
-                              >
-                                {row.getVisibleCells().map((cell) => {
-                                  const columnKey = cell.column.id;
-                                  const isQuantityColumn = columnKey === quantityColumnKey;
-                                  const isEditing = editingQuantity === product.id && isQuantityColumn;
-                                  const displayValue = flexRender(cell.column.columnDef.cell, cell.getContext());
+                    <TableBody>
+                      {paginatedRows.length === 0 ? (
+                        <TableRow>
+                          <TableCell
+                            colSpan={visibleColumns.length + 1}
+                            className="text-center text-muted-foreground"
+                          >
+                            No hay productos en esta lista
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        paginatedRows.map((row) => {
+                          const product = row.original;
+                          const quantity = getQuantityValue(product);
+                          const isLowStock = quantity < threshold;
 
-                                  return (
-                                    <TableCell key={cell.id}>
-                                      {isQuantityColumn ? (
-                                        <div className="flex items-center gap-2">
-                                          {isLowStock && (
-                                            <Badge variant="destructive" className="text-xs">
-                                              Bajo Stock
-                                            </Badge>
-                                          )}
-                                          {isEditing ? (
-                                            <Input
-                                              type="number"
-                                              value={tempQuantity}
-                                              onChange={(e) => setTempQuantity(Number(e.target.value))}
-                                              onBlur={() => handleSaveQuantity(product.id)}
-                                              onKeyDown={(e) => {
-                                                if (e.key === "Enter") handleSaveQuantity(product.id);
-                                                if (e.key === "Escape") setEditingQuantity(null);
-                                              }}
-                                              autoFocus
-                                              className="w-20 h-8"
-                                            />
-                                          ) : (
-                                            <div
-                                              onClick={() => handleStartEditing(product.id, quantity)}
-                                              className="cursor-pointer hover:bg-muted/50 rounded px-2 py-1 min-w-[60px]"
-                                              title="Click para editar"
-                                            >
-                                              {displayValue}
-                                            </div>
-                                          )}
-                                        </div>
-                                      ) : (
-                                        displayValue
-                                      )}
-                                    </TableCell>
-                                  );
-                                })}
-                                <TableCell className="text-right">
-                                  <Button size="sm" variant="outline" onClick={() => onAddToRequest(product)}>
-                                    <ShoppingCart className="h-4 w-4 mr-2" />
-                                    Agregar
-                                  </Button>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
+                          return (
+                            <TableRow
+                              key={row.id}
+                              className={cn(isLowStock && "dark:bg-red-950/20 border-l-4 border-red-500")}
+                            >
+                              {row.getVisibleCells().map((cell) => {
+                                const columnKey = cell.column.id;
+                                const isQuantityColumn = columnKey === quantityColumnKey;
+                                const isEditing = editingQuantity === product.id && isQuantityColumn;
+                                const displayValue = flexRender(cell.column.columnDef.cell, cell.getContext());
+
+                                return (
+                                  <TableCell key={cell.id}>
+                                    {isQuantityColumn ? (
+                                      <div className="flex items-center gap-2">
+                                        {isLowStock && (
+                                          <Badge variant="destructive" className="text-xs">
+                                            Bajo Stock
+                                          </Badge>
+                                        )}
+                                        {isEditing ? (
+                                          <Input
+                                            type="number"
+                                            value={tempQuantity}
+                                            onChange={(e) => setTempQuantity(Number(e.target.value))}
+                                            onBlur={() => handleSaveQuantity(product.id)}
+                                            onKeyDown={(e) => {
+                                              if (e.key === "Enter") handleSaveQuantity(product.id);
+                                              if (e.key === "Escape") setEditingQuantity(null);
+                                            }}
+                                            autoFocus
+                                            className="w-20 h-8"
+                                          />
+                                        ) : (
+                                          <div
+                                            onClick={() => handleStartEditing(product.id, quantity)}
+                                            className="cursor-pointer hover:bg-muted/50 rounded px-2 py-1 min-w-[60px]"
+                                            title="Click para editar"
+                                          >
+                                            {displayValue}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      displayValue
+                                    )}
+                                  </TableCell>
+                                );
+                              })}
+                              <TableCell className="text-right">
+                                <Button size="sm" variant="outline" onClick={() => onAddToRequest(product)}>
+                                  <ShoppingCart className="h-4 w-4 mr-2" />
+                                  Agregar
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
                 </div>
               </div>
             </div>

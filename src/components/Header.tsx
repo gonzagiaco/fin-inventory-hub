@@ -1,4 +1,4 @@
-import { Search, Bell } from "lucide-react";
+import { Search } from "lucide-react";
 
 interface HeaderProps {
   title: string;
@@ -27,10 +27,6 @@ const Header = ({ title, subtitle, showSearch = true }: HeaderProps) => {
             />
           </div>
         )}
-
-        <button className="p-2 rounded-full hover:bg-primary/10 transition-colors">
-          <Bell className="h-6 w-6 text-foreground" />
-        </button>
       </div>
     </header>
   );
