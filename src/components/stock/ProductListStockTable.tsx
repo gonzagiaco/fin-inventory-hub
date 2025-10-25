@@ -102,7 +102,6 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
     }
   };
 
-  // Define columns for TanStack Table
   const columns = useMemo<ColumnDef<EnrichedProduct>[]>(() => {
     return visibleColumns.map((col) => ({
       id: col.key,
@@ -114,6 +113,14 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
         return row.data[col.key];
       },
       header: col.label,
+      enableSorting: true,
+      sortingFn: (a, b) => {
+        const va = a.getValue<string | number>() ?? "";
+        const vb = b.getValue<string | number>() ?? "";
+        // Comparación numérica o alfabética
+        if (!isNaN(Number(va)) && !isNaN(Number(vb))) return Number(va) - Number(vb);
+        return String(va).localeCompare(String(vb), "es", { sensitivity: "base" });
+      },
       cell: (info) => {
         const value = info.getValue();
         if (value == null) return "-";
