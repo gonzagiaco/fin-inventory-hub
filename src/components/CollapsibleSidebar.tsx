@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Package2, Users, Warehouse, Menu, X, LogOut, ChevronLeft, ChevronRight } from "lucide-react";
+import { Package2, Users, Warehouse, Menu, X, LogOut, ChevronLeft, ChevronRight, FileText } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
