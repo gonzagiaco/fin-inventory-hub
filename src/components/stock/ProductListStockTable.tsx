@@ -37,7 +37,12 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
   const [editingQuantity, setEditingQuantity] = useState<string | null>(null);
   const [tempQuantity, setTempQuantity] = useState<number>(0);
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [localProducts, setLocalProducts] = useState<EnrichedProduct[]>(products);
   const itemsPerPage = 50;
+
+  useEffect(() => {
+    setLocalProducts(products);
+  }, [products]);
 
   // Debug sorting
   useEffect(() => {
@@ -87,6 +92,8 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
   const handleSaveQuantity = async (productId: string) => {
     try {
       const updateData: any = {};
+      const product = localProducts.find((p) => p.id === productId);
+      if (!product) return;
 
       if (quantityColumnKey === "quantity") {
         updateData.quantity = tempQuantity;
@@ -99,6 +106,8 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
           };
         }
       }
+
+      setLocalProducts((prev) => prev.map((p) => (p.id === productId ? updatedProduct : p)));
 
       const { error } = await supabase.from("dynamic_products").update(updateData).eq("id", productId);
 
