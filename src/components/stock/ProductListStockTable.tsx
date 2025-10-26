@@ -156,11 +156,12 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
   });
 
   // Pagination
-  const totalPages = Math.ceil(table.getRowModel().rows.length / itemsPerPage);
+  const sortedRows = table.getSortedRowModel().rows;
+  const totalPages = Math.ceil(sortedRows.length / itemsPerPage);
   const paginatedRows = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
-    return table.getRowModel().rows.slice(start, start + itemsPerPage);
-  }, [table, currentPage, itemsPerPage]);
+    return sortedRows.slice(start, start + itemsPerPage);
+  }, [sortedRows, currentPage, itemsPerPage]);
 
   return (
     <div className="border rounded-lg w-full">
@@ -186,7 +187,7 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
             </div>
           </div>
         </div>
-        
+
         {/* Segunda línea en mobile: controles */}
         <div className="flex flex-wrap gap-2 w-full lg:w-auto justify-end">
           <div className="flex gap-2">
@@ -256,10 +257,7 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
                     <TableBody>
                       {paginatedRows.length === 0 ? (
                         <TableRow>
-                          <TableCell
-                            colSpan={visibleColumns.length + 1}
-                            className="text-center text-muted-foreground"
-                          >
+                          <TableCell colSpan={visibleColumns.length + 1} className="text-center text-muted-foreground">
                             No hay productos en esta lista
                           </TableCell>
                         </TableRow>
