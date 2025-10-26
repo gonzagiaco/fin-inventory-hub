@@ -18,29 +18,38 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
   const { stockItems } = useStock();
 
   const allProducts = [
-    ...dynamicProducts.map(p => ({
-      id: p.id,
-      code: p.code || "",
-      name: p.name || "",
-      price: p.price || 0,
-      source: 'dynamic' as const,
-    })),
-    ...stockItems.map(s => ({
-      id: s.id,
-      code: s.code,
-      name: s.name,
-      price: s.costPrice,
-      source: 'stock' as const,
-    })),
+    ...dynamicProducts
+      .filter(p => (p.code || p.name)) // Solo productos con código O nombre
+      .map(p => ({
+        id: p.id,
+        code: p.code || "",
+        name: p.name || "",
+        price: p.price || 0,
+        source: 'dynamic' as const,
+      })),
+    ...stockItems
+      .filter(s => (s.code || s.name)) // Solo productos con código O nombre
+      .map(s => ({
+        id: s.id,
+        code: s.code || "",
+        name: s.name || "",
+        price: s.costPrice || 0,
+        source: 'stock' as const,
+      })),
   ];
 
   const filteredProducts = query.length > 0
     ? allProducts.filter(p => {
-        const searchTerm = query.toLowerCase();
-        return (
-          p.code.toLowerCase().includes(searchTerm) ||
-          p.name.toLowerCase().includes(searchTerm)
-        );
+        const searchTerm = query.toLowerCase().trim();
+        
+        // Convertir a string seguro, manejar null/undefined/empty
+        const code = (p.code || "").toString().toLowerCase();
+        const name = (p.name || "").toString().toLowerCase();
+        
+        // Solo incluir productos con al menos código O nombre
+        if (!code && !name) return false;
+        
+        return code.includes(searchTerm) || name.includes(searchTerm);
       }).slice(0, 10)
     : [];
 
@@ -83,9 +92,11 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
                 onClick={() => handleSelect(product)}
               >
                 <div className="flex-1">
-                  <p className="font-medium">{product.name}</p>
+                  <p className="font-medium">
+                    {product.name || product.code || 'Producto sin nombre'}
+                  </p>
                   <p className="text-sm text-muted-foreground">
-                    Código: {product.code} | ${product.price.toFixed(2)}
+                    Código: {product.code || 'N/A'} | ${(product.price || 0).toFixed(2)}
                   </p>
                 </div>
                 <Button size="sm" variant="ghost">
@@ -98,8 +109,11 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
       )}
 
       {isOpen && query.length > 0 && filteredProducts.length === 0 && (
-        <Card className="absolute z-50 mt-1 w-full p-4 text-center text-muted-foreground">
-          No se encontraron productos
+        <Card className="absolute z-50 mt-1 w-full p-4 text-center">
+          <p className="text-muted-foreground">No se encontraron productos</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            💡 Tip: Verifica que tus productos tengan código o nombre asignado
+          </p>
         </Card>
       )}
     </div>
