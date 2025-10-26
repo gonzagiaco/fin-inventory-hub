@@ -326,8 +326,14 @@ export default function Stock() {
         {/* Main content - Full width */}
         <div className="w-full">
           {isLoading ? (
-            <div className="text-center py-12">
+            <div className="text-center py-12 space-y-4">
+              <div className="flex justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+              </div>
               <p className="text-muted-foreground">Cargando productos...</p>
+              <p className="text-xs text-muted-foreground">
+                Esto puede tardar unos segundos para listas grandes
+              </p>
             </div>
           ) : visibleSupplierSections.length === 0 ? (
             <Card className="p-12 text-center">

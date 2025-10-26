@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Supplier } from "@/types";
 import { ProductList, ColumnSchema, DynamicProduct } from "@/types/productList";
+import { fetchAllFromTable } from "@/utils/fetchAllProducts";
 
 export interface EnrichedProduct {
   id: string;
@@ -82,13 +83,10 @@ export const useAllDynamicProducts = () => {
   const { data: dynamicProducts = [], isLoading: isLoadingProducts } = useQuery({
     queryKey: ["all-dynamic-products"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("dynamic_products")
-        .select("*");
+      // Use optimized fetch to get ALL products (no 1000 limit)
+      const allProducts = await fetchAllFromTable<any>("dynamic_products");
 
-      if (error) throw error;
-
-      const products = (data || []).map((item) => ({
+      const products = allProducts.map((item) => ({
         id: item.id,
         listId: item.list_id,
         code: item.code || undefined,
@@ -112,6 +110,8 @@ export const useAllDynamicProducts = () => {
       return products;
     },
     enabled: !isLoadingSuppliers && !isLoadingLists && suppliers.length > 0 && productLists.length > 0,
+    staleTime: 5 * 60 * 1000, // 5 minutes - avoid unnecessary re-fetches
+    gcTime: 10 * 60 * 1000, // 10 minutes in cache
   });
 
   // Create productsByList and listDetails maps

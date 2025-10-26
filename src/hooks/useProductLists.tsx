@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ProductList, DynamicProduct, ColumnSchema } from "@/types/productList";
+import { fetchAllFromTable } from "@/utils/fetchAllProducts";
 
 export const useProductLists = (supplierId?: string) => {
   const queryClient = useQueryClient();
@@ -49,15 +50,11 @@ export const useProductLists = (supplierId?: string) => {
       const listIds = productLists.map((list) => list.id);
       if (listIds.length === 0) return {};
 
-      const { data, error } = await supabase
-        .from("dynamic_products")
-        .select("*")
-        .in("list_id", listIds);
-
-      if (error) throw error;
+      // Use optimized fetch to get ALL products (no 1000 limit)
+      const allProducts = await fetchAllFromTable<any>("dynamic_products", listIds);
 
       const grouped: Record<string, DynamicProduct[]> = {};
-      (data || []).forEach((product) => {
+      allProducts.forEach((product) => {
         const listId = product.list_id;
         if (!grouped[listId]) {
           grouped[listId] = [];
@@ -76,6 +73,8 @@ export const useProductLists = (supplierId?: string) => {
       return grouped;
     },
     enabled: productLists.length > 0,
+    staleTime: 3 * 60 * 1000, // 3 minutes
+    gcTime: 8 * 60 * 1000, // 8 minutes in cache
   });
 
   const createListMutation = useMutation({

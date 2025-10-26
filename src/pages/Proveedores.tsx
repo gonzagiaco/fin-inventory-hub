@@ -97,8 +97,14 @@ const Proveedores = () => {
       </div>
 
       {isLoadingSuppliers ? (
-        <div className="glassmorphism rounded-xl shadow-lg p-12 text-center">
+        <div className="glassmorphism rounded-xl shadow-lg p-12 text-center space-y-4">
+          <div className="flex justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          </div>
           <p className="text-muted-foreground">Cargando proveedores...</p>
+          <p className="text-xs text-muted-foreground">
+            Esto puede tardar unos segundos para listas grandes
+          </p>
         </div>
       ) : suppliers.length === 0 ? (
         <div className="glassmorphism rounded-xl shadow-lg p-12 text-center">
