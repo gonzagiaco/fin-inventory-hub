@@ -153,7 +153,6 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    manualSorting: false,
   });
 
   // Pagination
