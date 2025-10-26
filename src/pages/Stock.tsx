@@ -18,25 +18,28 @@ export default function Stock() {
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
   const [requestList, setRequestList] = useState<RequestItem[]>([]);
   const [isCartCollapsed, setIsCartCollapsed] = useState(true);
-  
+
   const { productsByList, listDetails, suppliers, isLoading } = useAllDynamicProducts();
   const { searchableColumns, priceColumn, initializeSearchableColumns } = useProductListStore();
 
   // Group lists by supplier and apply filters
   const supplierSections = useMemo(() => {
-    const sections = new Map<string, { 
-      supplierName: string; 
-      supplierLogo: string | null;
-      lists: Array<{
-        listId: string;
-        listName: string;
-        supplierId: string;
+    const sections = new Map<
+      string,
+      {
         supplierName: string;
         supplierLogo: string | null;
-        columnSchema: any[];
-        productCount: number;
-      }>;
-    }>();
+        lists: Array<{
+          listId: string;
+          listName: string;
+          supplierId: string;
+          supplierName: string;
+          supplierLogo: string | null;
+          columnSchema: any[];
+          productCount: number;
+        }>;
+      }
+    >();
 
     // Group lists by supplier
     listDetails.forEach((list) => {
@@ -63,33 +66,39 @@ export default function Stock() {
 
     productsByList.forEach((products, listId) => {
       const list = listDetails.get(listId);
-      
+
       console.log(`📋 Processing list ${listId}:`, {
         totalProducts: products.length,
         listName: list?.listName,
-        supplierId: list?.supplierId
+        supplierId: list?.supplierId,
       });
-      
+
       // Initialize searchable columns if not set
       if (list && !searchableColumns[listId]) {
         initializeSearchableColumns(listId, list.columnSchema);
       }
-      
-      const searchableCols = searchableColumns[listId] || ['code', 'name'];
+
+      const searchableCols = searchableColumns[listId] || ["code", "name"];
       console.log(`  Searchable columns for ${listId}:`, searchableCols);
 
       const filteredProducts = products.filter((item) => {
         // Search filter using configurable searchable columns
-        const matchesSearch = !searchQuery || searchableCols.some(colKey => {
-          const value = colKey === 'code' ? item.code :
-                        colKey === 'name' ? item.name :
-                        colKey === 'price' ? item.price :
-                        colKey === 'quantity' ? item.quantity :
-                        item.data?.[colKey];
-          
-          return value?.toString().toLowerCase()
-            .includes(searchQuery.toLowerCase());
-        });
+        const matchesSearch =
+          !searchQuery ||
+          searchableCols.some((colKey) => {
+            const value =
+              colKey === "code"
+                ? item.code
+                : colKey === "name"
+                  ? item.name
+                  : colKey === "price"
+                    ? item.price
+                    : colKey === "quantity"
+                      ? item.quantity
+                      : item.data?.[colKey];
+
+            return value?.toString().toLowerCase().includes(searchQuery.toLowerCase());
+          });
 
         // Quantity filter (applies across all lists)
         const quantity = item.quantity || 0;
@@ -112,7 +121,7 @@ export default function Stock() {
       totalCount += products.length;
     });
     console.log("✅ Total filtered products across all lists:", totalCount);
-    
+
     return filtered;
   }, [productsByList, searchQuery, quantityFilter, searchableColumns, listDetails, initializeSearchableColumns]);
 
@@ -121,10 +130,8 @@ export default function Stock() {
     if (supplierFilter === "all") {
       return Array.from(supplierSections.entries());
     }
-    
-    return Array.from(supplierSections.entries()).filter(
-      ([supplierId]) => supplierId === supplierFilter
-    );
+
+    return Array.from(supplierSections.entries()).filter(([supplierId]) => supplierId === supplierFilter);
   }, [supplierSections, supplierFilter]);
 
   // Calculate total filtered products
@@ -141,54 +148,42 @@ export default function Stock() {
 
   const handleAddToRequest = (product: EnrichedProduct) => {
     const existingItem = requestList.find((r) => r.productId === product.id);
-    
+
     // Get list details to access columnSchema
     const list = listDetails.get(product.listId);
     const schema = list?.columnSchema || [];
-    
+
     // Detect code column dynamically from schema
-    const codeColumn = schema.find(col => {
+    const codeColumn = schema.find((col) => {
       const keyLower = col.key.toLowerCase().trim();
-      return ['codigo', 'código', 'cod.', 'cód.', 'cod', 'articulo', 'artículo', 'item', 'sku', 'code'].some(
-        variant => keyLower.includes(variant)
+      return ["codigo", "código", "cod.", "cód.", "cod", "articulo", "artículo", "item", "sku", "code"].some(
+        (variant) => keyLower.includes(variant),
       );
     });
-    const codeKey = codeColumn?.key || 'code';
-    
+    const codeKey = codeColumn?.key || "code";
+
     // Detect name column dynamically from schema
-    const nameColumn = schema.find(col => {
+    const nameColumn = schema.find((col) => {
       const keyLower = col.key.toLowerCase().trim();
-      return ['descripcion', 'descripción', 'nombre', 'name', 'producto', 'product', 'desc'].some(
-        variant => keyLower.includes(variant)
+      return ["descripcion", "descripción", "nombre", "name", "producto", "product", "desc"].some((variant) =>
+        keyLower.includes(variant),
       );
     });
-    const nameKey = nameColumn?.key || 'name';
-    
+    const nameKey = nameColumn?.key || "name";
+
     // Get configured price column for this list
-    const priceColumnKey = priceColumn[product.listId] || 'price';
-    const productPrice = priceColumnKey === 'price' 
-      ? product.price 
-      : product.data?.[priceColumnKey];
-    
+    const priceColumnKey = priceColumn[product.listId] || "price";
+    const productPrice = priceColumnKey === "price" ? product.price : product.data?.[priceColumnKey];
+
     if (existingItem) {
-      setRequestList((prev) =>
-        prev.map((r) =>
-          r.productId === product.id ? { ...r, quantity: r.quantity + 1 } : r
-        )
-      );
+      setRequestList((prev) => prev.map((r) => (r.productId === product.id ? { ...r, quantity: r.quantity + 1 } : r)));
       toast.success("Cantidad actualizada en la lista de pedidos");
     } else {
       // Extract code and name using dynamically detected columns
-      const code = product.code || 
-                   product.data?.[codeKey] || 
-                   product.data?.['code'] ||
-                   "";
-      
-      const name = product.name || 
-                   product.data?.[nameKey] || 
-                   product.data?.['name'] ||
-                   "";
-      
+      const code = product.code || product.data?.[codeKey] || product.data?.["code"] || "";
+
+      const name = product.name || product.data?.[nameKey] || product.data?.["name"] || "";
+
       const newRequest: RequestItem = {
         id: Date.now().toString(),
         productId: product.id,
@@ -204,9 +199,7 @@ export default function Stock() {
   };
 
   const handleUpdateRequestQuantity = (id: string, quantity: number) => {
-    setRequestList((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, quantity } : item))
-    );
+    setRequestList((prev) => prev.map((item) => (item.id === id ? { ...item, quantity } : item)));
   };
 
   const handleRemoveFromRequest = (id: string) => {
@@ -221,16 +214,16 @@ export default function Stock() {
     }
 
     exportOrdersBySupplier(requestList, suppliers);
-    
-    const uniqueSuppliers = new Set(requestList.map(item => item.supplierId)).size;
-    
+
+    const uniqueSuppliers = new Set(requestList.map((item) => item.supplierId)).size;
+
     toast.success("Pedidos exportados", {
-      description: `Se generaron ${uniqueSuppliers} archivo${uniqueSuppliers > 1 ? 's' : ''} (uno por proveedor)`,
+      description: `Se generaron ${uniqueSuppliers} archivo${uniqueSuppliers > 1 ? "s" : ""} (uno por proveedor)`,
     });
   };
 
   const hasActiveFilters = searchQuery !== "" || quantityFilter !== "all" || supplierFilter !== "all";
-  
+
   const totalProducts = useMemo(() => {
     let count = 0;
     productsByList.forEach((products) => {
@@ -240,11 +233,11 @@ export default function Stock() {
   }, [productsByList]);
 
   return (
-    <div className="min-h-screen bg-background overflow-x-hidden">
+    <div className="min-h-screen w-full bg-background overflow-x-hidden">
       <header className="sticky top-0 z-10 bg-background border-b">
         <div className="w-full px-4 py-6 max-w-full overflow-hidden">
           <h1 className="text-3xl font-bold mb-6">Stock de Productos</h1>
-          
+
           {/* Search and Filters */}
           <div className="flex flex-col md:flex-row gap-4 mb-4">
             <div className="flex-1 relative">
@@ -286,11 +279,7 @@ export default function Stock() {
                 </SelectContent>
               </Select>
 
-              <Button
-                variant="outline"
-                onClick={handleExportToExcel}
-                disabled={requestList.length === 0}
-              >
+              <Button variant="outline" onClick={handleExportToExcel} disabled={requestList.length === 0}>
                 <FileDown className="mr-2 h-4 w-4" />
                 Exportar Pedido
               </Button>
@@ -302,8 +291,7 @@ export default function Stock() {
             <div className="text-sm text-muted-foreground">
               Mostrando {totalFilteredProducts} de {totalProducts} productos
               {" • "}
-              {visibleSupplierSections.length}{" "}
-              {visibleSupplierSections.length === 1 ? "proveedor" : "proveedores"}
+              {visibleSupplierSections.length} {visibleSupplierSections.length === 1 ? "proveedor" : "proveedores"}
             </div>
             {hasActiveFilters && (
               <Button
@@ -325,15 +313,15 @@ export default function Stock() {
 
       <div className="w-full px-4 py-6 max-w-full overflow-hidden">
         {/* Floating Request Cart */}
-      <RequestCart
-        requests={requestList}
-        onUpdateQuantity={handleUpdateRequestQuantity}
-        onRemove={handleRemoveFromRequest}
-        onExport={handleExportToExcel}
-        suppliers={suppliers}
-        isCollapsed={isCartCollapsed}
-        onToggleCollapse={() => setIsCartCollapsed(!isCartCollapsed)}
-      />
+        <RequestCart
+          requests={requestList}
+          onUpdateQuantity={handleUpdateRequestQuantity}
+          onRemove={handleRemoveFromRequest}
+          onExport={handleExportToExcel}
+          suppliers={suppliers}
+          isCollapsed={isCartCollapsed}
+          onToggleCollapse={() => setIsCartCollapsed(!isCartCollapsed)}
+        />
 
         {/* Main content - Full width */}
         <div className="w-full">
