@@ -70,7 +70,7 @@ const CollapsibleSidebar = () => {
               <path d="M4 4H17.3334V17.3334H30.6666V30.6666H44V44H4V4Z" />
             </svg>
           </div>
-          {!isCollapsed && <h1 className="text-xl font-bold text-foreground whitespace-nowrap">Financia</h1>}
+          {!isCollapsed && <h1 className="text-xl font-bold text-foreground whitespace-nowrap">InspiraStock</h1>}
         </div>
 
         {/* Navigation */}
