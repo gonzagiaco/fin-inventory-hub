@@ -9,6 +9,7 @@ import CollapsibleSidebar from "./components/CollapsibleSidebar";
 import Stock from "./pages/Stock";
 import ClientesDeudores from "./pages/ClientesDeudores";
 import Proveedores from "./pages/Proveedores";
+import Remitos from "./pages/Remitos";
 import Ayuda from "./pages/Ayuda";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -53,6 +54,17 @@ const App = () => (
                   <div className="flex min-h-screen w-full">
                     <CollapsibleSidebar />
                     <Proveedores />
+                  </div>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/remitos"
+              element={
+                <ProtectedRoute>
+                  <div className="flex min-h-screen w-full">
+                    <CollapsibleSidebar />
+                    <Remitos />
                   </div>
                 </ProtectedRoute>
               }

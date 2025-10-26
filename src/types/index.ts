@@ -69,3 +69,54 @@ export interface ImportRecord {
 
 export type CategoryFilter = "Todas" | "Fruits" | "Bakery" | "Dairy" | "Produce";
 export type QuantityFilter = "Cualquiera" | "< 100" | "100 - 200" | "> 200" | "Bajo Stock";
+
+export interface DeliveryNote {
+  id: string;
+  userId: string;
+  customerName: string;
+  customerAddress?: string;
+  customerPhone?: string;
+  issueDate: string;
+  totalAmount: number;
+  paidAmount: number;
+  remainingBalance: number;
+  status: 'pending' | 'paid';
+  extraFields?: Record<string, any>;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  items?: DeliveryNoteItem[];
+}
+
+export interface DeliveryNoteItem {
+  id: string;
+  deliveryNoteId: string;
+  productId?: string;
+  productCode: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+  createdAt: string;
+}
+
+export interface CreateDeliveryNoteInput {
+  customerName: string;
+  customerAddress?: string;
+  customerPhone?: string;
+  issueDate?: string;
+  paidAmount?: number;
+  extraFields?: Record<string, any>;
+  notes?: string;
+  items: {
+    productId?: string;
+    productCode: string;
+    productName: string;
+    quantity: number;
+    unitPrice: number;
+  }[];
+}
+
+export interface UpdateDeliveryNoteInput extends Partial<CreateDeliveryNoteInput> {
+  id: string;
+}

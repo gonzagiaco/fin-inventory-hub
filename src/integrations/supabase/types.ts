@@ -55,6 +55,101 @@ export type Database = {
           },
         ]
       }
+      delivery_note_items: {
+        Row: {
+          created_at: string | null
+          delivery_note_id: string
+          id: string
+          product_code: string
+          product_id: string | null
+          product_name: string
+          quantity: number
+          subtotal: number | null
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string | null
+          delivery_note_id: string
+          id?: string
+          product_code: string
+          product_id?: string | null
+          product_name: string
+          quantity: number
+          subtotal?: number | null
+          unit_price: number
+        }
+        Update: {
+          created_at?: string | null
+          delivery_note_id?: string
+          id?: string
+          product_code?: string
+          product_id?: string | null
+          product_name?: string
+          quantity?: number
+          subtotal?: number | null
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "delivery_note_items_delivery_note_id_fkey"
+            columns: ["delivery_note_id"]
+            isOneToOne: false
+            referencedRelation: "delivery_notes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      delivery_notes: {
+        Row: {
+          created_at: string | null
+          customer_address: string | null
+          customer_name: string
+          customer_phone: string | null
+          extra_fields: Json | null
+          id: string
+          issue_date: string | null
+          notes: string | null
+          paid_amount: number
+          remaining_balance: number | null
+          status: string | null
+          total_amount: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          customer_address?: string | null
+          customer_name: string
+          customer_phone?: string | null
+          extra_fields?: Json | null
+          id?: string
+          issue_date?: string | null
+          notes?: string | null
+          paid_amount?: number
+          remaining_balance?: number | null
+          status?: string | null
+          total_amount?: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          customer_address?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          extra_fields?: Json | null
+          id?: string
+          issue_date?: string | null
+          notes?: string | null
+          paid_amount?: number
+          remaining_balance?: number | null
+          status?: string | null
+          total_amount?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       dynamic_products: {
         Row: {
           code: string | null

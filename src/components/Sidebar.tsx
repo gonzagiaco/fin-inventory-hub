@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Package2, Users, Warehouse, HelpCircle, Menu, X, LogOut } from "lucide-react";
+import { Package2, Users, Warehouse, HelpCircle, Menu, X, LogOut, FileText } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ const Sidebar = () => {
   const navigation = [
     { name: "Stock", href: "/", icon: Package2 },
     { name: "Proveedores", href: "/proveedores", icon: Warehouse },
+    { name: "Remitos", href: "/remitos", icon: FileText },
     { name: "Clientes Deudores", href: "/clientes-deudores", icon: Users },
   ];
 
