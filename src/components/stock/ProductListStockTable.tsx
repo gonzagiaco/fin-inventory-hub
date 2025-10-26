@@ -153,10 +153,11 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    manualSorting: false,
   });
 
   // Pagination
-  const sortedRows = table.getSortedRowModel().rows;
+  const sortedRows = useMemo(() => table.getSortedRowModel().rows, [table]);
   const totalPages = Math.ceil(sortedRows.length / itemsPerPage);
   const paginatedRows = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
