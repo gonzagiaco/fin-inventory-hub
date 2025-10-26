@@ -98,14 +98,20 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
       if (quantityColumnKey === "quantity") {
         updateData.quantity = tempQuantity;
       } else {
-        const product = products.find((p) => p.id === productId);
-        if (product) {
-          updateData.data = {
-            ...product.data,
-            [quantityColumnKey]: tempQuantity,
-          };
-        }
+        updateData.data = {
+          ...product.data,
+          [quantityColumnKey]: tempQuantity,
+        };
       }
+
+      // Create the updated product for local state
+      const updatedProduct: EnrichedProduct = {
+        ...product,
+        ...(quantityColumnKey === "quantity" 
+          ? { quantity: tempQuantity }
+          : { data: { ...product.data, [quantityColumnKey]: tempQuantity } }
+        ),
+      };
 
       setLocalProducts((prev) => prev.map((p) => (p.id === productId ? updatedProduct : p)));
 
