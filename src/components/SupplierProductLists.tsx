@@ -45,7 +45,6 @@ export const SupplierProductLists = ({
     fileName: string;
     columnSchema: ColumnSchema[];
     products: DynamicProduct[];
-    similarList: any;
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -181,19 +180,16 @@ export const SupplierProductLists = ({
         };
       });
 
-      // Check for similar list
-      const similarList = findSimilarList(file.name, columnSchema);
-      
-      if (similarList) {
-        // Store pending upload and show dialog
+      // Check if there are existing lists for this supplier
+      if (productLists.length > 0) {
+        // Show dialog to let user choose
         setPendingUpload({
           fileName: file.name,
           columnSchema,
           products: dynamicProducts,
-          similarList,
         });
       } else {
-        // Create new list directly
+        // Create new list directly if no lists exist
         createList({
           supplierId,
           name: `${file.name} - ${new Date().toLocaleDateString()}`,
@@ -222,10 +218,10 @@ export const SupplierProductLists = ({
     }
   };
 
-  const handleUpdateExisting = () => {
+  const handleUpdateExisting = (listId: string) => {
     if (pendingUpload) {
       updateList({
-        listId: pendingUpload.similarList.id,
+        listId,
         fileName: pendingUpload.fileName,
         columnSchema: pendingUpload.columnSchema,
         products: pendingUpload.products,
@@ -372,7 +368,7 @@ export const SupplierProductLists = ({
       <ListUpdateDialog
         open={!!pendingUpload}
         onOpenChange={(open) => !open && setPendingUpload(null)}
-        existingList={pendingUpload?.similarList || null}
+        availableLists={productLists}
         newProductCount={pendingUpload?.products.length || 0}
         onUpdate={handleUpdateExisting}
         onCreateNew={handleCreateNew}

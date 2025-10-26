@@ -22,6 +22,7 @@ import { ColumnConfigurationDialog } from "@/components/ColumnConfigurationDialo
 import { List, LayoutGrid } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface ProductListStockTableProps {
   list: ProductListDetails;
@@ -30,6 +31,7 @@ interface ProductListStockTableProps {
 }
 
 export function ProductListStockTable({ list, products, onAddToRequest }: ProductListStockTableProps) {
+  const queryClient = useQueryClient();
   const [isExpanded, setIsExpanded] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [editingQuantity, setEditingQuantity] = useState<string | null>(null);
@@ -101,6 +103,10 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
       const { error } = await supabase.from("dynamic_products").update(updateData).eq("id", productId);
 
       if (error) throw error;
+
+      // Invalidate queries to refresh the UI
+      queryClient.invalidateQueries({ queryKey: ["dynamic-products"] });
+      queryClient.invalidateQueries({ queryKey: ["all-dynamic-products"] });
 
       toast.success("Cantidad actualizada correctamente");
       setEditingQuantity(null);

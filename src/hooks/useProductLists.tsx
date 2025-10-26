@@ -252,7 +252,8 @@ export const useProductLists = (supplierId?: string) => {
     },
   });
 
-  // Helper function to find similar list
+  // @deprecated - Helper function to find similar list
+  // No longer used - user now selects from all available lists
   const findSimilarList = (fileName: string, columnSchema: ColumnSchema[]) => {
     // 1. Exact match by file name
     const exactMatch = productLists.find(
