@@ -142,6 +142,28 @@ export default function Stock() {
   const handleAddToRequest = (product: EnrichedProduct) => {
     const existingItem = requestList.find((r) => r.productId === product.id);
     
+    // Get list details to access columnSchema
+    const list = listDetails.get(product.listId);
+    const schema = list?.columnSchema || [];
+    
+    // Detect code column dynamically from schema
+    const codeColumn = schema.find(col => {
+      const keyLower = col.key.toLowerCase().trim();
+      return ['codigo', 'código', 'cod.', 'cód.', 'cod', 'articulo', 'artículo', 'item', 'sku', 'code'].some(
+        variant => keyLower.includes(variant)
+      );
+    });
+    const codeKey = codeColumn?.key || 'code';
+    
+    // Detect name column dynamically from schema
+    const nameColumn = schema.find(col => {
+      const keyLower = col.key.toLowerCase().trim();
+      return ['descripcion', 'descripción', 'nombre', 'name', 'producto', 'product', 'desc'].some(
+        variant => keyLower.includes(variant)
+      );
+    });
+    const nameKey = nameColumn?.key || 'name';
+    
     // Get configured price column for this list
     const priceColumnKey = priceColumn[product.listId] || 'price';
     const productPrice = priceColumnKey === 'price' 
@@ -156,19 +178,15 @@ export default function Stock() {
       );
       toast.success("Cantidad actualizada en la lista de pedidos");
     } else {
-      // Extract code and name with fallbacks from product.data
+      // Extract code and name using dynamically detected columns
       const code = product.code || 
-                   product.data?.['code'] || 
-                   product.data?.['Código'] || 
-                   product.data?.['CODIGO'] || 
+                   product.data?.[codeKey] || 
+                   product.data?.['code'] ||
                    "";
       
       const name = product.name || 
-                   product.data?.['name'] || 
-                   product.data?.['Producto'] || 
-                   product.data?.['Nombre'] || 
-                   product.data?.['DESCRIPCIÓN'] || 
-                   product.data?.['Descripción'] ||
+                   product.data?.[nameKey] || 
+                   product.data?.['name'] ||
                    "";
       
       const newRequest: RequestItem = {
