@@ -38,6 +38,7 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
   const [tempQuantity, setTempQuantity] = useState<number>(0);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [localProducts, setLocalProducts] = useState<EnrichedProduct[]>(products);
+  const [lastEditedId, setLastEditedId] = useState<string | null>(null);
   const itemsPerPage = 50;
 
   useEffect(() => {
@@ -107,13 +108,14 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
       // Create the updated product for local state
       const updatedProduct: EnrichedProduct = {
         ...product,
-        ...(quantityColumnKey === "quantity" 
+        ...(quantityColumnKey === "quantity"
           ? { quantity: tempQuantity }
-          : { data: { ...product.data, [quantityColumnKey]: tempQuantity } }
-        ),
+          : { data: { ...product.data, [quantityColumnKey]: tempQuantity } }),
       };
 
       setLocalProducts((prev) => prev.map((p) => (p.id === productId ? updatedProduct : p)));
+
+      setLastEditedId(productId);
 
       const { error } = await supabase.from("dynamic_products").update(updateData).eq("id", productId);
 
@@ -321,7 +323,12 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
                                             className="cursor-pointer hover:bg-muted/50 rounded px-2 py-1 min-w-[60px]"
                                             title="Click para editar"
                                           >
-                                            {displayValue}
+                                            {
+                                              // si está editado recientemente, mostrar tempQuantity
+                                              editingQuantity === null && product.id === lastEditedId
+                                                ? tempQuantity
+                                                : getQuantityValue(product)
+                                            }
                                           </div>
                                         )}
                                       </div>
