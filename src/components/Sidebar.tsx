@@ -24,7 +24,6 @@ const Sidebar = () => {
     { name: "Stock", href: "/", icon: Package2 },
     { name: "Proveedores", href: "/proveedores", icon: Warehouse },
     { name: "Remitos", href: "/remitos", icon: FileText },
-    { name: "Clientes Deudores", href: "/clientes-deudores", icon: Users },
   ];
 
   const isActive = (path: string) => location.pathname === path;

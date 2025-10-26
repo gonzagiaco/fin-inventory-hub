@@ -7,9 +7,8 @@ import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "./components/ProtectedRoute";
 import CollapsibleSidebar from "./components/CollapsibleSidebar";
 import Stock from "./pages/Stock";
-import ClientesDeudores from "./pages/ClientesDeudores";
 import Proveedores from "./pages/Proveedores";
-// import Remitos from "./pages/Remitos";
+import Remitos from "./pages/Remitos";
 import Ayuda from "./pages/Ayuda";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
@@ -37,12 +36,12 @@ const App = () => (
               }
             />
             <Route
-              path="/clientes-deudores"
+              path="/remitos"
               element={
                 <ProtectedRoute>
                   <div className="flex min-h-screen w-full">
                     <CollapsibleSidebar />
-                    <ClientesDeudores />
+                    <Remitos />
                   </div>
                 </ProtectedRoute>
               }
@@ -58,17 +57,6 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            {/* <Route
-              path="/remitos"
-              element={
-                <ProtectedRoute>
-                  <div className="flex min-h-screen w-full">
-                    <CollapsibleSidebar />
-                    <Remitos />
-                  </div>
-                </ProtectedRoute>
-              }
-            /> */}
             <Route
               path="/ayuda"
               element={
