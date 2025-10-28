@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -39,33 +39,7 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
   const [sorting, setSorting] = useState<SortingState>([]);
   const [localProducts, setLocalProducts] = useState<EnrichedProduct[]>(products);
   const [lastEditedId, setLastEditedId] = useState<string | null>(null);
-  const [visibleCardCount, setVisibleCardCount] = useState(10);
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-
   const itemsPerPage = 50;
-
-  useEffect(() => {
-    // reset si cambian los productos o la lista
-    setVisibleCardCount(10);
-  }, [list.listId, products.length]);
-
-  useEffect(() => {
-    if (effectiveViewMode !== "cards") return;
-    const el = sentinelRef.current;
-    if (!el) return;
-
-    const io = new IntersectionObserver((entries) => {
-      const e = entries[0];
-      if (e.isIntersecting) {
-        setVisibleCardCount((prev) => {
-          const next = prev + 10;
-          return Math.min(next, products.length);
-        });
-      }
-    });
-    io.observe(el);
-    return () => io.disconnect();
-  }, [effectiveViewMode, products.length]);
 
   useEffect(() => {
     setLocalProducts(products);
@@ -263,12 +237,11 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
             <div className="p-4">
               <ProductCardView
                 listId={list.listId}
-                products={products.slice(0, visibleCardCount)}
+                products={products}
                 columnSchema={list.columnSchema}
                 onAddToRequest={onAddToRequest}
                 showActions={true}
               />
-              <div ref={sentinelRef} className="h-8 w-full" />
             </div>
           ) : (
             <div className="w-full border-t">
