@@ -385,6 +385,7 @@ export type Database = {
           file_name: string
           file_type: string
           id: string
+          mapping_config: Json | null
           name: string
           product_count: number
           supplier_id: string
@@ -397,6 +398,7 @@ export type Database = {
           file_name: string
           file_type: string
           id?: string
+          mapping_config?: Json | null
           name: string
           product_count?: number
           supplier_id: string
@@ -409,6 +411,7 @@ export type Database = {
           file_name?: string
           file_type?: string
           id?: string
+          mapping_config?: Json | null
           name?: string
           product_count?: number
           supplier_id?: string

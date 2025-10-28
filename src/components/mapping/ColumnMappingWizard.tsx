@@ -171,15 +171,15 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
         <div className="space-y-2">
           <Label htmlFor="quantity-key">Clave de CANTIDAD (stock)</Label>
           <Select 
-            onValueChange={(v) => setMap(m => ({ ...m, quantity_key: v }))} 
-            value={map.quantity_key ?? ''}
+            onValueChange={(v) => setMap(m => ({ ...m, quantity_key: v === '__none__' ? null : v }))} 
+            value={map.quantity_key ?? '__none__'}
             disabled={isSaving}
           >
             <SelectTrigger id="quantity-key">
               <SelectValue placeholder="Seleccionar clave (opcional)" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Sin cantidad</SelectItem>
+              <SelectItem value="__none__">Sin cantidad</SelectItem>
               {keys.map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -188,15 +188,15 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
         <div className="space-y-2">
           <Label htmlFor="price-key">Clave de PRECIO (principal)</Label>
           <Select 
-            onValueChange={(v) => setMap(m => ({ ...m, price_primary_key: v }))} 
-            value={map.price_primary_key ?? ''}
+            onValueChange={(v) => setMap(m => ({ ...m, price_primary_key: v === '__none__' ? null : v }))} 
+            value={map.price_primary_key ?? '__none__'}
             disabled={isSaving}
           >
             <SelectTrigger id="price-key">
               <SelectValue placeholder="Seleccionar clave (opcional)" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Sin precio</SelectItem>
+              <SelectItem value="__none__">Sin precio</SelectItem>
               {keys.map(k => <SelectItem key={k} value={k}>{k}</SelectItem>)}
             </SelectContent>
           </Select>
