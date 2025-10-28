@@ -8,7 +8,7 @@ import SupplierDetailDialog from "@/components/SupplierDetailDialog";
 import DeleteConfirmDialog from "@/components/DeleteConfirmDialog";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { useSuppliers } from "@/hooks/useSuppliers";
-import { useAllDynamicProducts, listDetails } from "@/hooks/useAllDynamicProducts";
+import { useAllDynamicProducts } from "@/hooks/useAllDynamicProducts";
 
 const Proveedores = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
