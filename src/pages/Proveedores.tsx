@@ -8,7 +8,7 @@ import SupplierDetailDialog from "@/components/SupplierDetailDialog";
 import DeleteConfirmDialog from "@/components/DeleteConfirmDialog";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { useSuppliers } from "@/hooks/useSuppliers";
-import { useAllDynamicProducts } from "@/hooks/useAllDynamicProducts";
+import { useProductListsIndex } from "@/hooks/useProductListsIndex";
 
 const Proveedores = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -19,7 +19,7 @@ const Proveedores = () => {
 
   // Use Supabase hooks for data
   const { suppliers, isLoading: isLoadingSuppliers, createSupplier, updateSupplier, deleteSupplier } = useSuppliers();
-  const { productsByList, listDetails } = useAllDynamicProducts();
+  const { data: lists = [] } = useProductListsIndex();
 
   const handleCreateSupplier = () => {
     setSelectedSupplier(null);
@@ -66,11 +66,9 @@ const Proveedores = () => {
   };
 
   const getProductCount = (supplierId: string) => {
-    let count = 0;
-    listDetails.forEach((list) => {
-      if (list.supplierId === supplierId) count += Number(list.productCount || 0);
-    });
-    return count;
+    return lists
+      .filter((list: any) => list.supplier_id === supplierId)
+      .reduce((sum, list: any) => sum + (list.product_count || 0), 0);
   };
   return (
     <div className="flex-1 p-6 lg:p-10 w-full max-w-full overflow-hidden">

@@ -5,15 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DynamicProduct, ColumnSchema } from "@/types/productList";
-import { EnrichedProduct } from "@/hooks/useAllDynamicProducts";
+import { Loader2 } from "lucide-react";
 import { useProductListStore } from "@/stores/productListStore";
 
 interface ProductCardViewProps {
   listId: string;
-  products: DynamicProduct[] | EnrichedProduct[];
+  products: DynamicProduct[] | any[];
   columnSchema: ColumnSchema[];
   onAddToRequest?: (product: any) => void;
   showActions?: boolean;
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
 }
 
 export function ProductCardView({
@@ -22,6 +25,9 @@ export function ProductCardView({
   columnSchema,
   onAddToRequest,
   showActions = false,
+  onLoadMore,
+  hasMore = false,
+  isLoadingMore = false,
 }: ProductCardViewProps) {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const { cardPreviewFields } = useProductListStore();
@@ -69,8 +75,9 @@ export function ProductCardView({
   );
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {products.map((product) => {
+    <>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {products.map((product) => {
         const isExpanded = expandedCards.has(product.id);
         const quantity = product.quantity || 0;
         const isLowStock = quantity < 50;
@@ -177,7 +184,27 @@ export function ProductCardView({
             </CardContent>
           </Card>
         );
-      })}
-    </div>
+        })}
+      </div>
+      
+      {hasMore && onLoadMore && (
+        <div className="text-center mt-6">
+          <Button
+            variant="outline"
+            onClick={onLoadMore}
+            disabled={isLoadingMore}
+          >
+            {isLoadingMore ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Cargando más...
+              </>
+            ) : (
+              'Ver más productos'
+            )}
+          </Button>
+        </div>
+      )}
+    </>
   );
 }

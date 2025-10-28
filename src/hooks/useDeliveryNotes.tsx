@@ -3,6 +3,40 @@ import { supabase } from "@/integrations/supabase/client";
 import { DeliveryNote, CreateDeliveryNoteInput, UpdateDeliveryNoteInput } from "@/types";
 import { toast } from "sonner";
 
+async function updateProductStock(productId: string, quantityDelta: number) {
+  const queryClient = useQueryClient();
+  
+  const { data: indexProduct, error: fetchError } = await (supabase as any)
+    .from("dynamic_products_index")
+    .select("quantity, list_id")
+    .eq("product_id", productId)
+    .maybeSingle();
+  
+  if (fetchError) throw fetchError;
+  if (!indexProduct) {
+    console.warn(`Product ${productId} not found in index`);
+    return;
+  }
+  
+  const newQuantity = (indexProduct.quantity || 0) + quantityDelta;
+  
+  const { error: updateIndexError } = await (supabase as any)
+    .from("dynamic_products_index")
+    .update({ quantity: newQuantity })
+    .eq("product_id", productId);
+  
+  if (updateIndexError) throw updateIndexError;
+
+  const { error: updateProductError } = await supabase
+    .from("dynamic_products")
+    .update({ quantity: newQuantity })
+    .eq("id", productId);
+  
+  if (updateProductError) throw updateProductError;
+  
+  queryClient.invalidateQueries({ queryKey: ['list-products', indexProduct.list_id] });
+}
+
 export const useDeliveryNotes = () => {
   const queryClient = useQueryClient();
 
@@ -96,39 +130,7 @@ export const useDeliveryNotes = () => {
 
       for (const item of input.items) {
         if (item.productId) {
-          const { data: dynamicProduct } = await supabase
-            .from("dynamic_products")
-            .select("quantity")
-            .eq("id", item.productId)
-            .maybeSingle();
-
-          if (dynamicProduct) {
-            const { error: stockError } = await supabase
-              .from("dynamic_products")
-              .update({ 
-                quantity: (dynamicProduct.quantity || 0) - item.quantity 
-              })
-              .eq("id", item.productId);
-
-            if (stockError) throw stockError;
-          } else {
-            const { data: stockItem } = await supabase
-              .from("stock_items")
-              .select("quantity")
-              .eq("id", item.productId)
-              .maybeSingle();
-
-            if (stockItem) {
-              const { error: stockError } = await supabase
-                .from("stock_items")
-                .update({ 
-                  quantity: (stockItem.quantity || 0) - item.quantity 
-                })
-                .eq("id", item.productId);
-
-              if (stockError) throw stockError;
-            }
-          }
+          await updateProductStock(item.productId, -item.quantity);
         }
       }
 
@@ -136,8 +138,7 @@ export const useDeliveryNotes = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
-      queryClient.invalidateQueries({ queryKey: ["stock-items"] });
-      queryClient.invalidateQueries({ queryKey: ["dynamic-products"] });
+      queryClient.invalidateQueries({ queryKey: ["list-products"] });
       toast.success("Remito creado exitosamente y stock actualizado");
     },
     onError: (error: any) => {
@@ -185,35 +186,7 @@ export const useDeliveryNotes = () => {
       if (updates.items) {
         for (const item of originalNote.items) {
           if (item.product_id) {
-            const { data: dynamicProduct } = await supabase
-              .from("dynamic_products")
-              .select("quantity")
-              .eq("id", item.product_id)
-              .maybeSingle();
-
-            if (dynamicProduct) {
-              await supabase
-                .from("dynamic_products")
-                .update({ 
-                  quantity: (dynamicProduct.quantity || 0) + item.quantity 
-                })
-                .eq("id", item.product_id);
-            } else {
-              const { data: stockItem } = await supabase
-                .from("stock_items")
-                .select("quantity")
-                .eq("id", item.product_id)
-                .maybeSingle();
-
-              if (stockItem) {
-                await supabase
-                  .from("stock_items")
-                  .update({ 
-                    quantity: (stockItem.quantity || 0) + item.quantity 
-                  })
-                  .eq("id", item.product_id);
-              }
-            }
+            await updateProductStock(item.product_id, item.quantity);
           }
         }
 
@@ -237,43 +210,14 @@ export const useDeliveryNotes = () => {
 
         for (const item of updates.items) {
           if (item.productId) {
-            const { data: dynamicProduct } = await supabase
-              .from("dynamic_products")
-              .select("quantity")
-              .eq("id", item.productId)
-              .maybeSingle();
-
-            if (dynamicProduct) {
-              await supabase
-                .from("dynamic_products")
-                .update({ 
-                  quantity: (dynamicProduct.quantity || 0) - item.quantity 
-                })
-                .eq("id", item.productId);
-            } else {
-              const { data: stockItem } = await supabase
-                .from("stock_items")
-                .select("quantity")
-                .eq("id", item.productId)
-                .maybeSingle();
-
-              if (stockItem) {
-                await supabase
-                  .from("stock_items")
-                  .update({ 
-                    quantity: (stockItem.quantity || 0) - item.quantity 
-                  })
-                  .eq("id", item.productId);
-              }
-            }
+            await updateProductStock(item.productId, -item.quantity);
           }
         }
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
-      queryClient.invalidateQueries({ queryKey: ["stock-items"] });
-      queryClient.invalidateQueries({ queryKey: ["dynamic-products"] });
+      queryClient.invalidateQueries({ queryKey: ["list-products"] });
       toast.success("Remito actualizado exitosamente");
     },
     onError: (error: any) => {
@@ -293,35 +237,7 @@ export const useDeliveryNotes = () => {
 
       for (const item of note.items) {
         if (item.product_id) {
-          const { data: dynamicProduct } = await supabase
-            .from("dynamic_products")
-            .select("quantity")
-            .eq("id", item.product_id)
-            .maybeSingle();
-
-          if (dynamicProduct) {
-            await supabase
-              .from("dynamic_products")
-              .update({ 
-                quantity: (dynamicProduct.quantity || 0) + item.quantity 
-              })
-              .eq("id", item.product_id);
-          } else {
-            const { data: stockItem } = await supabase
-              .from("stock_items")
-              .select("quantity")
-              .eq("id", item.product_id)
-              .maybeSingle();
-
-            if (stockItem) {
-              await supabase
-                .from("stock_items")
-                .update({ 
-                  quantity: (stockItem.quantity || 0) + item.quantity 
-                })
-                .eq("id", item.product_id);
-            }
-          }
+          await updateProductStock(item.product_id, item.quantity);
         }
       }
 
@@ -334,8 +250,7 @@ export const useDeliveryNotes = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
-      queryClient.invalidateQueries({ queryKey: ["stock-items"] });
-      queryClient.invalidateQueries({ queryKey: ["dynamic-products"] });
+      queryClient.invalidateQueries({ queryKey: ["list-products"] });
       toast.success("Remito eliminado y stock revertido");
     },
     onError: (error: any) => {

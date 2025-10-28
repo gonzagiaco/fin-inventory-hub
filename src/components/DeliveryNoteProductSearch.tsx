@@ -1,10 +1,8 @@
 import { useState } from "react";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useAllDynamicProducts } from "@/hooks/useAllDynamicProducts";
-import { useStock } from "@/hooks/useStock";
-import { Search, Plus } from "lucide-react";
+import { useSearch } from "@/hooks/useSearch";
+import { Search, Loader2 } from "lucide-react";
 
 interface ProductSearchProps {
   onSelect: (product: { id?: string; code: string; name: string; price: number }) => void;
@@ -12,56 +10,17 @@ interface ProductSearchProps {
 
 const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
   const [query, setQuery] = useState("");
-  const [isOpen, setIsOpen] = useState(false);
   
-  const { allProducts: dynamicProducts } = useAllDynamicProducts();
-  const { stockItems } = useStock();
+  const { results, loading } = useSearch(query, 10);
 
-  const allProducts = [
-    ...dynamicProducts
-      .filter(p => (p.code || p.name)) // Solo productos con código O nombre
-      .map(p => ({
-        id: p.id,
-        code: p.code || "",
-        name: p.name || "",
-        price: p.price || 0,
-        source: 'dynamic' as const,
-      })),
-    ...stockItems
-      .filter(s => (s.code || s.name)) // Solo productos con código O nombre
-      .map(s => ({
-        id: s.id,
-        code: s.code || "",
-        name: s.name || "",
-        price: s.costPrice || 0,
-        source: 'stock' as const,
-      })),
-  ];
-
-  const filteredProducts = query.length > 0
-    ? allProducts.filter(p => {
-        const searchTerm = query.toLowerCase().trim();
-        
-        // Convertir a string seguro, manejar null/undefined/empty
-        const code = (p.code || "").toString().toLowerCase();
-        const name = (p.name || "").toString().toLowerCase();
-        
-        // Solo incluir productos con al menos código O nombre
-        if (!code && !name) return false;
-        
-        return code.includes(searchTerm) || name.includes(searchTerm);
-      }).slice(0, 10)
-    : [];
-
-  const handleSelect = (product: typeof allProducts[0]) => {
+  const handleSelect = (product: any) => {
     onSelect({
-      id: product.id,
-      code: product.code,
-      name: product.name,
-      price: product.price,
+      id: product.product_id,
+      code: product.code || "",
+      name: product.name || "",
+      price: product.price || 0,
     });
     setQuery("");
-    setIsOpen(false);
   };
 
   return (
@@ -72,48 +31,40 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
           <Input
             placeholder="Buscar por código o nombre..."
             value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              setIsOpen(true);
-            }}
-            onFocus={() => setIsOpen(true)}
+            onChange={(e) => setQuery(e.target.value)}
             className="pl-9"
           />
         </div>
       </div>
 
-      {isOpen && filteredProducts.length > 0 && (
+      {loading && (
+        <Card className="absolute z-50 mt-1 w-full p-4 text-center">
+          <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+        </Card>
+      )}
+
+      {!loading && results.length > 0 && (
         <Card className="absolute z-50 mt-1 w-full max-h-80 overflow-y-auto">
           <div className="divide-y">
-            {filteredProducts.map((product) => (
+            {results.map((product) => (
               <div
-                key={`${product.source}-${product.id}`}
-                className="p-3 hover:bg-accent cursor-pointer flex justify-between items-center"
+                key={product.product_id}
+                className="p-3 hover:bg-accent cursor-pointer"
                 onClick={() => handleSelect(product)}
               >
-                <div className="flex-1">
-                  <p className="font-medium">
-                    {product.name || product.code || 'Producto sin nombre'}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    Código: {product.code || 'N/A'} | ${(product.price || 0).toFixed(2)}
-                  </p>
-                </div>
-                <Button size="sm" variant="ghost">
-                  <Plus className="h-4 w-4" />
-                </Button>
+                <p className="font-medium">{product.name || product.code}</p>
+                <p className="text-sm text-muted-foreground">
+                  Código: {product.code || 'N/A'} | ${(product.price || 0).toFixed(2)}
+                </p>
               </div>
             ))}
           </div>
         </Card>
       )}
 
-      {isOpen && query.length > 0 && filteredProducts.length === 0 && (
+      {!loading && query.length >= 2 && results.length === 0 && (
         <Card className="absolute z-50 mt-1 w-full p-4 text-center">
           <p className="text-muted-foreground">No se encontraron productos</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            💡 Tip: Verifica que tus productos tengan código o nombre asignado
-          </p>
         </Card>
       )}
     </div>

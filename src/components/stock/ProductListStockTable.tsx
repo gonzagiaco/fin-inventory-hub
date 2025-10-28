@@ -7,13 +7,13 @@ import {
   ColumnDef,
   SortingState,
 } from "@tanstack/react-table";
-import { ChevronDown, ChevronUp, ShoppingCart, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronUp, ShoppingCart, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ProductListDetails, EnrichedProduct } from "@/hooks/useAllDynamicProducts";
+import { useListProducts } from "@/hooks/useListProducts";
 import { ColumnSettingsDrawer } from "@/components/ColumnSettingsDrawer";
 import { useProductListStore } from "@/stores/productListStore";
 import { ProductCardView } from "@/components/ProductCardView";
@@ -23,34 +23,70 @@ import { List, LayoutGrid } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { ColumnSchema } from "@/types/productList";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface ProductListStockTableProps {
-  list: ProductListDetails;
-  products: EnrichedProduct[];
-  onAddToRequest: (product: EnrichedProduct) => void;
+  listId: string;
+  listName: string;
+  columnSchema: ColumnSchema[];
+  mappingConfig: any;
+  onAddToRequest: (product: any) => void;
 }
 
-export function ProductListStockTable({ list, products, onAddToRequest }: ProductListStockTableProps) {
+export function ProductListStockTable({ 
+  listId, 
+  listName,
+  columnSchema,
+  mappingConfig,
+  onAddToRequest 
+}: ProductListStockTableProps) {
   const queryClient = useQueryClient();
   const [isExpanded, setIsExpanded] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [quantityFilter, setQuantityFilter] = useState<string>("all");
   const [editingQuantity, setEditingQuantity] = useState<string | null>(null);
   const [tempQuantity, setTempQuantity] = useState<number>(0);
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [localProducts, setLocalProducts] = useState<EnrichedProduct[]>(products);
-  const [lastEditedId, setLastEditedId] = useState<string | null>(null);
-  const itemsPerPage = 50;
 
-  useEffect(() => {
-    setLocalProducts(products);
-  }, [products]);
+  const { 
+    data, 
+    isLoading, 
+    fetchNextPage, 
+    hasNextPage,
+    isFetchingNextPage 
+  } = useListProducts(listId, searchQuery);
 
-  // Debug sorting
-  useEffect(() => {
-    if (sorting.length > 0) {
-      console.log("🔄 Sorting changed:", sorting);
+  const allProducts = useMemo(() => 
+    (data?.pages ?? []).flatMap(page => page.data ?? []),
+    [data]
+  );
+
+  const totalCount = data?.pages[0]?.count ?? 0;
+
+  const products = useMemo(() => {
+    let filtered = allProducts.map(indexProduct => ({
+      id: indexProduct.product_id,
+      listId: indexProduct.list_id,
+      code: indexProduct.code,
+      name: indexProduct.name,
+      price: indexProduct.price,
+      quantity: indexProduct.quantity,
+      data: {},
+    }));
+
+    if (quantityFilter !== "all") {
+      filtered = filtered.filter(p => {
+        const qty = p.quantity || 0;
+        if (quantityFilter === "low") return qty < 50;
+        if (quantityFilter === "medium") return qty >= 50 && qty < 100;
+        if (quantityFilter === "high") return qty >= 100;
+        return true;
+      });
     }
-  }, [sorting]);
+
+    return filtered;
+  }, [allProducts, quantityFilter]);
 
   const {
     columnVisibility,
@@ -61,26 +97,24 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
     lowStockThreshold,
   } = useProductListStore();
 
-  const shouldUseCardView = true; // Always allow card view
-  const defaultViewMode = list.columnSchema.length > 8 ? "cards" : "table";
-  const currentViewMode = storeViewMode[list.listId] || defaultViewMode;
+  const defaultViewMode = columnSchema.length > 8 ? "cards" : "table";
+  const currentViewMode = storeViewMode[listId] || defaultViewMode;
   const effectiveViewMode = currentViewMode;
 
-  const visibilityState = columnVisibility[list.listId] || {};
-  const currentOrder = columnOrder[list.listId] || list.columnSchema.map((col) => col.key);
+  const visibilityState = columnVisibility[listId] || {};
+  const currentOrder = columnOrder[listId] || columnSchema.map((col) => col.key);
 
   const visibleColumns = currentOrder
-    .map((key) => list.columnSchema.find((col) => col.key === key))
+    .map((key) => columnSchema.find((col) => col.key === key))
     .filter(
-      (col): col is (typeof list.columnSchema)[number] => col !== undefined && visibilityState[col.key] !== false,
+      (col): col is (typeof columnSchema)[number] => col !== undefined && visibilityState[col.key] !== false,
     );
 
-  const quantityColumnKey = quantityColumn[list.listId] || "quantity";
-  const threshold = lowStockThreshold[list.listId] || 50;
+  const quantityColumnKey = quantityColumn[listId] || "quantity";
+  const threshold = lowStockThreshold[listId] || 50;
 
-  const getQuantityValue = (product: EnrichedProduct): number => {
-    const value = quantityColumnKey === "quantity" ? product.quantity : product.data?.[quantityColumnKey];
-    return Number(value) || 0;
+  const getQuantityValue = (product: any): number => {
+    return Number(product.quantity) || 0;
   };
 
   const lowStockCount = products.filter((p) => getQuantityValue(p) < threshold).length;
@@ -92,39 +126,22 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
 
   const handleSaveQuantity = async (productId: string) => {
     try {
-      const updateData: any = {};
-      const product = localProducts.find((p) => p.id === productId);
-      if (!product) return;
-
-      if (quantityColumnKey === "quantity") {
-        updateData.quantity = tempQuantity;
-      } else {
-        updateData.data = {
-          ...product.data,
-          [quantityColumnKey]: tempQuantity,
-        };
-      }
-
-      // Create the updated product for local state
-      const updatedProduct: EnrichedProduct = {
-        ...product,
-        ...(quantityColumnKey === "quantity"
-          ? { quantity: tempQuantity }
-          : { data: { ...product.data, [quantityColumnKey]: tempQuantity } }),
-      };
-
-      setLocalProducts((prev) => prev.map((p) => (p.id === productId ? updatedProduct : p)));
-
-      setLastEditedId(productId);
-
-      const { error } = await supabase.from("dynamic_products").update(updateData).eq("id", productId);
-
-      if (error) throw error;
-
-      // Invalidate queries to refresh the UI
-      queryClient.invalidateQueries({ queryKey: ["dynamic-products"] });
-      queryClient.invalidateQueries({ queryKey: ["all-dynamic-products"] });
-
+      const { error: productError } = await supabase
+        .from("dynamic_products")
+        .update({ quantity: tempQuantity })
+        .eq("id", productId);
+      
+      if (productError) throw productError;
+      
+      const { error: indexError } = await (supabase as any)
+        .from("dynamic_products_index")
+        .update({ quantity: tempQuantity })
+        .eq("product_id", productId);
+      
+      if (indexError) throw indexError;
+      
+      queryClient.invalidateQueries({ queryKey: ['list-products', listId] });
+      
       toast.success("Cantidad actualizada correctamente");
       setEditingQuantity(null);
     } catch (error) {
@@ -133,10 +150,10 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
     }
   };
 
-  const columns = useMemo<ColumnDef<EnrichedProduct>[]>(() => {
+  const columns = useMemo<ColumnDef<any>[]>(() => {
     return visibleColumns.map((col) => ({
       id: col.key,
-      accessorFn: (row: EnrichedProduct) => {
+      accessorFn: (row: any) => {
         if (col.key === "code") return row.code;
         if (col.key === "name") return row.name;
         if (col.key === "price") return row.price;
@@ -148,7 +165,6 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
       sortingFn: (rowA, rowB, columnId) => {
         const va = rowA.getValue(columnId) ?? "";
         const vb = rowB.getValue(columnId) ?? "";
-        // Comparación numérica o alfabética
         if (!isNaN(Number(va)) && !isNaN(Number(vb))) return Number(va) - Number(vb);
         return String(va).localeCompare(String(vb), "es", { sensitivity: "base" });
       },
@@ -162,7 +178,6 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
     }));
   }, [visibleColumns]);
 
-  // Initialize table
   const table = useReactTable({
     data: products,
     columns,
@@ -172,24 +187,17 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
     getSortedRowModel: getSortedRowModel(),
   });
 
-  // Pagination
   const sortedRows = useMemo(() => table.getSortedRowModel().rows, [table]);
-  const totalPages = Math.ceil(sortedRows.length / itemsPerPage);
-  const paginatedRows = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return sortedRows.slice(start, start + itemsPerPage);
-  }, [sortedRows, currentPage, itemsPerPage]);
 
   return (
     <div className="border rounded-lg w-full">
       <div className="flex flex-col lg:flex-row items-start lg:items-center gap-3 p-4 bg-muted/50">
-        {/* Primera línea en mobile: botón colapsar + info */}
         <div className="flex items-center gap-3 w-full lg:flex-1">
           <Button variant="ghost" size="icon" onClick={() => setIsExpanded(!isExpanded)} className="shrink-0">
             {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>
           <div className="flex-1 min-w-0">
-            <h3 className="font-semibold truncate">{list.listName}</h3>
+            <h3 className="font-semibold truncate">{listName}</h3>
             <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
               <span>{products.length} productos</span>
               {lowStockCount > 0 && (
@@ -205,13 +213,12 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
           </div>
         </div>
 
-        {/* Segunda línea en mobile: controles */}
         <div className="flex flex-wrap gap-2 w-full lg:w-auto justify-end">
           <div className="flex gap-2">
             <Button
               variant={effectiveViewMode === "table" ? "default" : "outline"}
               size="sm"
-              onClick={() => setViewMode(list.listId, "table")}
+              onClick={() => setViewMode(listId, "table")}
               title="Vista de tabla"
             >
               <List className="h-4 w-4" />
@@ -219,28 +226,61 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
             <Button
               variant={effectiveViewMode === "cards" ? "default" : "outline"}
               size="sm"
-              onClick={() => setViewMode(list.listId, "cards")}
+              onClick={() => setViewMode(listId, "cards")}
               title="Vista de tarjetas"
             >
               <LayoutGrid className="h-4 w-4" />
             </Button>
-            <CardPreviewSettings listId={list.listId} columnSchema={list.columnSchema} />
+            <CardPreviewSettings listId={listId} columnSchema={columnSchema} />
           </div>
-          <ColumnConfigurationDialog listId={list.listId} columnSchema={list.columnSchema} />
-          <ColumnSettingsDrawer listId={list.listId} columnSchema={list.columnSchema} />
+          <ColumnConfigurationDialog listId={listId} columnSchema={columnSchema} />
+          <ColumnSettingsDrawer listId={listId} columnSchema={columnSchema} />
         </div>
       </div>
 
       {isExpanded && (
         <>
-          {effectiveViewMode === "cards" ? (
+          <div className="p-4 border-b space-y-3">
+            <div className="flex gap-2">
+              <Input
+                placeholder="Buscar en esta lista..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1"
+              />
+              <Select value={quantityFilter} onValueChange={setQuantityFilter}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Stock" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="low">Bajo (&lt; 50)</SelectItem>
+                  <SelectItem value="medium">Medio (50-100)</SelectItem>
+                  <SelectItem value="high">Alto (&gt; 100)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Mostrando {products.length} de {totalCount} productos
+            </p>
+          </div>
+
+          {isLoading ? (
+            <div className="p-12 text-center">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
+              <p className="text-muted-foreground">Cargando productos...</p>
+            </div>
+          ) : effectiveViewMode === "cards" ? (
             <div className="p-4">
               <ProductCardView
-                listId={list.listId}
+                listId={listId}
                 products={products}
-                columnSchema={list.columnSchema}
+                columnSchema={columnSchema}
                 onAddToRequest={onAddToRequest}
                 showActions={true}
+                onLoadMore={() => fetchNextPage()}
+                hasMore={hasNextPage}
+                isLoadingMore={isFetchingNextPage}
               />
             </div>
           ) : (
@@ -272,14 +312,14 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
                     </TableHeader>
 
                     <TableBody>
-                      {paginatedRows.length === 0 ? (
+                      {sortedRows.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={visibleColumns.length + 1} className="text-center text-muted-foreground">
                             No hay productos en esta lista
                           </TableCell>
                         </TableRow>
                       ) : (
-                        paginatedRows.map((row) => {
+                        sortedRows.map((row) => {
                           const product = row.original;
                           const quantity = getQuantityValue(product);
                           const isLowStock = quantity < threshold;
@@ -323,12 +363,7 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
                                             className="cursor-pointer hover:bg-muted/50 rounded px-2 py-1 min-w-[60px]"
                                             title="Click para editar"
                                           >
-                                            {
-                                              // si está editado recientemente, mostrar tempQuantity
-                                              editingQuantity === null && product.id === lastEditedId
-                                                ? tempQuantity
-                                                : getQuantityValue(product)
-                                            }
+                                            {quantity}
                                           </div>
                                         )}
                                       </div>
@@ -355,37 +390,25 @@ export function ProductListStockTable({ list, products, onAddToRequest }: Produc
             </div>
           )}
 
-          {/* Pagination */}
-          {table.getRowModel().rows.length > itemsPerPage && (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 border-t">
-              <div className="text-sm text-muted-foreground">
-                Mostrando {(currentPage - 1) * itemsPerPage + 1} a{" "}
-                {Math.min(currentPage * itemsPerPage, table.getRowModel().rows.length)} de{" "}
-                {table.getRowModel().rows.length} productos
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  <span className="hidden sm:inline ml-1">Anterior</span>
-                </Button>
-                <span className="text-sm text-muted-foreground">
-                  Página {currentPage} de {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                >
-                  <span className="hidden sm:inline mr-1">Siguiente</span>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
+          {hasNextPage && (
+            <div className="p-4 border-t text-center">
+              <Button
+                variant="outline"
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+              >
+                {isFetchingNextPage ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Cargando...
+                  </>
+                ) : (
+                  <>Cargar más productos</>
+                )}
+              </Button>
+              <p className="text-xs text-muted-foreground mt-2">
+                {products.length} de {totalCount} cargados
+              </p>
             </div>
           )}
         </>

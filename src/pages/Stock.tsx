@@ -1,28 +1,26 @@
 import { useState, useMemo } from "react";
-import { Search, Filter, FileDown } from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { Filter, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import RequestCart from "@/components/RequestCart";
 import { RequestItem } from "@/types";
-import { useAllDynamicProducts, EnrichedProduct } from "@/hooks/useAllDynamicProducts";
 import { Card } from "@/components/ui/card";
 import { exportOrdersBySupplier } from "@/utils/exportOrdersBySupplier";
 import { SupplierStockSection } from "@/components/stock/SupplierStockSection";
 import { toast } from "sonner";
-import { useProductListStore } from "@/stores/productListStore";
+import { useProductListsIndex } from "@/hooks/useProductListsIndex";
+import { useSuppliers } from "@/hooks/useSuppliers";
 
 export default function Stock() {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [quantityFilter, setQuantityFilter] = useState<string>("all");
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
   const [requestList, setRequestList] = useState<RequestItem[]>([]);
   const [isCartCollapsed, setIsCartCollapsed] = useState(true);
 
-  const { productsByList, listDetails, suppliers, isLoading } = useAllDynamicProducts();
-  const { searchableColumns, priceColumn, initializeSearchableColumns } = useProductListStore();
+  const { data: lists = [], isLoading: isLoadingLists } = useProductListsIndex();
+  const { suppliers = [], isLoading: isLoadingSuppliers } = useSuppliers();
+  
+  const isLoading = isLoadingLists || isLoadingSuppliers;
 
-  // Group lists by supplier and apply filters
   const supplierSections = useMemo(() => {
     const sections = new Map<
       string,
@@ -30,167 +28,64 @@ export default function Stock() {
         supplierName: string;
         supplierLogo: string | null;
         lists: Array<{
-          listId: string;
-          listName: string;
+          id: string;
+          name: string;
           supplierId: string;
-          supplierName: string;
-          supplierLogo: string | null;
-          columnSchema: any[];
+          mappingConfig: any;
           productCount: number;
         }>;
       }
     >();
 
-    // Group lists by supplier
-    listDetails.forEach((list) => {
-      if (!sections.has(list.supplierId)) {
-        sections.set(list.supplierId, {
-          supplierName: list.supplierName,
-          supplierLogo: list.supplierLogo,
+    lists.forEach((list: any) => {
+      const supplier = suppliers.find(s => s.id === list.supplier_id);
+      if (!supplier) return;
+      
+      if (!sections.has(list.supplier_id)) {
+        sections.set(list.supplier_id, {
+          supplierName: supplier.name,
+          supplierLogo: supplier.logo,
           lists: [],
         });
       }
-      sections.get(list.supplierId)!.lists.push(list);
+      
+      sections.get(list.supplier_id)!.lists.push({
+        id: list.id,
+        name: list.name,
+        supplierId: list.supplier_id,
+        mappingConfig: list.mapping_config,
+        productCount: list.product_count,
+      });
     });
 
     return sections;
-  }, [listDetails]);
+  }, [lists, suppliers]);
 
-  // Apply filters to products in each list
-  const filteredProductsByList = useMemo(() => {
-    const filtered = new Map<string, EnrichedProduct[]>();
-
-    console.log("🔍 Debugging filteredProductsByList:");
-    console.log("Total productsByList entries:", productsByList.size);
-    console.log("Current filters:", { searchQuery, quantityFilter, supplierFilter });
-
-    productsByList.forEach((products, listId) => {
-      const list = listDetails.get(listId);
-
-      console.log(`📋 Processing list ${listId}:`, {
-        totalProducts: products.length,
-        listName: list?.listName,
-        supplierId: list?.supplierId,
-      });
-
-      // Initialize searchable columns if not set
-      if (list && !searchableColumns[listId]) {
-        initializeSearchableColumns(listId, list.columnSchema);
-      }
-
-      const searchableCols = searchableColumns[listId] || ["code", "name"];
-      console.log(`  Searchable columns for ${listId}:`, searchableCols);
-
-      const filteredProducts = products.filter((item) => {
-        // Search filter using configurable searchable columns
-        const matchesSearch =
-          !searchQuery ||
-          searchableCols.some((colKey) => {
-            const value =
-              colKey === "code"
-                ? item.code
-                : colKey === "name"
-                  ? item.name
-                  : colKey === "price"
-                    ? item.price
-                    : colKey === "quantity"
-                      ? item.quantity
-                      : item.data?.[colKey];
-
-            return value?.toString().toLowerCase().includes(searchQuery.toLowerCase());
-          });
-
-        // Quantity filter (applies across all lists)
-        const quantity = item.quantity || 0;
-        const matchesQuantity =
-          quantityFilter === "all" ||
-          (quantityFilter === "low" && quantity < 50) ||
-          (quantityFilter === "medium" && quantity >= 50 && quantity < 100) ||
-          (quantityFilter === "high" && quantity >= 100);
-
-        return matchesSearch && matchesQuantity;
-      });
-
-      console.log(`  After filters: ${filteredProducts.length} products`);
-      filtered.set(listId, filteredProducts);
-    });
-
-    // Calculate total
-    let totalCount = 0;
-    filtered.forEach((products) => {
-      totalCount += products.length;
-    });
-    console.log("✅ Total filtered products across all lists:", totalCount);
-
-    return filtered;
-  }, [productsByList, searchQuery, quantityFilter, searchableColumns, listDetails, initializeSearchableColumns]);
-
-  // Filter suppliers based on supplier filter
   const visibleSupplierSections = useMemo(() => {
     if (supplierFilter === "all") {
       return Array.from(supplierSections.entries());
     }
-
     return Array.from(supplierSections.entries()).filter(([supplierId]) => supplierId === supplierFilter);
   }, [supplierSections, supplierFilter]);
 
-  // Calculate total filtered products
-  const totalFilteredProducts = useMemo(() => {
-    let count = 0;
-    visibleSupplierSections.forEach(([_, section]) => {
-      section.lists.forEach((list) => {
-        const products = filteredProductsByList.get(list.listId) || [];
-        count += products.length;
-      });
-    });
-    return count;
-  }, [visibleSupplierSections, filteredProductsByList]);
+  const totalProducts = useMemo(() => {
+    return lists.reduce((sum, list: any) => sum + (list.product_count || 0), 0);
+  }, [lists]);
 
-  const handleAddToRequest = (product: EnrichedProduct) => {
+  const handleAddToRequest = (product: any) => {
     const existingItem = requestList.find((r) => r.productId === product.id);
-
-    // Get list details to access columnSchema
-    const list = listDetails.get(product.listId);
-    const schema = list?.columnSchema || [];
-
-    // Detect code column dynamically from schema
-    const codeColumn = schema.find((col) => {
-      const keyLower = col.key.toLowerCase().trim();
-      return ["codigo", "código", "cod.", "cód.", "cod", "articulo", "artículo", "item", "sku", "code"].some(
-        (variant) => keyLower.includes(variant),
-      );
-    });
-    const codeKey = codeColumn?.key || "code";
-
-    // Detect name column dynamically from schema
-    const nameColumn = schema.find((col) => {
-      const keyLower = col.key.toLowerCase().trim();
-      return ["descripcion", "descripción", "nombre", "name", "producto", "product", "desc"].some((variant) =>
-        keyLower.includes(variant),
-      );
-    });
-    const nameKey = nameColumn?.key || "name";
-
-    // Get configured price column for this list
-    const priceColumnKey = priceColumn[product.listId] || "price";
-    const productPrice = priceColumnKey === "price" ? product.price : product.data?.[priceColumnKey];
 
     if (existingItem) {
       setRequestList((prev) => prev.map((r) => (r.productId === product.id ? { ...r, quantity: r.quantity + 1 } : r)));
       toast.success("Cantidad actualizada en la lista de pedidos");
     } else {
-      // Extract code and name using dynamically detected columns
-      const code = product.code || product.data?.[codeKey] || product.data?.["code"] || "";
-
-      const name = product.name || product.data?.[nameKey] || product.data?.["name"] || "";
-
       const newRequest: RequestItem = {
         id: Date.now().toString(),
         productId: product.id,
-        code,
-        name,
-        supplierId: product.supplierId,
-        costPrice: Number(productPrice) || 0,
+        code: product.code || "",
+        name: product.name || "",
+        supplierId: product.supplierId || "",
+        costPrice: Number(product.price) || 0,
         quantity: 1,
       };
       setRequestList((prev) => [...prev, newRequest]);
@@ -222,48 +117,14 @@ export default function Stock() {
     });
   };
 
-  const hasActiveFilters = searchQuery !== "" || quantityFilter !== "all" || supplierFilter !== "all";
-
-  const totalProducts = useMemo(() => {
-    let count = 0;
-    productsByList.forEach((products) => {
-      count += products.length;
-    });
-    return count;
-  }, [productsByList]);
-
   return (
     <div className="min-h-screen w-full bg-background overflow-x-hidden">
       <header className="sticky top-0 z-10 bg-background border-b">
         <div className="w-full px-4 py-6 max-w-full overflow-hidden">
           <h1 className="text-3xl font-bold mb-6">Stock de Productos</h1>
 
-          {/* Search and Filters */}
           <div className="flex flex-col md:flex-row gap-4 mb-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-              <Input
-                placeholder="Buscar por código o nombre..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-
-            <div className="flex gap-2">
-              <Select value={quantityFilter} onValueChange={setQuantityFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <Filter className="mr-2 h-4 w-4" />
-                  <SelectValue placeholder="Cantidad" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas las cantidades</SelectItem>
-                  <SelectItem value="low">Bajo stock (&lt; 50)</SelectItem>
-                  <SelectItem value="medium">Stock medio (50-100)</SelectItem>
-                  <SelectItem value="high">Stock alto (&gt; 100)</SelectItem>
-                </SelectContent>
-              </Select>
-
+            <div className="flex gap-2 ml-auto">
               <Select value={supplierFilter} onValueChange={setSupplierFilter}>
                 <SelectTrigger className="w-[200px]">
                   <Filter className="mr-2 h-4 w-4" />
@@ -286,33 +147,17 @@ export default function Stock() {
             </div>
           </div>
 
-          {/* Results summary with filter indicators */}
           <div className="flex items-center gap-3 flex-wrap">
             <div className="text-sm text-muted-foreground">
-              Mostrando {totalFilteredProducts} de {totalProducts} productos
+              {totalProducts} productos en total
               {" • "}
               {visibleSupplierSections.length} {visibleSupplierSections.length === 1 ? "proveedor" : "proveedores"}
             </div>
-            {hasActiveFilters && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setSearchQuery("");
-                  setQuantityFilter("all");
-                  setSupplierFilter("all");
-                }}
-                className="text-xs h-7"
-              >
-                Limpiar filtros
-              </Button>
-            )}
           </div>
         </div>
       </header>
 
       <div className="w-full px-4 py-6 max-w-full overflow-hidden">
-        {/* Floating Request Cart */}
         <RequestCart
           requests={requestList}
           onUpdateQuantity={handleUpdateRequestQuantity}
@@ -323,21 +168,17 @@ export default function Stock() {
           onToggleCollapse={() => setIsCartCollapsed(!isCartCollapsed)}
         />
 
-        {/* Main content - Full width */}
         <div className="w-full">
           {isLoading ? (
             <div className="text-center py-12 space-y-4">
               <div className="flex justify-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
               </div>
-              <p className="text-muted-foreground">Cargando productos...</p>
-              <p className="text-xs text-muted-foreground">
-                Esto puede tardar unos segundos para listas grandes
-              </p>
+              <p className="text-muted-foreground">Cargando listas...</p>
             </div>
           ) : visibleSupplierSections.length === 0 ? (
             <Card className="p-12 text-center">
-              <p className="text-muted-foreground">No se encontraron productos</p>
+              <p className="text-muted-foreground">No se encontraron proveedores</p>
             </Card>
           ) : (
             <div className="space-y-6">
@@ -347,7 +188,6 @@ export default function Stock() {
                   supplierName={section.supplierName}
                   supplierLogo={section.supplierLogo}
                   lists={section.lists}
-                  productsByList={filteredProductsByList}
                   onAddToRequest={handleAddToRequest}
                 />
               ))}
