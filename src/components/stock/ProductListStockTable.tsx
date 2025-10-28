@@ -42,7 +42,6 @@ export function ProductListStockTable({
   onAddToRequest 
 }: ProductListStockTableProps) {
   const queryClient = useQueryClient();
-  const [isExpanded, setIsExpanded] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [quantityFilter, setQuantityFilter] = useState<string>("all");
   const [editingQuantity, setEditingQuantity] = useState<string | null>(null);
@@ -193,9 +192,6 @@ export function ProductListStockTable({
     <div className="border rounded-lg w-full">
       <div className="flex flex-col lg:flex-row items-start lg:items-center gap-3 p-4 bg-muted/50">
         <div className="flex items-center gap-3 w-full lg:flex-1">
-          <Button variant="ghost" size="icon" onClick={() => setIsExpanded(!isExpanded)} className="shrink-0">
-            {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </Button>
           <div className="flex-1 min-w-0">
             <h3 className="font-semibold truncate">{listName}</h3>
             <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
@@ -238,9 +234,8 @@ export function ProductListStockTable({
         </div>
       </div>
 
-      {isExpanded && (
-        <>
-          <div className="p-4 border-b space-y-3">
+      <>
+        <div className="p-4 border-b space-y-3">
             <div className="flex gap-2">
               <Input
                 placeholder="Buscar en esta lista..."
@@ -411,8 +406,7 @@ export function ProductListStockTable({
               </p>
             </div>
           )}
-        </>
-      )}
+      </>
     </div>
   );
 }

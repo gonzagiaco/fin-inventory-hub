@@ -197,6 +197,63 @@ export type Database = {
           },
         ]
       }
+      dynamic_products_index: {
+        Row: {
+          code: string | null
+          created_at: string | null
+          id: string
+          list_id: string
+          name: string | null
+          price: number | null
+          product_id: string
+          quantity: number | null
+          search_vector: unknown
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string | null
+          id?: string
+          list_id: string
+          name?: string | null
+          price?: number | null
+          product_id: string
+          quantity?: number | null
+          search_vector?: unknown
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          code?: string | null
+          created_at?: string | null
+          id?: string
+          list_id?: string
+          name?: string | null
+          price?: number | null
+          product_id?: string
+          quantity?: number | null
+          search_vector?: unknown
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dynamic_products_index_list_id_fkey"
+            columns: ["list_id"]
+            isOneToOne: false
+            referencedRelation: "product_lists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dynamic_products_index_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: true
+            referencedRelation: "dynamic_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       import_records: {
         Row: {
           created_at: string | null
@@ -592,6 +649,24 @@ export type Database = {
     }
     Functions: {
       refresh_list_index: { Args: { p_list_id: string }; Returns: undefined }
+      search_products: {
+        Args: {
+          p_limit?: number
+          p_list_id?: string
+          p_offset?: number
+          p_supplier_id?: string
+          p_term?: string
+        }
+        Returns: {
+          code: string
+          list_id: string
+          name: string
+          price: number
+          product_id: string
+          quantity: number
+          rank: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
