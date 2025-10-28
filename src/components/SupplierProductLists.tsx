@@ -9,6 +9,7 @@ import {
   Trash2,
   AlertTriangle,
   FileText,
+  Settings,
 } from "lucide-react";
 import { useProductLists } from "@/hooks/useProductLists";
 import { useProductListStore } from "@/stores/productListStore";
@@ -28,6 +29,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ListUpdateDialog } from "./ListUpdateDialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ColumnMappingWizard } from "./mapping/ColumnMappingWizard";
 
 interface SupplierProductListsProps {
   supplierId: string;
@@ -40,6 +43,7 @@ export const SupplierProductLists = ({
 }: SupplierProductListsProps) => {
   const [isUploading, setIsUploading] = useState(false);
   const [listToDelete, setListToDelete] = useState<string | null>(null);
+  const [listToMap, setListToMap] = useState<string | null>(null);
   const [similarWarning, setSimilarWarning] = useState<string | null>(null);
   const [pendingUpload, setPendingUpload] = useState<{
     fileName: string;
@@ -322,7 +326,14 @@ export const SupplierProductLists = ({
                         <ChevronDown className="w-5 h-5" />
                       )}
                       <div>
-                        <CardTitle className="text-lg">{list.name}</CardTitle>
+                        <div className="flex items-center gap-2">
+                          <CardTitle className="text-lg">{list.name}</CardTitle>
+                          {(list as any).mapping_config && (
+                            <Badge variant="default" className="text-xs">
+                              ✓ Mapeado
+                            </Badge>
+                          )}
+                        </div>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge variant="outline" className="text-xs">
                             {list.fileType.toUpperCase()}
@@ -336,17 +347,30 @@ export const SupplierProductLists = ({
                         </div>
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setListToDelete(list.id);
-                      }}
-                      className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setListToMap(list.id);
+                        }}
+                      >
+                        <Settings className="w-4 h-4 mr-1" />
+                        Mapeo
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setListToDelete(list.id);
+                        }}
+                        className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 {!isCollapsed && (
@@ -373,6 +397,24 @@ export const SupplierProductLists = ({
         onUpdate={handleUpdateExisting}
         onCreateNew={handleCreateNew}
       />
+
+      {/* Mapping Wizard Dialog */}
+      <Dialog open={!!listToMap} onOpenChange={(open) => !open && setListToMap(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Configurar Mapeo de Columnas</DialogTitle>
+          </DialogHeader>
+          {listToMap && (
+            <ColumnMappingWizard 
+              listId={listToMap} 
+              onSaved={() => {
+                setListToMap(null);
+                toast.success("Mapeo guardado e índice actualizado");
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!listToDelete} onOpenChange={() => setListToDelete(null)}>
