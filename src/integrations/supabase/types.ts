@@ -591,7 +591,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      refresh_list_index: { Args: { p_list_id: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

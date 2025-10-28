@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -78,36 +79,47 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
   const handleSave = async () => {
     // Validación básica
     if (map.code_keys.length === 0 && map.name_keys.length === 0) {
-      toast.error('Debe configurar al menos una clave para código o nombre');
+      toast.error('Debe seleccionar al menos una clave para código o nombre');
       return;
     }
 
     setIsSaving(true);
     try {
-      // Guardar mapping_config
-      const { error: updateError } = await (supabase as any)
+      console.log('Guardando mapping_config:', map);
+      
+      // 1. Guardar mapping_config
+      const { error: updateError } = await supabase
         .from('product_lists')
         .update({ mapping_config: map })
         .eq('id', listId);
 
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error('Error al actualizar product_lists:', updateError);
+        throw new Error(`Error al guardar configuración: ${updateError.message}`);
+      }
 
-      // Refrescar índice
-      const { error: refreshError } = await (supabase.rpc as any)('refresh_list_index', { 
-        p_list_id: listId 
-      });
+      console.log('Mapping guardado, refrescando índice...');
 
-      if (refreshError) throw refreshError;
+      // 2. Refrescar índice
+      const { data: rpcData, error: refreshError } = await supabase
+        .rpc('refresh_list_index', { p_list_id: listId });
 
-      // Invalidar caché de React Query
+      if (refreshError) {
+        console.error('Error al refrescar índice:', refreshError);
+        throw new Error(`Error al indexar productos: ${refreshError.message}`);
+      }
+
+      console.log('Índice refrescado exitosamente:', rpcData);
+
+      // 3. Invalidar caché de React Query
       await queryClient.invalidateQueries({ queryKey: ['product-lists-index'] });
       await queryClient.invalidateQueries({ queryKey: ['list-products', listId] });
 
       toast.success('Mapeo guardado e índice actualizado correctamente');
       onSaved?.();
-    } catch (error) {
-      console.error('Error saving mapping:', error);
-      toast.error('Error al guardar el mapeo');
+    } catch (error: any) {
+      console.error('Error en handleSave:', error);
+      toast.error(error.message || 'Error al guardar el mapeo');
     } finally {
       setIsSaving(false);
     }
@@ -133,39 +145,75 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="code-keys">
+          <Label>
             Claves para CÓDIGO
-            <span className="text-xs text-muted-foreground ml-2">(una por línea)</span>
+            <span className="text-xs text-muted-foreground ml-2">(selecciona una o más)</span>
           </Label>
-          <Textarea
-            id="code-keys"
-            rows={3}
-            placeholder="ej: codigo&#10;sku&#10;cod"
-            value={(map.code_keys || []).join('\n')}
-            onChange={e => setMap(m => ({
-              ...m, 
-              code_keys: e.target.value.split('\n').map(s => s.trim()).filter(Boolean)
-            }))}
-            disabled={isSaving}
-          />
+          <ScrollArea className="h-32 rounded-md border p-3">
+            <div className="space-y-2">
+              {keys.map(k => (
+                <div key={k} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`code-${k}`}
+                    checked={map.code_keys.includes(k)}
+                    onCheckedChange={(checked) => {
+                      setMap(m => ({
+                        ...m,
+                        code_keys: checked 
+                          ? [...m.code_keys, k]
+                          : m.code_keys.filter(ck => ck !== k)
+                      }));
+                    }}
+                    disabled={isSaving}
+                  />
+                  <label htmlFor={`code-${k}`} className="text-sm cursor-pointer">
+                    {k}
+                  </label>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+          {map.code_keys.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Seleccionadas: {map.code_keys.join(', ')}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="name-keys">
+          <Label>
             Claves para NOMBRE/DESCRIPCIÓN
-            <span className="text-xs text-muted-foreground ml-2">(una por línea)</span>
+            <span className="text-xs text-muted-foreground ml-2">(selecciona una o más)</span>
           </Label>
-          <Textarea
-            id="name-keys"
-            rows={3}
-            placeholder="ej: nombre&#10;descripcion&#10;producto"
-            value={(map.name_keys || []).join('\n')}
-            onChange={e => setMap(m => ({
-              ...m, 
-              name_keys: e.target.value.split('\n').map(s => s.trim()).filter(Boolean)
-            }))}
-            disabled={isSaving}
-          />
+          <ScrollArea className="h-32 rounded-md border p-3">
+            <div className="space-y-2">
+              {keys.map(k => (
+                <div key={k} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`name-${k}`}
+                    checked={map.name_keys.includes(k)}
+                    onCheckedChange={(checked) => {
+                      setMap(m => ({
+                        ...m,
+                        name_keys: checked 
+                          ? [...m.name_keys, k]
+                          : m.name_keys.filter(nk => nk !== k)
+                      }));
+                    }}
+                    disabled={isSaving}
+                  />
+                  <label htmlFor={`name-${k}`} className="text-sm cursor-pointer">
+                    {k}
+                  </label>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+          {map.name_keys.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Seleccionadas: {map.name_keys.join(', ')}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -203,21 +251,39 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
         </div>
 
         <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="extra-keys">
+          <Label>
             Claves extra a indexar
-            <span className="text-xs text-muted-foreground ml-2">(una por línea, opcional)</span>
+            <span className="text-xs text-muted-foreground ml-2">(opcional)</span>
           </Label>
-          <Textarea
-            id="extra-keys"
-            rows={3}
-            placeholder="ej: categoria&#10;marca&#10;modelo"
-            value={(map.extra_index_keys || []).join('\n')}
-            onChange={e => setMap(m => ({
-              ...m, 
-              extra_index_keys: e.target.value.split('\n').map(s => s.trim()).filter(Boolean)
-            }))}
-            disabled={isSaving}
-          />
+          <ScrollArea className="h-32 rounded-md border p-3">
+            <div className="space-y-2">
+              {keys.map(k => (
+                <div key={k} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`extra-${k}`}
+                    checked={map.extra_index_keys.includes(k)}
+                    onCheckedChange={(checked) => {
+                      setMap(m => ({
+                        ...m,
+                        extra_index_keys: checked 
+                          ? [...m.extra_index_keys, k]
+                          : m.extra_index_keys.filter(ek => ek !== k)
+                      }));
+                    }}
+                    disabled={isSaving}
+                  />
+                  <label htmlFor={`extra-${k}`} className="text-sm cursor-pointer">
+                    {k}
+                  </label>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+          {map.extra_index_keys.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Seleccionadas: {map.extra_index_keys.join(', ')}
+            </p>
+          )}
         </div>
       </div>
 
