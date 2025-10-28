@@ -11,7 +11,7 @@ import {
 } from "@tanstack/react-table";
 import { DynamicProduct, ColumnSchema } from "@/types/productList";
 import { Input } from "@/components/ui/input";
-import { Search, ChevronDown, ChevronUp, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -32,12 +32,16 @@ interface DynamicProductTableProps {
   listId: string;
   products: DynamicProduct[];
   columnSchema: ColumnSchema[];
+  onAddToRequest?: (product: DynamicProduct) => void;
+  showStockActions?: boolean;
 }
 
 export const DynamicProductTable = ({
   listId,
   products,
   columnSchema,
+  onAddToRequest,
+  showStockActions = false,
 }: DynamicProductTableProps) => {
   const [globalFilter, setGlobalFilter] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -65,7 +69,7 @@ export const DynamicProductTable = ({
       .map((key) => columnSchema.find((c) => c.key === key))
       .filter(Boolean) as ColumnSchema[];
 
-    return orderedSchema.map((schema) => {
+    const dataColumns = orderedSchema.map((schema) => {
       const isVisible = visibilityState[schema.key] !== false;
       
       return {
@@ -94,7 +98,30 @@ export const DynamicProductTable = ({
         },
       };
     });
-  }, [columnSchema, listId, currentOrder, visibilityState]);
+
+    // Add actions column if showStockActions is true
+    if (showStockActions && onAddToRequest) {
+      dataColumns.push({
+        id: 'actions',
+        header: 'Acciones',
+        cell: ({ row }) => (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onAddToRequest(row.original)}
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Agregar
+          </Button>
+        ),
+        meta: {
+          visible: true,
+        },
+      } as any);
+    }
+
+    return dataColumns;
+  }, [columnSchema, listId, currentOrder, visibilityState, showStockActions, onAddToRequest]);
 
   const visibleColumns = useMemo(() => {
     return columns.filter((col) => {

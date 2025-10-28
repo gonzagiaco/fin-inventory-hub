@@ -1,14 +1,16 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { ChevronDown, ChevronUp, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ProductListStockTable } from "./ProductListStockTable";
+import { DynamicProductTable } from "@/components/DynamicProductTable";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ColumnMappingWizard } from "@/components/mapping/ColumnMappingWizard";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useListProducts } from "@/hooks/useListProducts";
+import { DynamicProduct } from "@/types/productList";
 
 interface SupplierStockSectionProps {
   supplierName: string;
@@ -81,11 +83,9 @@ export function SupplierStockSection({
                 
                 <CollapsibleContent>
                   {list.mappingConfig ? (
-                    <ProductListStockTable
+                    <ListProductsWrapper
                       listId={list.id}
-                      listName={list.name}
                       columnSchema={list.columnSchema}
-                      mappingConfig={list.mappingConfig}
                       onAddToRequest={onAddToRequest}
                     />
                   ) : (
@@ -123,5 +123,49 @@ export function SupplierStockSection({
         </CardContent>
       )}
     </Card>
+  );
+}
+
+// Wrapper component to handle data fetching for each list
+function ListProductsWrapper({
+  listId,
+  columnSchema,
+  onAddToRequest,
+}: {
+  listId: string;
+  columnSchema: any[];
+  onAddToRequest: (product: any) => void;
+}) {
+  const { data, isLoading } = useListProducts(listId);
+
+  const allProducts = useMemo(() => {
+    if (!data?.pages) return [];
+    return data.pages.flatMap((page) =>
+      (page.data || []).map((item: any) => ({
+        id: item.product_id,
+        listId: item.list_id,
+        code: item.code,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        data: {},
+      } as DynamicProduct))
+    );
+  }, [data]);
+
+  if (isLoading) {
+    return <div className="p-6 text-center">Cargando productos...</div>;
+  }
+
+  return (
+    <div className="p-4 border-t">
+      <DynamicProductTable
+        listId={listId}
+        products={allProducts}
+        columnSchema={columnSchema}
+        onAddToRequest={onAddToRequest}
+        showStockActions={true}
+      />
+    </div>
   );
 }
