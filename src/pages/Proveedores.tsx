@@ -6,13 +6,9 @@ import { Supplier } from "@/types";
 import SupplierDialog from "@/components/SupplierDialog";
 import SupplierDetailDialog from "@/components/SupplierDetailDialog";
 import DeleteConfirmDialog from "@/components/DeleteConfirmDialog";
-import {
-  Card,
-  CardFooter,
-  CardHeader,
-} from "@/components/ui/card";
+import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { useSuppliers } from "@/hooks/useSuppliers";
-import { useAllDynamicProducts } from "@/hooks/useAllDynamicProducts";
+import { useAllDynamicProducts, listDetails } from "@/hooks/useAllDynamicProducts";
 
 const Proveedores = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -60,7 +56,7 @@ const Proveedores = () => {
       setSelectedSupplier(null);
     } catch (error) {
       // Error handling is done in the hooks with toast
-      console.error('Error saving supplier:', error);
+      console.error("Error saving supplier:", error);
     }
   };
 
@@ -70,25 +66,16 @@ const Proveedores = () => {
   };
 
   const getProductCount = (supplierId: string) => {
-    // Count products in real-time from all lists of this supplier
     let count = 0;
     listDetails.forEach((list) => {
-      if (list.supplierId === supplierId) {
-        const products = productsByList.get(list.listId) || [];
-        count += products.length;
-      }
+      if (list.supplierId === supplierId) count += Number(list.productCount || 0);
     });
     return count;
   };
-
   return (
     <div className="flex-1 p-6 lg:p-10 w-full max-w-full overflow-hidden">
-      <Header
-        title="Proveedores"
-        subtitle="Gestiona tus proveedores y sus productos."
-        showSearch={false}
-      />
-      
+      <Header title="Proveedores" subtitle="Gestiona tus proveedores y sus productos." showSearch={false} />
+
       <div className="mb-6 flex justify-end">
         <Button onClick={handleCreateSupplier} className="gap-2">
           <Plus className="w-4 h-4" />
@@ -102,19 +89,13 @@ const Proveedores = () => {
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
           </div>
           <p className="text-muted-foreground">Cargando proveedores...</p>
-          <p className="text-xs text-muted-foreground">
-            Esto puede tardar unos segundos para listas grandes
-          </p>
+          <p className="text-xs text-muted-foreground">Esto puede tardar unos segundos para listas grandes</p>
         </div>
       ) : suppliers.length === 0 ? (
         <div className="glassmorphism rounded-xl shadow-lg p-12 text-center">
           <Building2 className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-          <h2 className="text-2xl font-bold text-foreground mb-2">
-            No hay proveedores
-          </h2>
-          <p className="text-muted-foreground mb-6">
-            Comienza agregando tu primer proveedor
-          </p>
+          <h2 className="text-2xl font-bold text-foreground mb-2">No hay proveedores</h2>
+          <p className="text-muted-foreground mb-6">Comienza agregando tu primer proveedor</p>
           <Button onClick={handleCreateSupplier} className="gap-2">
             <Plus className="w-4 h-4" />
             Agregar Proveedor
@@ -134,23 +115,15 @@ const Proveedores = () => {
                 <CardHeader>
                   <div className="flex items-center gap-4">
                     {supplier.logo ? (
-                      <img
-                        src={supplier.logo}
-                        alt={supplier.name}
-                        className="w-16 h-16 rounded-lg object-cover"
-                      />
+                      <img src={supplier.logo} alt={supplier.name} className="w-16 h-16 rounded-lg object-cover" />
                     ) : (
                       <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center">
                         <Building2 className="w-8 h-8 text-primary" />
                       </div>
                     )}
                     <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-foreground">
-                        {supplier.name}
-                      </h3>
-                      <p className="text-sm text-muted-foreground">
-                        {productCount} productos
-                      </p>
+                      <h3 className="text-lg font-semibold text-foreground">{supplier.name}</h3>
+                      <p className="text-sm text-muted-foreground">{productCount} productos</p>
                     </div>
                   </div>
                 </CardHeader>
