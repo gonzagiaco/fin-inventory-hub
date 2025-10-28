@@ -7,7 +7,7 @@ export function useProductListsIndex() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('product_lists')
-        .select('id, name, supplier_id, mapping_config, product_count, created_at')
+        .select('id, name, supplier_id, mapping_config, product_count, column_schema, created_at')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data ?? [];

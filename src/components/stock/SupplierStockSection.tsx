@@ -19,6 +19,7 @@ interface SupplierStockSectionProps {
     supplierId: string;
     mappingConfig: any;
     productCount: number;
+    columnSchema: any[];
   }>;
   onAddToRequest: (product: any) => void;
 }
@@ -83,7 +84,7 @@ export function SupplierStockSection({
                     <ProductListStockTable
                       listId={list.id}
                       listName={list.name}
-                      columnSchema={[]}
+                      columnSchema={list.columnSchema}
                       mappingConfig={list.mappingConfig}
                       onAddToRequest={onAddToRequest}
                     />

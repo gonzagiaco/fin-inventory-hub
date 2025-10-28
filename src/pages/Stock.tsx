@@ -33,6 +33,7 @@ export default function Stock() {
           supplierId: string;
           mappingConfig: any;
           productCount: number;
+          columnSchema: any[];
         }>;
       }
     >();
@@ -55,6 +56,7 @@ export default function Stock() {
         supplierId: list.supplier_id,
         mappingConfig: list.mapping_config,
         productCount: list.product_count,
+        columnSchema: list.column_schema || [],
       });
     });
 
