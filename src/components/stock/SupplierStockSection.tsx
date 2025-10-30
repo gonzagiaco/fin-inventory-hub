@@ -26,12 +26,7 @@ interface SupplierStockSectionProps {
   onAddToRequest: (product: any) => void;
 }
 
-export function SupplierStockSection({
-  supplierName,
-  supplierLogo,
-  lists,
-  onAddToRequest,
-}: SupplierStockSectionProps) {
+export function SupplierStockSection({ supplierName, supplierLogo, lists, onAddToRequest }: SupplierStockSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [listToMap, setListToMap] = useState<string | null>(null);
   const queryClient = useQueryClient();
@@ -70,17 +65,17 @@ export function SupplierStockSection({
                         <div className="flex items-center gap-2">
                           <h4 className="font-medium">{list.name}</h4>
                           {!list.mappingConfig && (
-                            <Badge variant="destructive" className="text-xs">Sin mapear</Badge>
+                            <Badge variant="destructive" className="text-xs">
+                              Sin mapear
+                            </Badge>
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          {list.productCount} productos
-                        </p>
+                        <p className="text-sm text-muted-foreground">{list.productCount} productos</p>
                       </div>
                     </div>
                   </div>
                 </CollapsibleTrigger>
-                
+
                 <CollapsibleContent>
                   {list.mappingConfig ? (
                     <ListProductsWrapper
@@ -90,9 +85,7 @@ export function SupplierStockSection({
                     />
                   ) : (
                     <div className="p-6 text-center border-t">
-                      <p className="text-muted-foreground mb-4">
-                        Esta lista no tiene configuración de mapeo
-                      </p>
+                      <p className="text-muted-foreground mb-4">Esta lista no tiene configuración de mapeo</p>
                       <Dialog>
                         <DialogTrigger asChild>
                           <Button onClick={() => setListToMap(list.id)}>
@@ -104,11 +97,11 @@ export function SupplierStockSection({
                           <DialogHeader>
                             <DialogTitle>Configurar Mapeo de Columnas</DialogTitle>
                           </DialogHeader>
-                          <ColumnMappingWizard 
+                          <ColumnMappingWizard
                             listId={list.id}
                             onSaved={() => {
                               setListToMap(null);
-                              queryClient.invalidateQueries({ queryKey: ['product-lists-index'] });
+                              queryClient.invalidateQueries({ queryKey: ["product-lists-index"] });
                               toast.success("Mapeo guardado e índice actualizado");
                             }}
                           />
@@ -136,20 +129,23 @@ function ListProductsWrapper({
   columnSchema: any[];
   onAddToRequest: (product: any) => void;
 }) {
-  const { data, isLoading } = useListProducts(listId);
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useListProducts(listId);
 
   const allProducts = useMemo(() => {
     if (!data?.pages) return [];
     return data.pages.flatMap((page) =>
-      (page.data || []).map((item: any) => ({
-        id: item.product_id,
-        listId: item.list_id,
-        code: item.code,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        data: {},
-      } as DynamicProduct))
+      (page.data || []).map(
+        (item: any) =>
+          ({
+            id: item.product_id,
+            listId: item.list_id,
+            code: item.code,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            data: item.dynamic_products ? item.dynamic_products.data : (item.data ?? {}),
+          }) as DynamicProduct,
+      ),
     );
   }, [data]);
 
@@ -164,7 +160,12 @@ function ListProductsWrapper({
         products={allProducts}
         columnSchema={columnSchema}
         onAddToRequest={onAddToRequest}
-        showStockActions={true}
+        showStockActions
+        onLoadMore={() => {
+          void fetchNextPage();
+        }}
+        hasMore={hasNextPage}
+        isLoadingMore={isFetchingNextPage}
       />
     </div>
   );
