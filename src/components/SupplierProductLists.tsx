@@ -3,15 +3,7 @@ import { useListProducts } from "@/hooks/useListProducts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import {
-  Upload,
-  ChevronDown,
-  ChevronRight,
-  Trash2,
-  AlertTriangle,
-  FileText,
-  Settings,
-} from "lucide-react";
+import { Upload, ChevronDown, ChevronRight, Trash2, AlertTriangle, FileText, Settings } from "lucide-react";
 import { useProductLists } from "@/hooks/useProductLists";
 import { useProductListStore } from "@/stores/productListStore";
 import { DynamicProductTable } from "./DynamicProductTable";
@@ -47,13 +39,7 @@ const SupplierListProducts = ({
   columnSchema: ColumnSchema[];
   onAddToRequest?: (product: DynamicProduct) => void;
 }) => {
-  const {
-    data,
-    isLoading,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-  } = useListProducts(listId);
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useListProducts(listId);
 
   const allProducts: DynamicProduct[] = useMemo(() => {
     if (!data?.pages) return [];
@@ -67,7 +53,7 @@ const SupplierListProducts = ({
         quantity: item.quantity,
         // si la relación no viene, intenta con item.data
         data: item?.dynamic_products?.data ?? item?.data ?? {},
-      }))
+      })),
     );
   }, [data]);
 
@@ -91,10 +77,7 @@ const SupplierListProducts = ({
   );
 };
 
-export const SupplierProductLists = ({
-  supplierId,
-  supplierName,
-}: SupplierProductListsProps) => {
+export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProductListsProps) => {
   const [isUploading, setIsUploading] = useState(false);
   const [listToDelete, setListToDelete] = useState<string | null>(null);
   const [listToMap, setListToMap] = useState<string | null>(null);
@@ -106,8 +89,7 @@ export const SupplierProductLists = ({
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { productLists, isLoading, createList, deleteList, updateList, findSimilarList } =
-  useProductLists(supplierId);
+  const { productLists, isLoading, createList, deleteList, updateList, findSimilarList } = useProductLists(supplierId);
   const { collapsedLists, toggleListCollapse } = useProductListStore();
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -122,18 +104,17 @@ export const SupplierProductLists = ({
       formData.append("file", file);
       formData.append("supplierId", supplierId);
 
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-document`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.access_token}`,
-          },
-          body: formData,
-        }
-      );
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-document`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: formData,
+      });
 
       if (!response.ok) {
         throw new Error("Error al procesar el documento");
@@ -154,50 +135,50 @@ export const SupplierProductLists = ({
       });
 
       // Create column schema
-      const standardKeys = ['code', 'name', 'descripcion', 'price', 'precio', 'cantidad'];
+      const standardKeys = ["code", "name", "descripcion", "price", "precio", "cantidad"];
       const columnSchema: ColumnSchema[] = [];
       let order = 0;
 
       // Add "Stock Disponible" column first (system column)
       columnSchema.push({
-        key: 'quantity',
-        label: 'Stock Disponible',
-        type: 'number',
+        key: "quantity",
+        label: "Stock Disponible",
+        type: "number",
         visible: true,
         order: order++,
         isStandard: true,
       });
 
       // Add standard columns
-      if (allKeys.has('code')) {
+      if (allKeys.has("code")) {
         columnSchema.push({
-          key: 'code',
-          label: 'Código',
-          type: 'text',
-          visible: true,
-          order: order++,
-          isStandard: true,
-        });
-      }
-      
-      if (allKeys.has('name') || allKeys.has('descripcion')) {
-        const nameKey = allKeys.has('name') ? 'name' : 'descripcion';
-        columnSchema.push({
-          key: nameKey,
-          label: 'Nombre',
-          type: 'text',
+          key: "code",
+          label: "Código",
+          type: "text",
           visible: true,
           order: order++,
           isStandard: true,
         });
       }
 
-      if (allKeys.has('price') || allKeys.has('precio')) {
-        const priceKey = allKeys.has('price') ? 'price' : 'precio';
+      if (allKeys.has("name") || allKeys.has("descripcion")) {
+        const nameKey = allKeys.has("name") ? "name" : "descripcion";
+        columnSchema.push({
+          key: nameKey,
+          label: "Nombre",
+          type: "text",
+          visible: true,
+          order: order++,
+          isStandard: true,
+        });
+      }
+
+      if (allKeys.has("price") || allKeys.has("precio")) {
+        const priceKey = allKeys.has("price") ? "price" : "precio";
         columnSchema.push({
           key: priceKey,
-          label: 'Precio',
-          type: 'number',
+          label: "Precio",
+          type: "number",
           visible: true,
           order: order++,
           isStandard: true,
@@ -210,7 +191,7 @@ export const SupplierProductLists = ({
           columnSchema.push({
             key,
             label: key.charAt(0).toUpperCase() + key.slice(1),
-            type: typeof productos[0][key] === 'number' ? 'number' : 'text',
+            type: typeof productos[0][key] === "number" ? "number" : "text",
             visible: true,
             order: order++,
             isStandard: false,
@@ -222,14 +203,14 @@ export const SupplierProductLists = ({
       const dynamicProducts: DynamicProduct[] = productos.map((prod: any) => {
         const data: Record<string, any> = {};
         Object.keys(prod).forEach((key) => {
-          if (!['code', 'name', 'descripcion', 'price', 'precio', 'cantidad'].includes(key)) {
+          if (!["code", "name", "descripcion", "price", "precio", "cantidad"].includes(key)) {
             data[key] = prod[key];
           }
         });
 
         return {
           id: crypto.randomUUID(),
-          listId: '', // Will be set by backend
+          listId: "", // Will be set by backend
           code: prod.code,
           name: prod.name || prod.descripcion,
           price: prod.price || prod.precio,
@@ -252,7 +233,7 @@ export const SupplierProductLists = ({
           supplierId,
           name: `${file.name} - ${new Date().toLocaleDateString()}`,
           fileName: file.name,
-          fileType: file.name.split('.').pop() || 'unknown',
+          fileType: file.name.split(".").pop() || "unknown",
           columnSchema,
           products: dynamicProducts,
         });
@@ -297,7 +278,7 @@ export const SupplierProductLists = ({
         supplierId,
         name: `${pendingUpload.fileName} - ${new Date().toLocaleDateString()}`,
         fileName: pendingUpload.fileName,
-        fileType: pendingUpload.fileName.split('.').pop() || 'unknown',
+        fileType: pendingUpload.fileName.split(".").pop() || "unknown",
         columnSchema: pendingUpload.columnSchema,
         products: pendingUpload.products,
       });
@@ -324,8 +305,7 @@ export const SupplierProductLists = ({
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground mb-4">
-            Soporta archivos Excel (.xlsx, .xls), CSV, PDF y DOCX. El sistema
-            detectará automáticamente las columnas.
+            Soporta archivos Excel (.xlsx, .xls), CSV, PDF y DOCX. El sistema detectará automáticamente las columnas.
           </p>
           <input
             ref={fileInputRef}
@@ -335,11 +315,7 @@ export const SupplierProductLists = ({
             className="hidden"
             id="file-upload-lists"
           />
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="w-full"
-          >
+          <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="w-full">
             {isUploading ? "Procesando..." : "Seleccionar Archivo"}
           </Button>
         </CardContent>
@@ -358,27 +334,20 @@ export const SupplierProductLists = ({
         <Card className="glassmorphism border-primary/20">
           <CardContent className="py-12 text-center">
             <FileText className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <p className="text-muted-foreground">
-              No hay listas de productos importadas para {supplierName}
-            </p>
+            <p className="text-muted-foreground">No hay listas de productos importadas para {supplierName}</p>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-4">
           {productLists.map((list) => {
             const isCollapsed = collapsedLists.has(list.id);
-            
 
             return (
               <Card key={list.id} className="glassmorphism border-primary/20">
                 <CardHeader className="cursor-pointer" onClick={() => toggleListCollapse(list.id)}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      {isCollapsed ? (
-                        <ChevronRight className="w-5 h-5" />
-                      ) : (
-                        <ChevronDown className="w-5 h-5" />
-                      )}
+                      {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
                       <div>
                         <div className="flex items-center gap-2">
                           <CardTitle className="text-lg">{list.name}</CardTitle>
@@ -395,9 +364,7 @@ export const SupplierProductLists = ({
                           <span className="text-xs text-muted-foreground">
                             {new Date(list.createdAt).toLocaleDateString()}
                           </span>
-                          <span className="text-xs text-muted-foreground">
-                            {list.productCount} productos
-                          </span>
+                          <span className="text-xs text-muted-foreground">{list.productCount} productos</span>
                         </div>
                       </div>
                     </div>
@@ -429,10 +396,7 @@ export const SupplierProductLists = ({
                 </CardHeader>
                 {!isCollapsed && (
                   <CardContent>
-                    <SupplierListProducts
-                  +   listId={list.id}
-                  +   columnSchema={list.columnSchema}
-                  + />
+                    <SupplierListProducts listId={list.id} columnSchema={list.columnSchema} />
                   </CardContent>
                 )}
               </Card>
@@ -458,8 +422,8 @@ export const SupplierProductLists = ({
             <DialogTitle>Configurar Mapeo de Columnas</DialogTitle>
           </DialogHeader>
           {listToMap && (
-            <ColumnMappingWizard 
-              listId={listToMap} 
+            <ColumnMappingWizard
+              listId={listToMap}
               onSaved={() => {
                 setListToMap(null);
                 toast.success("Mapeo guardado e índice actualizado");
@@ -475,8 +439,7 @@ export const SupplierProductLists = ({
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar lista?</AlertDialogTitle>
             <AlertDialogDescription>
-              Esta acción no se puede deshacer. Se eliminarán permanentemente la lista y
-              todos sus productos.
+              Esta acción no se puede deshacer. Se eliminarán permanentemente la lista y todos sus productos.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
