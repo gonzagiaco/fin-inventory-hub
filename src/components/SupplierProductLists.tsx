@@ -1,4 +1,5 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
+import { useListProducts } from "@/hooks/useListProducts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +38,59 @@ interface SupplierProductListsProps {
   supplierName: string;
 }
 
+const SupplierListProducts = ({
+  listId,
+  columnSchema,
+  onAddToRequest,
+}: {
+  listId: string;
+  columnSchema: ColumnSchema[];
+  onAddToRequest?: (product: DynamicProduct) => void;
+}) => {
+  const {
+    data,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useListProducts(listId);
+
+  const allProducts: DynamicProduct[] = useMemo(() => {
+    if (!data?.pages) return [];
+    return data.pages.flatMap((page: any) =>
+      (page.data || []).map((item: any) => ({
+        id: item.product_id,
+        listId: item.list_id,
+        code: item.code,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        // si la relación no viene, intenta con item.data
+        data: item?.dynamic_products?.data ?? item?.data ?? {},
+      }))
+    );
+  }, [data]);
+
+  if (isLoading) {
+    return <div className="p-6 text-center">Cargando productos...</div>;
+  }
+
+  return (
+    <DynamicProductTable
+      listId={listId}
+      products={allProducts}
+      columnSchema={columnSchema}
+      onAddToRequest={onAddToRequest}
+      showStockActions
+      onLoadMore={() => {
+        void fetchNextPage();
+      }}
+      hasMore={!!hasNextPage}
+      isLoadingMore={!!isFetchingNextPage}
+    />
+  );
+};
+
 export const SupplierProductLists = ({
   supplierId,
   supplierName,
@@ -52,8 +106,8 @@ export const SupplierProductLists = ({
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { productLists, productsMap, isLoading, createList, deleteList, updateList, findSimilarList } =
-    useProductLists(supplierId);
+  const { productLists, isLoading, createList, deleteList, updateList, findSimilarList } =
+  useProductLists(supplierId);
   const { collapsedLists, toggleListCollapse } = useProductListStore();
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -313,7 +367,7 @@ export const SupplierProductLists = ({
         <div className="space-y-4">
           {productLists.map((list) => {
             const isCollapsed = collapsedLists.has(list.id);
-            const products = productsMap[list.id] || [];
+            
 
             return (
               <Card key={list.id} className="glassmorphism border-primary/20">
@@ -375,11 +429,10 @@ export const SupplierProductLists = ({
                 </CardHeader>
                 {!isCollapsed && (
                   <CardContent>
-                    <DynamicProductTable
-                      listId={list.id}
-                      products={products}
-                      columnSchema={list.columnSchema}
-                    />
+                    <SupplierListProducts
+                  +   listId={list.id}
+                  +   columnSchema={list.columnSchema}
+                  + />
                   </CardContent>
                 )}
               </Card>
