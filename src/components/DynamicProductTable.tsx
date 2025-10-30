@@ -112,7 +112,7 @@ export const DynamicProductTable = ({
             return (
               <input
                 type="number"
-                className="h-8 w-24 border rounded px-2"
+                className="h-8 w-24 bg-black border rounded px-2"
                 defaultValue={current}
                 onBlur={(e) => {
                   void handleCommit(e.target.value);
