@@ -142,31 +142,25 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
             Claves para CÓDIGO
             <span className="text-xs text-muted-foreground ml-2">(selecciona una o más)</span>
           </Label>
-          <ScrollArea className="h-32 rounded-md border p-3">
-            <div className="space-y-2">
+          <Select
+            value={map.code_keys[0] ?? "__none__"}
+            onValueChange={(value) => {
+              setMap((m) => ({ ...m, code_keys: value === "__none__" ? [] : [value] }));
+            }}
+            disabled={isSaving}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Seleccionar clave para código" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Sin código</SelectItem>
               {keys.map((k) => (
-                <div key={k} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`code-${k}`}
-                    checked={map.code_keys.includes(k)}
-                    onCheckedChange={(checked) => {
-                      setMap((m) => ({
-                        ...m,
-                        code_keys: checked ? [...m.code_keys, k] : m.code_keys.filter((ck) => ck !== k),
-                      }));
-                    }}
-                    disabled={isSaving}
-                  />
-                  <label htmlFor={`code-${k}`} className="text-sm cursor-pointer">
-                    {k}
-                  </label>
-                </div>
+                <SelectItem key={k} value={k}>
+                  {k}
+                </SelectItem>
               ))}
-            </div>
-          </ScrollArea>
-          {map.code_keys.length > 0 && (
-            <p className="text-xs text-muted-foreground">Seleccionadas: {map.code_keys.join(", ")}</p>
-          )}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-2">
