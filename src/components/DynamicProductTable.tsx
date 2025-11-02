@@ -155,7 +155,7 @@ export const DynamicProductTable = ({
 
     // Add actions column if showStockActions is true
     if (showStockActions && onAddToRequest) {
-      dataColumns.push({
+      dataColumns.unshift({
         id: "actions",
         header: "Acciones",
         cell: ({ row }) => (
