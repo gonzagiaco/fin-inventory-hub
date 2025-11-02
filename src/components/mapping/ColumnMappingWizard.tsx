@@ -142,18 +142,77 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
             Claves para CÓDIGO
             <span className="text-xs text-muted-foreground ml-2">(selecciona una o más)</span>
           </Label>
+          <ScrollArea className="h-32 rounded-md border p-3">
+            <div className="space-y-2">
+              {keys.map((k) => (
+                <div key={k} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`code-${k}`}
+                    checked={map.code_keys.includes(k)}
+                    onCheckedChange={(checked) => {
+                      setMap((m) => ({
+                        ...m,
+                        code_keys: checked ? [...m.code_keys, k] : m.code_keys.filter((ck) => ck !== k),
+                      }));
+                    }}
+                    disabled={isSaving}
+                  />
+                  <label htmlFor={`code-${k}`} className="text-sm cursor-pointer">
+                    {k}
+                  </label>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+          {map.code_keys.length > 0 && (
+            <p className="text-xs text-muted-foreground">Seleccionadas: {map.code_keys.join(", ")}</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label>
+            Claves para NOMBRE/DESCRIPCIÓN
+            <span className="text-xs text-muted-foreground ml-2">(selecciona una o más)</span>
+          </Label>
+          <ScrollArea className="h-32 rounded-md border p-3">
+            <div className="space-y-2">
+              {keys.map((k) => (
+                <div key={k} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`name-${k}`}
+                    checked={map.name_keys.includes(k)}
+                    onCheckedChange={(checked) => {
+                      setMap((m) => ({
+                        ...m,
+                        name_keys: checked ? [...m.name_keys, k] : m.name_keys.filter((nk) => nk !== k),
+                      }));
+                    }}
+                    disabled={isSaving}
+                  />
+                  <label htmlFor={`name-${k}`} className="text-sm cursor-pointer">
+                    {k}
+                  </label>
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+          {map.name_keys.length > 0 && (
+            <p className="text-xs text-muted-foreground">Seleccionadas: {map.name_keys.join(", ")}</p>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="quantity-key">Clave de CANTIDAD (stock)</Label>
           <Select
-            value={map.code_keys[0] ?? "__none__"}
-            onValueChange={(value) => {
-              setMap((m) => ({ ...m, code_keys: value === "__none__" ? [] : [value] }));
-            }}
+            onValueChange={(v) => setMap((m) => ({ ...m, quantity_key: v === "__none__" ? null : v }))}
+            value={map.quantity_key ?? "__none__"}
             disabled={isSaving}
           >
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccionar clave para código" />
+            <SelectTrigger id="quantity-key">
+              <SelectValue placeholder="Seleccionar clave (opcional)" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__none__">Sin código</SelectItem>
+              <SelectItem value="__none__">Sin cantidad</SelectItem>
               {keys.map((k) => (
                 <SelectItem key={k} value={k}>
                   {k}
@@ -163,31 +222,6 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
           </Select>
         </div>
 
-        <div className="space-y-2">
-          <Label>
-            Claves para NOMBRE/DESCRIPCIÓN
-            <span className="text-xs text-muted-foreground ml-2">(selecciona una o más)</span>
-          </Label>
-          <Select
-            value={map.name_keys[0] ?? "__none__"}
-            onValueChange={(value) => {
-              setMap((m) => ({ ...m, name_keys: value === "__none__" ? [] : [value] }));
-            }}
-            disabled={isSaving}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccionar clave para nombre" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">Sin nombre</SelectItem>
-              {keys.map((k) => (
-                <SelectItem key={k} value={k}>
-                  {k}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
         <div className="space-y-2">
           <Label htmlFor="price-key">Clave de PRECIO (principal)</Label>
           <Select
@@ -207,40 +241,6 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
               ))}
             </SelectContent>
           </Select>
-        </div>
-
-        <div className="space-y-2 md:col-span-2">
-          <Label>
-            Claves extra a indexar
-            <span className="text-xs text-muted-foreground ml-2">(opcional)</span>
-          </Label>
-          <ScrollArea className="h-32 rounded-md border p-3">
-            <div className="space-y-2">
-              {keys.map((k) => (
-                <div key={k} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`extra-${k}`}
-                    checked={map.extra_index_keys.includes(k)}
-                    onCheckedChange={(checked) => {
-                      setMap((m) => ({
-                        ...m,
-                        extra_index_keys: checked
-                          ? [...m.extra_index_keys, k]
-                          : m.extra_index_keys.filter((ek) => ek !== k),
-                      }));
-                    }}
-                    disabled={isSaving}
-                  />
-                  <label htmlFor={`extra-${k}`} className="text-sm cursor-pointer">
-                    {k}
-                  </label>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
-          {map.extra_index_keys.length > 0 && (
-            <p className="text-xs text-muted-foreground">Seleccionadas: {map.extra_index_keys.join(", ")}</p>
-          )}
         </div>
       </div>
 
