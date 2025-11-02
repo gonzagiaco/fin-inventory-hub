@@ -168,45 +168,18 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
             Claves para NOMBRE/DESCRIPCIÓN
             <span className="text-xs text-muted-foreground ml-2">(selecciona una o más)</span>
           </Label>
-          <ScrollArea className="h-32 rounded-md border p-3">
-            <div className="space-y-2">
-              {keys.map((k) => (
-                <div key={k} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`name-${k}`}
-                    checked={map.name_keys.includes(k)}
-                    onCheckedChange={(checked) => {
-                      setMap((m) => ({
-                        ...m,
-                        name_keys: checked ? [...m.name_keys, k] : m.name_keys.filter((nk) => nk !== k),
-                      }));
-                    }}
-                    disabled={isSaving}
-                  />
-                  <label htmlFor={`name-${k}`} className="text-sm cursor-pointer">
-                    {k}
-                  </label>
-                </div>
-              ))}
-            </div>
-          </ScrollArea>
-          {map.name_keys.length > 0 && (
-            <p className="text-xs text-muted-foreground">Seleccionadas: {map.name_keys.join(", ")}</p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="quantity-key">Clave de CANTIDAD (stock)</Label>
           <Select
-            onValueChange={(v) => setMap((m) => ({ ...m, quantity_key: v === "__none__" ? null : v }))}
-            value={map.quantity_key ?? "__none__"}
+            value={map.name_keys[0] ?? "__none__"}
+            onValueChange={(value) => {
+              setMap((m) => ({ ...m, name_keys: value === "__none__" ? [] : [value] }));
+            }}
             disabled={isSaving}
           >
-            <SelectTrigger id="quantity-key">
-              <SelectValue placeholder="Seleccionar clave (opcional)" />
+            <SelectTrigger>
+              <SelectValue placeholder="Seleccionar clave para nombre" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__none__">Sin cantidad</SelectItem>
+              <SelectItem value="__none__">Sin nombre</SelectItem>
               {keys.map((k) => (
                 <SelectItem key={k} value={k}>
                   {k}
@@ -249,17 +222,6 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
             "Guardar mapeo y refrescar índice"
           )}
         </Button>
-      </div>
-
-      <div className="rounded-lg border bg-muted/50 p-4">
-        <p className="text-xs font-medium mb-2">Columnas detectadas ({keys.length}):</p>
-        <div className="flex flex-wrap gap-2">
-          {keys.map((k) => (
-            <code key={k} className="text-xs bg-background px-2 py-1 rounded">
-              {k}
-            </code>
-          ))}
-        </div>
       </div>
 
       {sample.length > 0 && (
