@@ -2,7 +2,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import type { Supplier } from "@/types";
 import type { ColumnSchema } from "@/types/productList";
-import type { EnrichedProduct, ProductListDetails } from "@/hooks/useAllDynamicProducts";
+import type { EnrichedProduct, ProductListDetails } from "@/types/enrichedProduct";
 
 /**
  * Carga TODO desde Supabase y devuelve las mismas estructuras que usa la app.

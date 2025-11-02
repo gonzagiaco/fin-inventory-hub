@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { fetchAllListsAndProducts } from "@/services/productsLoader";
-import type { EnrichedProduct } from "@/hooks/useAllDynamicProducts";
+import type { EnrichedProduct } from "@/types/enrichedProduct";
 
 interface ProductGlobalStore {
   productsByList: Map<string, EnrichedProduct[]>;
