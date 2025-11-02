@@ -1,20 +1,16 @@
 import { useState, useMemo } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 import {
   useReactTable,
   getCoreRowModel,
   getFilteredRowModel,
   getSortedRowModel,
-  getPaginationRowModel,
   flexRender,
   ColumnDef,
   SortingState,
 } from "@tanstack/react-table";
-import { useQueryClient } from "@tanstack/react-query";
 import { DynamicProduct, ColumnSchema } from "@/types/productList";
 import { Input } from "@/components/ui/input";
-import { Search, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { Search, ChevronDown, ChevronUp, Plus } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useProductListStore } from "@/stores/productListStore";
 import { ColumnSettingsDrawer } from "./ColumnSettingsDrawer";
@@ -23,6 +19,7 @@ import { ProductCardView } from "./ProductCardView";
 import { Button } from "@/components/ui/button";
 import { CardPreviewSettings } from "./CardPreviewSettings";
 import { List, LayoutGrid, Loader2 } from "lucide-react";
+import { QuantityCell } from "./stock/QuantityCell";
 
 interface DynamicProductTableProps {
   listId: string;
@@ -47,12 +44,11 @@ export const DynamicProductTable = ({
 }: DynamicProductTableProps) => {
   const [globalFilter, setGlobalFilter] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
-  const queryClient = useQueryClient();
 
-  // Get column configuration and view mode from store
+  // Store (orden/visibilidad + modo de vista)
   const { columnVisibility, columnOrder, columnPinning, viewMode: storeViewMode, setViewMode } = useProductListStore();
 
-  // Always allow card view with intelligent default
+  // Vista por defecto
   const shouldUseCardView = true;
   const defaultViewMode = columnSchema.length > 8 ? "cards" : "table";
   const currentViewMode = storeViewMode[listId] || defaultViewMode;
@@ -68,73 +64,38 @@ export const DynamicProductTable = ({
 
     const dataColumns = orderedSchema.map((schema) => {
       const isVisible = visibilityState[schema.key] !== false;
+
+      // 🔸 Caso especial: columna de stock editable (reutiliza QuantityCell)
       if (schema.key === "quantity") {
         return {
           id: schema.key,
-          accessorKey: "quantity", // seguimos exponiendo el valor de stock
+          accessorKey: "quantity",
           header: schema.label,
-          cell: ({ row }) => {
-            const prod = row.original;
-            const current = Number(prod.quantity ?? 0);
-
-            const handleCommit = async (raw: string) => {
-              const newQty = Number(raw);
-              if (Number.isNaN(newQty) || newQty === current) return;
-
-              // 1) Actualiza BD (podés cambiar a tu RPC si preferís)
-              const { error } = await supabase
-                .from("dynamic_products_index")
-                .update({ quantity: newQty })
-                .eq("product_id", prod.id);
-
-              if (error) {
-                toast.error("Error al actualizar stock");
-                return;
-              }
-
-              // 2) Update inmediato en UI
-              row.original.quantity = newQty;
-
-              // 3) Refrescar cache
-              queryClient.invalidateQueries({ queryKey: ["list-products", listId] });
-
-              toast.success("Stock actualizado");
-            };
-
-            const onKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
-              if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-              if (e.key === "Escape") {
-                (e.target as HTMLInputElement).value = String(current);
-                (e.target as HTMLInputElement).blur();
-              }
-            };
-
-            return (
-              <input
-                type="number"
-                className="h-8 w-24 bg-black border rounded px-2"
-                defaultValue={current}
-                onBlur={(e) => {
-                  void handleCommit(e.target.value);
-                }}
-                onKeyDown={onKeyDown}
-              />
-            );
-          },
+          cell: ({ row }) => (
+            <QuantityCell
+              productId={row.original.id}
+              listId={listId}
+              value={row.original.quantity}
+              onLocalUpdate={(newQty) => {
+                // update optimista local para reflejar de inmediato
+                row.original.quantity = newQty;
+              }}
+            />
+          ),
           meta: { isStandard: schema.isStandard, visible: isVisible },
         } as ColumnDef<DynamicProduct>;
       }
+
+      // 🔹 Resto de columnas (tu lógica original)
       return {
         id: schema.key,
         accessorFn: (row: DynamicProduct) => {
-          // Check standard fields first
           if (schema.key === "code") return row.code;
           if (schema.key === "name") return row.name;
           if (schema.key === "price") return row.price;
           if (schema.key === "quantity") return row.quantity;
           if (schema.key === "precio") return row.price;
           if (schema.key === "descripcion") return row.name;
-          // Check data object
           return row.data[schema.key];
         },
         header: schema.label,
@@ -153,7 +114,7 @@ export const DynamicProductTable = ({
       };
     });
 
-    // Add actions column if showStockActions is true
+    // Columna de acciones (agregar a pedido)
     if (showStockActions && onAddToRequest) {
       dataColumns.unshift({
         id: "actions",
@@ -164,9 +125,7 @@ export const DynamicProductTable = ({
             Agregar
           </Button>
         ),
-        meta: {
-          visible: true,
-        },
+        meta: { visible: true },
       } as any);
     }
 
@@ -186,7 +145,6 @@ export const DynamicProductTable = ({
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    //getPaginationRowModel: getPaginationRowModel(),
     onSortingChange: setSorting,
     onGlobalFilterChange: setGlobalFilter,
     state: {
@@ -194,16 +152,11 @@ export const DynamicProductTable = ({
       globalFilter,
       columnPinning: columnPinning[listId] || {},
     },
-    /*initialState: {
-      pagination: {
-        pageSize: 50,
-      },
-    },*/
   });
 
   return (
     <div className="space-y-4">
-      {/* Search and Column Settings */}
+      {/* Buscador + ajustes */}
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -236,7 +189,7 @@ export const DynamicProductTable = ({
         <ColumnSettingsDrawer listId={listId} columnSchema={columnSchema} />
       </div>
 
-      {/* Content - Table or Card View */}
+      {/* Contenido: tarjetas o tabla */}
       {effectiveViewMode === "cards" ? (
         <ProductCardView
           listId={listId}
@@ -298,6 +251,7 @@ export const DynamicProductTable = ({
                       ))
                     )}
                   </TableBody>
+
                   {effectiveViewMode === "table" && hasMore && (
                     <div className="text-center my-4">
                       <Button variant="outline" onClick={onLoadMore} disabled={isLoadingMore}>
@@ -318,52 +272,6 @@ export const DynamicProductTable = ({
           </div>
         </div>
       )}
-
-      {/* Pagination Controls */}
-      {/*
-      {table.getFilteredRowModel().rows.length > 50 && (
-        <div className="flex items-center justify-between">
-          <div className="text-sm text-muted-foreground">
-            Mostrando {table.getState().pagination.pageIndex * 50 + 1} a{" "}
-            {Math.min((table.getState().pagination.pageIndex + 1) * 50, table.getFilteredRowModel().rows.length)} de{" "}
-            {table.getFilteredRowModel().rows.length} productos
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => table.previousPage()}
-              disabled={!table.getCanPreviousPage()}
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Anterior
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              Página {table.getState().pagination.pageIndex + 1} de{" "}
-              {table.getPageCount()}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => table.nextPage()}
-              disabled={!table.getCanNextPage()}
-            >
-              Siguiente
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      )}
-      */}
-
-      {/* Results info when no pagination needed */}
-      {/*
-      {table.getFilteredRowModel().rows.length <= 50 && (
-        <div className="text-sm text-muted-foreground">
-          Mostrando {table.getFilteredRowModel().rows.length} de {products.length} productos
-        </div>
-      )}
-      */}
     </div>
   );
 };
