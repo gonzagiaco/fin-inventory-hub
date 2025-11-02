@@ -21,7 +21,7 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { QuantityCell } from "@/components/stock/QuantityCell"; // ✅ NUEVO: mismo input/lógica que la tabla de listas
+import { QuantityCell } from "@/components/stock/QuantityCell"; 
 
 export default function Stock() {
   const [supplierFilter, setSupplierFilter] = useState<string>("all");

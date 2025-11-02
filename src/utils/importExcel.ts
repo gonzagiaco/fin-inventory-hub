@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { StockItem } from "@/types";
+import { parseNumber } from "./numberParser";
 
 interface ImportResult {
   importedProducts: StockItem[];
@@ -154,15 +155,18 @@ export async function importProductsFromExcel(
       const name = nameColumn ? String(row[nameColumn] || "").trim() : "";
       const priceValue = priceColumn ? row[priceColumn] : 0;
       
-      // Parse cost price
-      let costPrice = 0;
+      // Parse cost price (usando parseNumber centralizado)
+      let costPrice = NaN;
+
       if (typeof priceValue === "number") {
         costPrice = priceValue;
       } else if (typeof priceValue === "string") {
-        // Remove currency symbols and parse
-        const cleaned = priceValue.replace(/[^0-9.,]/g, "").replace(",", ".");
-        costPrice = parseFloat(cleaned);
+        const parsed = parseNumber(priceValue);
+        costPrice = Number.isFinite(parsed) ? parsed : NaN;
+      } else {
+        costPrice = NaN;
       }
+
       
       // Validate row - must have either code or name, and a valid price
       if ((!code && !name) || isNaN(costPrice) || costPrice <= 0) {

@@ -24,6 +24,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ListUpdateDialog } from "./ListUpdateDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ColumnMappingWizard } from "./mapping/ColumnMappingWizard";
+import { parseNumber } from "@/utils/numberParser";
 
 interface SupplierProductListsProps {
   supplierId: string;
@@ -203,17 +204,37 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
       const dynamicProducts: DynamicProduct[] = productos.map((prod: any) => {
         const data: Record<string, any> = {};
         Object.keys(prod).forEach((key) => {
-          if (!["code", "name", "descripcion", "price", "precio", "cantidad"].includes(key)) {
+          if (
+            ![
+              "code",
+              "name",
+              "descripcion",
+              "price",
+              "precio",
+              "cantidad",
+            ].includes(key)
+          ) {
             data[key] = prod[key];
           }
         });
+
+        const rawPrice = prod.price ?? prod.precio;
+        const parsedPrice =
+          typeof rawPrice === "string"
+            ? parseNumber(rawPrice)
+            : rawPrice == null
+            ? NaN
+            : Number(rawPrice);
+
+        // Si no pudimos parsear, mejor guardar null para la columna numérica en la DB
+        const price = Number.isFinite(parsedPrice) ? parsedPrice : null;
 
         return {
           id: crypto.randomUUID(),
           listId: "", // Will be set by backend
           code: prod.code,
           name: prod.name || prod.descripcion,
-          price: prod.price || prod.precio,
+          price,
           quantity: prod.cantidad,
           data,
         };
