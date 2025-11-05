@@ -103,7 +103,7 @@ export const DynamicProductTable = ({
           const value = getValue();
           if (value === null || value === undefined) return "-";
           if (schema.type === "number") {
-            return typeof value === "number" ? value.toLocaleString() : value;
+            return typeof value === "number" ? value.toFixed(2) : value;
           }
           return String(value);
         },
