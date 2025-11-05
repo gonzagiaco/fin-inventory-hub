@@ -204,27 +204,14 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
       const dynamicProducts: DynamicProduct[] = productos.map((prod: any) => {
         const data: Record<string, any> = {};
         Object.keys(prod).forEach((key) => {
-          if (
-            ![
-              "code",
-              "name",
-              "descripcion",
-              "price",
-              "precio",
-              "cantidad",
-            ].includes(key)
-          ) {
+          if (!["code", "name", "descripcion", "price", "precio", "cantidad"].includes(key)) {
             data[key] = prod[key];
           }
         });
 
         const rawPrice = prod.price ?? prod.precio;
         const parsedPrice =
-          typeof rawPrice === "string"
-            ? parseNumber(rawPrice)
-            : rawPrice == null
-            ? NaN
-            : Number(rawPrice);
+          typeof rawPrice === "string" ? parseNumber(rawPrice) : rawPrice == null ? NaN : Number(rawPrice);
 
         // Si no pudimos parsear, mejor guardar null para la columna numérica en la DB
         const price = Number.isFinite(parsedPrice) ? parsedPrice : null;
@@ -278,36 +265,42 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
     }
   };
 
-  const handleUpdateExisting = (listId: string) => {
-    if (pendingUpload) {
-      updateList({
-        listId,
-        fileName: pendingUpload.fileName,
-        columnSchema: pendingUpload.columnSchema,
-        products: pendingUpload.products,
-      });
-      setPendingUpload(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    }
+  const handleUpdateExisting = async (listId: string) => {
+    if (!pendingUpload) return;
+
+    await updateList({
+      listId,
+      fileName: pendingUpload.fileName,
+      columnSchema: pendingUpload.columnSchema,
+      products: pendingUpload.products,
+    });
+
+    // Refrescar índice para ver precios redondeados/modificados de inmediato
+    await supabase.rpc("refresh_list_index", { p_list_id: listId });
+
+    setPendingUpload(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const handleCreateNew = () => {
-    if (pendingUpload) {
-      createList({
-        supplierId,
-        name: `${pendingUpload.fileName} - ${new Date().toLocaleDateString()}`,
-        fileName: pendingUpload.fileName,
-        fileType: pendingUpload.fileName.split(".").pop() || "unknown",
-        columnSchema: pendingUpload.columnSchema,
-        products: pendingUpload.products,
-      });
-      setPendingUpload(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
+  const handleCreateNew = async () => {
+    if (!pendingUpload) return;
+
+    const created = await createList({
+      supplierId,
+      name: `${pendingUpload.fileName} - ${new Date().toLocaleDateString()}`,
+      fileName: pendingUpload.fileName,
+      fileType: pendingUpload.fileName.split(".").pop() || "unknown",
+      columnSchema: pendingUpload.columnSchema,
+      products: pendingUpload.products,
+    });
+
+    // ⚠️ Asegurate que createList devuelva { id: string }
+    if (created?.id) {
+      await supabase.rpc("refresh_list_index", { p_list_id: created.id });
     }
+
+    setPendingUpload(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   if (isLoading) {
