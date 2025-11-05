@@ -30,5 +30,7 @@ export function parseNumber(input: string): number {
     }
 
     const num = parseFloat(str);
-    return isNaN(num) ? NaN : (isNegative ? -num : num);
+    // Redondear a 2 decimales
+    const rounded = Math.round(num * 100) / 100;
+    return isNaN(rounded) ? NaN : (isNegative ? -rounded : rounded);
 }
