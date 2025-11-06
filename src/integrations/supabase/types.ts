@@ -648,6 +648,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      parse_price_string: { Args: { input: string }; Returns: number }
       refresh_list_index: { Args: { p_list_id: string }; Returns: undefined }
       search_products: {
         Args: {
