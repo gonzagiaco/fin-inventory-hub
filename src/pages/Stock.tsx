@@ -13,15 +13,8 @@ import { useSuppliers } from "@/hooks/useSuppliers";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Table,
-  TableHeader,
-  TableRow,
-  TableHead,
-  TableBody,
-  TableCell,
-} from "@/components/ui/table";
-import { QuantityCell } from "@/components/stock/QuantityCell"; 
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
+import { QuantityCell } from "@/components/stock/QuantityCell";
 
 export default function Stock() {
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
@@ -52,7 +45,7 @@ export default function Stock() {
     >();
 
     lists.forEach((list: any) => {
-      const supplier = suppliers.find(s => s.id === list.supplier_id);
+      const supplier = suppliers.find((s) => s.id === list.supplier_id);
       if (!supplier) return;
 
       if (!sections.has(list.supplier_id)) {
@@ -91,9 +84,7 @@ export default function Stock() {
     const existingItem = requestList.find((r) => r.productId === product.id);
 
     if (existingItem) {
-      setRequestList((prev) =>
-        prev.map((r) => (r.productId === product.id ? { ...r, quantity: r.quantity + 1 } : r))
-      );
+      setRequestList((prev) => prev.map((r) => (r.productId === product.id ? { ...r, quantity: r.quantity + 1 } : r)));
       toast.success("Cantidad actualizada en la lista de pedidos");
     } else {
       const newRequest: RequestItem = {
@@ -216,7 +207,7 @@ export default function Stock() {
               </div>
               <p className="text-muted-foreground">Cargando listas...</p>
             </div>
-          ) : (searchTerm.trim().length >= 3 || (searchTerm === "" && supplierFilter !== "all")) ? (
+          ) : searchTerm.trim().length >= 3 || (searchTerm === "" && supplierFilter !== "all") ? (
             // ------- Resultados de búsqueda global -------
             <Card className="p-4">
               <h2 className="text-lg font-semibold mb-4">
@@ -244,8 +235,8 @@ export default function Stock() {
                     <TableBody>
                       {globalResults.map((item: any) => {
                         // Buscar info del proveedor y la lista
-                        const listInfo = (lists as any[]).find(l => l.id === item.list_id);
-                        const supplierInfo = (suppliers as any[]).find(s => s.id === listInfo?.supplier_id);
+                        const listInfo = (lists as any[]).find((l) => l.id === item.list_id);
+                        const supplierInfo = (suppliers as any[]).find((s) => s.id === listInfo?.supplier_id);
 
                         return (
                           <TableRow key={item.product_id}>
@@ -270,20 +261,14 @@ export default function Stock() {
 
                             {/* ✅ Reutilizamos el mismo input/lógica de DynamicProductTable */}
                             <TableCell>
-                              <QuantityCell
-                                productId={item.product_id}
-                                listId={item.list_id}
-                                value={item.quantity}
-                              />
+                              <QuantityCell productId={item.product_id} listId={item.list_id} value={item.quantity} />
                             </TableCell>
 
                             <TableCell>{item.code || "-"}</TableCell>
                             <TableCell>{item.name || "-"}</TableCell>
                             <TableCell>{supplierInfo ? supplierInfo.name : "-"}</TableCell>
                             <TableCell>{listInfo ? listInfo.name : "-"}</TableCell>
-                            <TableCell>
-                              {item.price != null ? Number(item.price).toLocaleString() : "-"}
-                            </TableCell>
+                            <TableCell>{item.price != null ? Number(item.price).toFixed(2) : "-"}</TableCell>
                           </TableRow>
                         );
                       })}
