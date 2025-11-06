@@ -54,7 +54,8 @@ export function ProductCardView({
 
   const formatValue = (value: any, type: ColumnSchema["type"]) => {
     if (value == null) return "-";
-    if (type === "number" && typeof value === "number") {
+    const isNumericField = type === "number" || key === "price";
+    if (isNumericField && typeof value === "number") {
       return value.toFixed(2);
     }
     if (type === "date" && value instanceof Date) {
@@ -85,7 +86,7 @@ export function ProductCardView({
                 <div className="space-y-2">
                   {keyFields.map((field) => {
                     const value = getFieldValue(product, field.key);
-                    const displayValue = formatValue(value, field.type);
+                    const displayValue = formatValue(value, field.type, field.key);
 
                     // Special styling for common fields
                     if (field.key === "code") {

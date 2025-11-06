@@ -102,8 +102,9 @@ export const DynamicProductTable = ({
         cell: ({ getValue }) => {
           const value = getValue();
           if (value === null || value === undefined) return "-";
-          if (schema.type === "number") {
-            return typeof value === "number" ? value.toFixed(2) : value;
+          const isNumericField = schema.type === "number" || schema.key === "price";
+          if (isNumericField && typeof value === "number") {
+            return value.toFixed(2);
           }
           return String(value);
         },
