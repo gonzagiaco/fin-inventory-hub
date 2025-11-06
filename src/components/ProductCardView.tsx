@@ -52,7 +52,7 @@ export function ProductCardView({
     return product.data?.[key];
   };
 
-  const formatValue = (value: any, type: ColumnSchema["type"]) => {
+  const formatValue = (value: any, type: ColumnSchema["type"], key: string) => {
     if (value == null) return "-";
     const isNumericField = type === "number" || key === "price";
     if (isNumericField && typeof value === "number") {
@@ -155,7 +155,7 @@ export function ProductCardView({
                     <CollapsibleContent className="space-y-2 mb-3">
                       {otherFields.map((field) => {
                         const value = getFieldValue(product, field.key);
-                        const displayValue = formatValue(value, field.type);
+                        const displayValue = formatValue(value, field.type, field.key);
 
                         return (
                           <div key={field.key} className="text-sm border-b pb-1">
