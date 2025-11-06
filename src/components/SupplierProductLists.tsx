@@ -237,7 +237,7 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
         });
       } else {
         // Create new list directly if no lists exist
-        createList({
+        void createList({
           supplierId,
           name: `${file.name} - ${new Date().toLocaleDateString()}`,
           fileName: file.name,

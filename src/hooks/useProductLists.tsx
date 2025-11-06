@@ -10,10 +10,7 @@ export const useProductLists = (supplierId?: string) => {
   const { data: productLists = [], isLoading } = useQuery({
     queryKey: ["product-lists", supplierId],
     queryFn: async () => {
-      let query = supabase
-        .from("product_lists")
-        .select("*")
-        .order("created_at", { ascending: false });
+      let query = supabase.from("product_lists").select("*").order("created_at", { ascending: false });
 
       if (supplierId) {
         query = query.eq("supplier_id", supplierId);
@@ -24,10 +21,8 @@ export const useProductLists = (supplierId?: string) => {
 
       return (data || []).map((list) => {
         const schema = list.column_schema;
-        const columnSchema: ColumnSchema[] = Array.isArray(schema)
-          ? (schema as unknown as ColumnSchema[])
-          : [];
-        
+        const columnSchema: ColumnSchema[] = Array.isArray(schema) ? (schema as unknown as ColumnSchema[]) : [];
+
         return {
           id: list.id,
           supplierId: list.supplier_id,
@@ -94,7 +89,7 @@ export const useProductLists = (supplierId?: string) => {
       products: DynamicProduct[];
     }) => {
       const { data: userData, error: authError } = await supabase.auth.getUser();
-      
+
       if (authError || !userData.user) {
         throw new Error("Usuario no autenticado");
       }
@@ -130,9 +125,7 @@ export const useProductLists = (supplierId?: string) => {
         data: product.data,
       }));
 
-      const { error: productsError } = await supabase
-        .from("dynamic_products")
-        .insert(productsToInsert);
+      const { error: productsError } = await supabase.from("dynamic_products").insert(productsToInsert);
 
       if (productsError) throw productsError;
 
@@ -150,10 +143,7 @@ export const useProductLists = (supplierId?: string) => {
 
   const deleteListMutation = useMutation({
     mutationFn: async (listId: string) => {
-      const { error } = await supabase
-        .from("product_lists")
-        .delete()
-        .eq("id", listId);
+      const { error } = await supabase.from("product_lists").delete().eq("id", listId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -198,7 +188,7 @@ export const useProductLists = (supplierId?: string) => {
       products: DynamicProduct[];
     }) => {
       const { data: userData, error: authError } = await supabase.auth.getUser();
-      
+
       if (authError || !userData.user) {
         throw new Error("Usuario no autenticado");
       }
@@ -217,10 +207,7 @@ export const useProductLists = (supplierId?: string) => {
       if (updateError) throw updateError;
 
       // 2. Delete old products
-      const { error: deleteError } = await supabase
-        .from("dynamic_products")
-        .delete()
-        .eq("list_id", listId);
+      const { error: deleteError } = await supabase.from("dynamic_products").delete().eq("list_id", listId);
 
       if (deleteError) throw deleteError;
 
@@ -235,9 +222,7 @@ export const useProductLists = (supplierId?: string) => {
         data: product.data,
       }));
 
-      const { error: insertError } = await supabase
-        .from("dynamic_products")
-        .insert(productsToInsert);
+      const { error: insertError } = await supabase.from("dynamic_products").insert(productsToInsert);
 
       if (insertError) throw insertError;
     },
@@ -255,19 +240,17 @@ export const useProductLists = (supplierId?: string) => {
   // No longer used - user now selects from all available lists
   const findSimilarList = (fileName: string, columnSchema: ColumnSchema[]) => {
     // 1. Exact match by file name
-    const exactMatch = productLists.find(
-      (list) => list.fileName === fileName
-    );
+    const exactMatch = productLists.find((list) => list.fileName === fileName);
     if (exactMatch) return exactMatch;
 
     // 2. Match by column similarity (>75%)
     const newKeys = columnSchema.map((c) => c.key).sort();
-    
+
     for (const list of productLists) {
       const existingKeys = list.columnSchema.map((c) => c.key).sort();
       const commonKeys = newKeys.filter((k) => existingKeys.includes(k));
       const similarity = (commonKeys.length / Math.max(newKeys.length, existingKeys.length)) * 100;
-      
+
       if (similarity > 75) {
         return list;
       }
@@ -280,7 +263,7 @@ export const useProductLists = (supplierId?: string) => {
     productLists,
     productsMap,
     isLoading,
-    createList: createListMutation.mutate,
+    createList: createListMutation.mutateAsync,
     deleteList: deleteListMutation.mutate,
     updateColumnSchema: updateColumnSchemaMutation.mutateAsync,
     updateList: updateListMutation.mutate,
