@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "./components/ProtectedRoute";
 import CollapsibleSidebar from "./components/CollapsibleSidebar";
+import { ConnectionBadge } from "./components/ConnectionBadge";
 
 import Stock from "./pages/Stock";
 import Proveedores from "./pages/Proveedores";
@@ -22,6 +23,7 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
+        <ConnectionBadge />
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />

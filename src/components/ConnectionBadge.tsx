@@ -31,30 +31,36 @@ export function ConnectionBadge() {
   // Sincronizando
   if (isSyncing) {
     return (
-      <Badge className="bg-blue-500 hover:bg-blue-600 text-white border-blue-600">
-        <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-        Sincronizando...
-      </Badge>
+      <div className="fixed bottom-4 left-4 lg:top-4 lg:left-1/2 lg:-translate-x-1/2 lg:bottom-auto z-50">
+        <Badge className="bg-blue-500 hover:bg-blue-600 text-white border-blue-600 shadow-lg">
+          <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+          Sincronizando...
+        </Badge>
+      </div>
     );
   }
 
   // Offline
   if (!isOnline) {
     return (
-      <Badge variant="destructive" className="animate-pulse">
-        <WifiOff className="h-3 w-3 mr-1" />
-        Offline
-      </Badge>
+      <div className="fixed bottom-4 left-4 lg:top-4 lg:left-1/2 lg:-translate-x-1/2 lg:bottom-auto z-50">
+        <Badge variant="destructive" className="animate-pulse shadow-lg">
+          <WifiOff className="h-3 w-3 mr-1" />
+          Offline
+        </Badge>
+      </div>
     );
   }
 
   // Online con operaciones pendientes
   if (pendingCount > 0) {
     return (
-      <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-600">
-        <Database className="h-3 w-3 mr-1" />
-        {pendingCount} pendiente{pendingCount !== 1 ? 's' : ''}
-      </Badge>
+      <div className="fixed bottom-4 left-4 lg:top-4 lg:left-1/2 lg:-translate-x-1/2 lg:bottom-auto z-50">
+        <Badge className="bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-600 shadow-lg">
+          <Database className="h-3 w-3 mr-1" />
+          {pendingCount} pendiente{pendingCount !== 1 ? 's' : ''}
+        </Badge>
+      </div>
     );
   }
 
