@@ -70,7 +70,7 @@ const Remitos = () => {
   };
 
   return (
-    <div className="flex-1 overflow-auto">
+    <div className="flex-1 overflow-auto safe-top">
       <Header 
         title="Remitos de Venta"
         subtitle="Gestiona remitos, descuenta stock automáticamente y comunica con clientes"

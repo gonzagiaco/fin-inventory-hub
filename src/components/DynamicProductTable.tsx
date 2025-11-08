@@ -161,7 +161,7 @@ export const DynamicProductTable = ({
   return (
     <div className="space-y-4">
       {/* Buscador + ajustes */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
@@ -171,26 +171,28 @@ export const DynamicProductTable = ({
             className="pl-10"
           />
         </div>
-        {shouldUseCardView && (
-          <div className="flex gap-2">
-            <Button
-              variant={effectiveViewMode === "table" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setViewMode(listId, "table")}
-            >
-              <List className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={effectiveViewMode === "cards" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setViewMode(listId, "cards")}
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </Button>
-            <CardPreviewSettings listId={listId} columnSchema={columnSchema} />
-          </div>
-        )}
-        <ColumnSettingsDrawer listId={listId} columnSchema={columnSchema} />
+        <div className="flex gap-2 justify-end">
+          {shouldUseCardView && (
+            <>
+              <Button
+                variant={effectiveViewMode === "table" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode(listId, "table")}
+              >
+                <List className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={effectiveViewMode === "cards" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode(listId, "cards")}
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Button>
+              <CardPreviewSettings listId={listId} columnSchema={columnSchema} />
+            </>
+          )}
+          <ColumnSettingsDrawer listId={listId} columnSchema={columnSchema} />
+        </div>
       </div>
 
       {/* Contenido: tarjetas o tabla */}

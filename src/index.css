@@ -144,4 +144,15 @@ All colors MUST be HSL.
       width: calc(100vw - 280px);
     }
   }
+
+  /* Safe area utilities for iOS notch/dynamic island */
+  @supports (padding: max(0px)) {
+    .safe-top {
+      padding-top: max(env(safe-area-inset-top), 1rem);
+    }
+    
+    .safe-bottom {
+      padding-bottom: max(env(safe-area-inset-bottom), 1rem);
+    }
+  }
 }

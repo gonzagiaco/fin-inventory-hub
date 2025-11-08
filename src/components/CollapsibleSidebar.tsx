@@ -32,7 +32,7 @@ const CollapsibleSidebar = () => {
       {/* Mobile Menu Button */}
       <button
         onClick={() => setIsMobileOpen(!isMobileOpen)}
-        className="lg:hidden fixed top-6 left-6 z-50 p-2 rounded-lg glassmorphism"
+        className="lg:hidden fixed top-6 left-6 z-50 p-2 rounded-lg glassmorphism safe-top"
       >
         {isMobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
       </button>
@@ -45,8 +45,8 @@ const CollapsibleSidebar = () => {
       {/* Sidebar */}
       <aside
         className={`
-          fixed lg:sticky top-0 h-screen bg-background/70 backdrop-blur-xl border-r border-primary/20 
-          flex flex-col p-6 z-30 transition-all duration-300
+          fixed lg:sticky top-0 h-[100dvh] lg:h-screen bg-background/70 backdrop-blur-xl border-r border-primary/20 
+          flex flex-col safe-top p-6 z-30 transition-all duration-300
           ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
           ${isCollapsed ? "lg:w-20" : "w-64"}
         `}

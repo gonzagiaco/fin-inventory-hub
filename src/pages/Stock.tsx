@@ -222,7 +222,7 @@ export default function Stock() {
 
   return (
     <div className="min-h-screen w-full bg-background overflow-x-hidden">
-      <header className="sticky top-0 z-10 bg-background border-b">
+      <header className="sticky top-0 z-10 bg-background border-b safe-top">
         <div className="w-full px-4 py-6 max-w-full overflow-hidden">
           <h1 className="text-3xl font-bold mb-6">Stock de Productos</h1>
 
