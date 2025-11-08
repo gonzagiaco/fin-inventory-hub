@@ -6,6 +6,26 @@ import { fetchAllFromTable } from "@/utils/fetchAllProducts";
 import { useOnlineStatus } from './useOnlineStatus';
 import { getOfflineData, createProductListOffline, updateProductListOffline, deleteProductListOffline } from '@/lib/localDB';
 
+// Helper function to extract name from product data when index is missing it
+function extractNameFromData(data: Record<string, any>, schema: ColumnSchema[]): string {
+  // Try to find first non-standard text column with data
+  for (const col of schema) {
+    if (col.key !== 'code' && col.key !== 'price' && col.type === 'text' && data[col.key]) {
+      return String(data[col.key]);
+    }
+  }
+  
+  // Fallback: try common name fields
+  const commonNameFields = ['name', 'nombre', 'descripcion', 'description', 'producto', 'product'];
+  for (const field of commonNameFields) {
+    if (data[field]) {
+      return String(data[field]);
+    }
+  }
+  
+  return 'Sin nombre';
+}
+
 export const useProductLists = (supplierId?: string) => {
   const queryClient = useQueryClient();
   const isOnline = useOnlineStatus();
@@ -76,11 +96,16 @@ export const useProductLists = (supplierId?: string) => {
           .filter(p => listIds.includes(p.list_id))
           .forEach((product) => {
             if (!grouped[product.list_id]) grouped[product.list_id] = [];
+            
+            // Find the list to get its column schema for fallback
+            const list = productLists.find(l => l.id === product.list_id);
+            const columnSchema = list?.columnSchema || [];
+            
             grouped[product.list_id].push({
               id: product.id,
               listId: product.list_id,
               code: product.code,
-              name: product.name,
+              name: product.name || extractNameFromData(product.data || {}, columnSchema),
               price: product.price ? Number(product.price) : undefined,
               quantity: product.quantity,
               data: product.data as Record<string, any>,

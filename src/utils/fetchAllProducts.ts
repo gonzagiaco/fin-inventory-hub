@@ -6,7 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
  */
 export async function fetchAllFromTable<T = any>(
   tableName: string,
-  listIds?: string[]
+  listIds?: string[],
+  userId?: string
 ): Promise<T[]> {
   const BATCH_SIZE = 1000;
   
@@ -15,6 +16,10 @@ export async function fetchAllFromTable<T = any>(
   
   if (listIds && listIds.length > 0) {
     countQuery = countQuery.in("list_id", listIds);
+  }
+  
+  if (userId) {
+    countQuery = countQuery.eq("user_id", userId);
   }
   
   const { count, error: countError } = await countQuery;
@@ -26,6 +31,9 @@ export async function fetchAllFromTable<T = any>(
     let dataQuery = (supabase as any).from(tableName).select("*");
     if (listIds && listIds.length > 0) {
       dataQuery = dataQuery.in("list_id", listIds);
+    }
+    if (userId) {
+      dataQuery = dataQuery.eq("user_id", userId);
     }
     const { data, error } = await dataQuery;
     if (error) throw error;
@@ -43,6 +51,9 @@ export async function fetchAllFromTable<T = any>(
     let batchQuery = (supabase as any).from(tableName).select("*").range(from, to);
     if (listIds && listIds.length > 0) {
       batchQuery = batchQuery.in("list_id", listIds);
+    }
+    if (userId) {
+      batchQuery = batchQuery.eq("user_id", userId);
     }
     
     promises.push(batchQuery);

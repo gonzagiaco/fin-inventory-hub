@@ -1,6 +1,7 @@
 import Dexie, { Table } from 'dexie';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { fetchAllFromTable } from '@/utils/fetchAllProducts';
 
 // ==================== INTERFACES ====================
 
@@ -236,26 +237,32 @@ export async function syncFromSupabase(): Promise<void> {
       console.log(`✅ ${productLists.length} listas de productos sincronizadas`);
     }
 
-    // Sincronizar dynamic_products_index
-    const { data: productsIndex, error: indexError } = await supabase
-      .from('dynamic_products_index')
-      .select('*')
-      .eq('user_id', user.id);
-    if (indexError) throw indexError;
-    if (productsIndex && productsIndex.length > 0) {
-      await localDB.dynamic_products_index.bulkPut(productsIndex as DynamicProductIndexDB[]);
-      console.log(`✅ ${productsIndex.length} productos (index) sincronizados`);
+    // Sincronizar dynamic_products_index (CON PAGINACIÓN)
+    let productsIndex: any[] = [];
+    try {
+      productsIndex = await fetchAllFromTable('dynamic_products_index', undefined, user.id);
+      
+      if (productsIndex.length > 0) {
+        await localDB.dynamic_products_index.bulkPut(productsIndex as DynamicProductIndexDB[]);
+        console.log(`✅ ${productsIndex.length} productos (index) sincronizados`);
+      }
+    } catch (indexError) {
+      console.error('Error sincronizando products_index:', indexError);
+      throw indexError;
     }
 
-    // Sincronizar dynamic_products
-    const { data: products, error: productsError } = await supabase
-      .from('dynamic_products')
-      .select('*')
-      .eq('user_id', user.id);
-    if (productsError) throw productsError;
-    if (products && products.length > 0) {
-      await localDB.dynamic_products.bulkPut(products as DynamicProductDB[]);
-      console.log(`✅ ${products.length} productos completos sincronizados`);
+    // Sincronizar dynamic_products (CON PAGINACIÓN)
+    let products: any[] = [];
+    try {
+      products = await fetchAllFromTable('dynamic_products', undefined, user.id);
+      
+      if (products.length > 0) {
+        await localDB.dynamic_products.bulkPut(products as DynamicProductDB[]);
+        console.log(`✅ ${products.length} productos completos sincronizados`);
+      }
+    } catch (productsError) {
+      console.error('Error sincronizando dynamic_products:', productsError);
+      throw productsError;
     }
 
     // Sincronizar delivery_notes

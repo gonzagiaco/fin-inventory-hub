@@ -18,6 +18,26 @@ import { QuantityCell } from "@/components/stock/QuantityCell";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { getOfflineData } from "@/lib/localDB";
 
+// Helper function to extract name from product data for search results
+function extractNameFromFullData(data: Record<string, any>, schema: any[]): string {
+  // Try to find first non-standard text column with data
+  for (const col of schema) {
+    if (col.key !== 'code' && col.key !== 'price' && col.type === 'text' && data[col.key]) {
+      return String(data[col.key]);
+    }
+  }
+  
+  // Fallback: try common name fields
+  const commonNameFields = ['name', 'nombre', 'descripcion', 'description', 'producto', 'product'];
+  for (const field of commonNameFields) {
+    if (data[field]) {
+      return String(data[field]);
+    }
+  }
+  
+  return 'Sin nombre';
+}
+
 export default function Stock() {
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
   const [requestList, setRequestList] = useState<RequestItem[]>([]);
@@ -147,6 +167,8 @@ export default function Stock() {
       // MODO OFFLINE: Buscar en IndexedDB
       if (isOnline === false) {
         const indexedProducts = await getOfflineData('dynamic_products_index') as any[];
+        const fullProducts = await getOfflineData('dynamic_products') as any[];
+        const productLists = await getOfflineData('product_lists') as any[];
         const searchTermLower = searchTerm.trim().toLowerCase();
         
         // Filtrar por término de búsqueda
@@ -159,12 +181,27 @@ export default function Stock() {
         
         // Filtrar por proveedor si está seleccionado
         if (supplierFilter !== "all") {
-          const productLists = await getOfflineData('product_lists') as any[];
           filtered = filtered.filter((p: any) => {
             const list = productLists.find((l: any) => l.id === p.list_id);
             return list?.supplier_id === supplierFilter;
           });
         }
+        
+        // Enrich with missing names from full products data
+        filtered = filtered.map((p: any) => {
+          if (!p.name || p.name.trim() === '') {
+            const fullProduct = fullProducts.find((fp: any) => fp.id === p.product_id);
+            const list = productLists.find((l: any) => l.id === p.list_id);
+            const columnSchema = list?.column_schema || [];
+            
+            if (fullProduct?.data) {
+              // Extract name from data using schema
+              const extractedName = extractNameFromFullData(fullProduct.data, columnSchema);
+              return { ...p, name: extractedName };
+            }
+          }
+          return p;
+        });
         
         return filtered;
       }
