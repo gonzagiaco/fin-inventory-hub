@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { CardPreviewSettings } from "./CardPreviewSettings";
 import { List, LayoutGrid, Loader2 } from "lucide-react";
 import { QuantityCell } from "./stock/QuantityCell";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface DynamicProductTableProps {
   listId: string;
@@ -45,14 +46,23 @@ export const DynamicProductTable = ({
   const [globalFilter, setGlobalFilter] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
 
+  const isMobile = useIsMobile();
+
   // Store (orden/visibilidad + modo de vista)
   const { columnVisibility, columnOrder, columnPinning, viewMode: storeViewMode, setViewMode } = useProductListStore();
 
   // Vista por defecto
   const shouldUseCardView = true;
-  const defaultViewMode = columnSchema.length > 8 ? "cards" : "table";
-  const currentViewMode = storeViewMode[listId] || defaultViewMode;
+  const defaultViewMode = isMobile ? "cards" : columnSchema.length > 8 ? "cards" : "table";
+  const storedViewMode = storeViewMode[listId];
+  const currentViewMode = storedViewMode ?? defaultViewMode;
   const effectiveViewMode = currentViewMode;
+
+  React.useEffect(() => {
+    if (!storedViewMode) {
+      setViewMode(listId, defaultViewMode);
+    }
+  }, [storedViewMode, listId, defaultViewMode, setViewMode]);
 
   const currentOrder = columnOrder[listId] || columnSchema.map((c) => c.key);
   const visibilityState = columnVisibility[listId] || {};
