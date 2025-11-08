@@ -87,30 +87,40 @@ export const useProductLists = (supplierId?: string) => {
       const listIds = productLists.map((list) => list.id);
       if (listIds.length === 0) return {};
 
-      // OFFLINE: Cargar desde IndexedDB
+      // OFFLINE: JOIN entre índice y productos completos
       if (isOnline === false) {
-        const offlineProducts = await getOfflineData('dynamic_products') as any[];
+        const indexedProducts = await getOfflineData('dynamic_products_index') as any[];
+        const fullProducts = await getOfflineData('dynamic_products') as any[];
+
+        // Crear mapa de productos completos por ID para acceso rápido
+        const fullProductsMap = new Map(fullProducts.map((p: any) => [p.id, p]));
+
+        // Filtrar por listIds
+        const filtered = indexedProducts.filter((p: any) => listIds.includes(p.list_id));
+
         const grouped: Record<string, DynamicProduct[]> = {};
-        
-        offlineProducts
-          .filter(p => listIds.includes(p.list_id))
-          .forEach((product) => {
-            if (!grouped[product.list_id]) grouped[product.list_id] = [];
-            
-            // Find the list to get its column schema for fallback
-            const list = productLists.find(l => l.id === product.list_id);
-            const columnSchema = list?.columnSchema || [];
-            
-            grouped[product.list_id].push({
-              id: product.id,
-              listId: product.list_id,
-              code: product.code,
-              name: product.name || extractNameFromData(product.data || {}, columnSchema),
-              price: product.price ? Number(product.price) : undefined,
-              quantity: product.quantity,
-              data: product.data as Record<string, any>,
-            });
+        filtered.forEach((indexProduct: any) => {
+          if (!grouped[indexProduct.list_id]) {
+            grouped[indexProduct.list_id] = [];
+          }
+
+          // Find the list to get its column schema for fallback
+          const list = productLists.find(l => l.id === indexProduct.list_id);
+          const columnSchema = list?.columnSchema || [];
+
+          // Obtener datos completos del producto original
+          const fullProduct = fullProductsMap.get(indexProduct.product_id);
+
+          grouped[indexProduct.list_id].push({
+            id: indexProduct.product_id, // ID del producto original
+            listId: indexProduct.list_id,
+            code: indexProduct.code, // Del índice (ya normalizado)
+            name: indexProduct.name || extractNameFromData(fullProduct?.data || {}, columnSchema), // Del índice con fallback
+            price: indexProduct.price !== null ? Number(indexProduct.price) : undefined, // Del índice (ya calculado)
+            quantity: indexProduct.quantity, // Del índice
+            data: fullProduct?.data as Record<string, any> || {}, // Del producto completo para columnas dinámicas
           });
+        });
         
         return grouped;
       }
