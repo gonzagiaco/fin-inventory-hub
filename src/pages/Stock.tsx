@@ -22,20 +22,20 @@ import { getOfflineData } from "@/lib/localDB";
 function extractNameFromFullData(data: Record<string, any>, schema: any[]): string {
   // Try to find first non-standard text column with data
   for (const col of schema) {
-    if (col.key !== 'code' && col.key !== 'price' && col.type === 'text' && data[col.key]) {
+    if (col.key !== "code" && col.key !== "price" && col.type === "text" && data[col.key]) {
       return String(data[col.key]);
     }
   }
-  
+
   // Fallback: try common name fields
-  const commonNameFields = ['name', 'nombre', 'descripcion', 'description', 'producto', 'product'];
+  const commonNameFields = ["name", "nombre", "descripcion", "description", "producto", "product"];
   for (const field of commonNameFields) {
     if (data[field]) {
       return String(data[field]);
     }
   }
-  
-  return 'Sin nombre';
+
+  return "Sin nombre";
 }
 
 export default function Stock() {
@@ -159,26 +159,28 @@ export default function Stock() {
     });
   };
 
+  const isSupplierSelectedNoTerm = supplierFilter !== "all" && searchTerm.trim() === "";
+  const hasSearchTerm = searchTerm.trim().length >= 3 || (isOnline === false && searchTerm.trim().length >= 1);
+
   const { data: globalResults = [], isLoading: loadingSearch } = useQuery({
-    queryKey: ["global-search", searchTerm, supplierFilter, isOnline ? 'online' : 'offline'],
+    queryKey: ["global-search", searchTerm, supplierFilter, isOnline ? "online" : "offline"],
     queryFn: async () => {
       if (!searchTerm || searchTerm.trim().length < 1) return [];
-      
+
       // MODO OFFLINE: Buscar en IndexedDB
       if (isOnline === false) {
-        const indexedProducts = await getOfflineData('dynamic_products_index') as any[];
-        const fullProducts = await getOfflineData('dynamic_products') as any[];
-        const productLists = await getOfflineData('product_lists') as any[];
+        const indexedProducts = (await getOfflineData("dynamic_products_index")) as any[];
+        const fullProducts = (await getOfflineData("dynamic_products")) as any[];
+        const productLists = (await getOfflineData("product_lists")) as any[];
         const searchTermLower = searchTerm.trim().toLowerCase();
-        
+
         // Filtrar por término de búsqueda
         let filtered = indexedProducts.filter((p: any) => {
-          const matchesSearch = 
-            (p.code?.toLowerCase().includes(searchTermLower)) ||
-            (p.name?.toLowerCase().includes(searchTermLower));
+          const matchesSearch =
+            p.code?.toLowerCase().includes(searchTermLower) || p.name?.toLowerCase().includes(searchTermLower);
           return matchesSearch;
         });
-        
+
         // Filtrar por proveedor si está seleccionado
         if (supplierFilter !== "all") {
           filtered = filtered.filter((p: any) => {
@@ -186,14 +188,14 @@ export default function Stock() {
             return list?.supplier_id === supplierFilter;
           });
         }
-        
+
         // Enrich with missing names from full products data
         filtered = filtered.map((p: any) => {
-          if (!p.name || p.name.trim() === '') {
+          if (!p.name || p.name.trim() === "") {
             const fullProduct = fullProducts.find((fp: any) => fp.id === p.product_id);
             const list = productLists.find((l: any) => l.id === p.list_id);
             const columnSchema = list?.column_schema || [];
-            
+
             if (fullProduct?.data) {
               // Extract name from data using schema
               const extractedName = extractNameFromFullData(fullProduct.data, columnSchema);
@@ -202,10 +204,10 @@ export default function Stock() {
           }
           return p;
         });
-        
+
         return filtered;
       }
-      
+
       // MODO ONLINE: Usar RPC de Supabase
       const { data, error } = await supabase.rpc("search_products", {
         p_term: searchTerm.trim(),
@@ -214,7 +216,7 @@ export default function Stock() {
       if (error) throw error;
       return data || [];
     },
-    enabled: searchTerm.trim().length >= 3 || (searchTerm === "" && supplierFilter !== "all"),
+    enabled: hasSearchTerm,
     retry: false,
   });
 
@@ -288,74 +290,85 @@ export default function Stock() {
           ) : searchTerm.trim().length >= 3 || (searchTerm === "" && supplierFilter !== "all") ? (
             // ------- Resultados de búsqueda global -------
             <Card className="p-4">
-              <h2 className="text-lg font-semibold mb-4">
-                Resultados de búsqueda{searchTerm.trim() ? ` para "${searchTerm}"` : ""}
-                {isOnline === false && (
-                  <span className="ml-2 text-sm text-muted-foreground">(modo offline)</span>
-                )}
-              </h2>
-
-              {loadingSearch ? (
+              {isSupplierSelectedNoTerm ? (
+                <>
+                  <h2 className="text-lg font-semibold mb-2">Búsqueda por proveedor</h2>
+                  <p className="text-center text-muted-foreground">
+                    Seleccionaste un proveedor. Escribe al menos 3 caracteres para buscar productos.
+                  </p>
+                </>
+              ) : loadingSearch ? (
                 <p className="text-center text-muted-foreground">Buscando productos...</p>
               ) : globalResults.length === 0 ? (
-                <p className="text-center text-muted-foreground">No se encontraron productos.</p>
+                <>
+                  <h2 className="text-lg font-semibold mb-2">
+                    Resultados de búsqueda para "{searchTerm.trim()}"
+                    {isOnline === false && <span className="ml-2 text-sm text-muted-foreground">(modo offline)</span>}
+                  </h2>
+                  <p className="text-center text-muted-foreground">No se encontraron productos.</p>
+                </>
               ) : (
-                <div className="overflow-x-auto">
-                  <Table className="min-w-full text-sm">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="text-right">Acciones</TableHead>
-                        <TableHead>Stock</TableHead>
-                        <TableHead>Código</TableHead>
-                        <TableHead>Nombre</TableHead>
-                        <TableHead>Proveedor</TableHead>
-                        <TableHead>Lista</TableHead>
-                        <TableHead>Precio</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {globalResults.map((item: any) => {
-                        // Buscar info del proveedor y la lista
-                        const listInfo = (lists as any[]).find((l) => l.id === item.list_id);
-                        const supplierInfo = (suppliers as any[]).find((s) => s.id === listInfo?.supplier_id);
+                <>
+                  <h2 className="text-lg font-semibold mb-4">
+                    Resultados de búsqueda para "{searchTerm.trim()}"
+                    {isOnline === false && <span className="ml-2 text-sm text-muted-foreground">(modo offline)</span>}
+                  </h2>
 
-                        return (
-                          <TableRow key={item.product_id}>
-                            <TableCell className="text-right">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                  handleAddToRequest({
-                                    id: item.product_id,
-                                    code: item.code,
-                                    name: item.name,
-                                    price: Number(item.price) || 0,
-                                    quantity: 1,
-                                    supplierId: supplierInfo ? supplierInfo.id : "",
-                                  })
-                                }
-                              >
-                                <Plus className="h-4 w-4 mr-1" /> Agregar
-                              </Button>
-                            </TableCell>
+                  <div className="overflow-x-auto">
+                    <Table className="min-w-full text-sm">
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-right">Acciones</TableHead>
+                          <TableHead>Stock</TableHead>
+                          <TableHead>Código</TableHead>
+                          <TableHead>Nombre</TableHead>
+                          <TableHead>Proveedor</TableHead>
+                          <TableHead>Lista</TableHead>
+                          <TableHead>Precio</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {globalResults.map((item: any) => {
+                          const listInfo = (lists as any[]).find((l) => l.id === item.list_id);
+                          const supplierInfo = (suppliers as any[]).find((s) => s.id === listInfo?.supplier_id);
 
-                            {/* ✅ Reutilizamos el mismo input/lógica de DynamicProductTable */}
-                            <TableCell>
-                              <QuantityCell productId={item.product_id} listId={item.list_id} value={item.quantity} />
-                            </TableCell>
+                          return (
+                            <TableRow key={item.product_id}>
+                              <TableCell className="text-right">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    handleAddToRequest({
+                                      id: item.product_id,
+                                      code: item.code,
+                                      name: item.name,
+                                      price: Number(item.price) || 0,
+                                      quantity: 1,
+                                      supplierId: supplierInfo ? supplierInfo.id : "",
+                                    })
+                                  }
+                                >
+                                  <Plus className="h-4 w-4 mr-1" /> Agregar
+                                </Button>
+                              </TableCell>
 
-                            <TableCell>{item.code || "-"}</TableCell>
-                            <TableCell>{item.name || "-"}</TableCell>
-                            <TableCell>{supplierInfo ? supplierInfo.name : "-"}</TableCell>
-                            <TableCell>{listInfo ? listInfo.name : "-"}</TableCell>
-                            <TableCell>{item.price != null ? Number(item.price).toFixed(2) : "-"}</TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
-                </div>
+                              <TableCell>
+                                <QuantityCell productId={item.product_id} listId={item.list_id} value={item.quantity} />
+                              </TableCell>
+
+                              <TableCell>{item.code || "-"}</TableCell>
+                              <TableCell>{item.name || "-"}</TableCell>
+                              <TableCell>{supplierInfo ? supplierInfo.name : "-"}</TableCell>
+                              <TableCell>{listInfo ? listInfo.name : "-"}</TableCell>
+                              <TableCell>{item.price != null ? Number(item.price).toFixed(2) : "-"}</TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
               )}
             </Card>
           ) : visibleSupplierSections.length === 0 ? (
