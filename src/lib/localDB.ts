@@ -433,12 +433,31 @@ async function executeOperation(op: PendingOperation): Promise<void> {
         return;
       }
       
-      const { error: updateError } = await (supabase as any)
-        .from(table_name)
-        .update(data)
-        .eq('id', record_id);
-      
-      if (updateError) throw updateError;
+      // Caso especial: dynamic_products_index usa product_id en lugar de id
+      if (table_name === 'dynamic_products_index') {
+        const { error: updateIndexError } = await (supabase as any)
+          .from(table_name)
+          .update(data)
+          .eq('product_id', record_id);  // Buscar por product_id
+        
+        if (updateIndexError) throw updateIndexError;
+      } else if (table_name === 'dynamic_products') {
+        // dynamic_products usa id directamente
+        const { error: updateProductError } = await (supabase as any)
+          .from(table_name)
+          .update(data)
+          .eq('id', record_id);
+        
+        if (updateProductError) throw updateProductError;
+      } else {
+        // Resto de tablas: usar id
+        const { error: updateError } = await (supabase as any)
+          .from(table_name)
+          .update(data)
+          .eq('id', record_id);
+        
+        if (updateError) throw updateError;
+      }
       break;
 
     case 'DELETE':
