@@ -17,7 +17,7 @@ export function useSuppliers() {
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ['suppliers'],
     queryFn: async () => {
-      if (!isOnline) {
+      if (isOnline === false) {
         const offlineData = await getOfflineData('suppliers') as any[];
         return (offlineData || []).map(s => ({
           id: s.id,
@@ -45,7 +45,7 @@ export function useSuppliers() {
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) throw new Error("No autenticado");
 
-      if (!isOnline) {
+      if (isOnline === false) {
         const id = await createSupplierOffline({
           name: supplier.name,
           logo_url: supplier.logo,
@@ -82,7 +82,7 @@ export function useSuppliers() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...updates }: Supplier) => {
-      if (!isOnline) {
+      if (isOnline === false) {
         await updateSupplierOffline(id, {
           name: updates.name,
           logo_url: updates.logo,
@@ -115,7 +115,7 @@ export function useSuppliers() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      if (!isOnline) {
+      if (isOnline === false) {
         await deleteSupplierOffline(id);
         return;
       }
