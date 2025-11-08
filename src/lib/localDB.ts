@@ -302,7 +302,13 @@ export async function syncFromSupabase(): Promise<void> {
     }
 
     console.log('✅ Sincronización completa desde Supabase');
-    toast.success('Datos sincronizados correctamente');
+    const totalItems = 
+      (suppliers?.length || 0) + 
+      (productLists?.length || 0) + 
+      (productsIndex?.length || 0);
+    if (totalItems > 0) {
+      toast.success(`${totalItems} elementos sincronizados para uso offline`);
+    }
   } catch (error) {
     console.error('❌ Error al sincronizar desde Supabase:', error);
     toast.error('Error al sincronizar datos');

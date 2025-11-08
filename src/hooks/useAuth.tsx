@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { saveAuthToken, getAuthToken, clearAuthToken, clearAllLocalData } from "@/lib/localDB";
+import { saveAuthToken, getAuthToken, clearAuthToken, clearAllLocalData, syncFromSupabase } from "@/lib/localDB";
 
 interface AuthContextType {
   user: User | null;
@@ -61,6 +61,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               setUser(data.session.user);
               toast.success('Sesión restaurada');
               console.log('✅ Sesión restaurada exitosamente');
+              
+              // Sincronizar datos después de restaurar sesión
+              syncFromSupabase().catch(console.error);
             } else if (error) {
               console.warn('⚠️ No se pudo restaurar sesión:', error.message);
               await clearAuthToken();
@@ -85,6 +88,9 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             session.expires_at
           );
         }
+        
+        // Sincronizar datos al iniciar con sesión existente
+        syncFromSupabase().catch(console.error);
       }
     });
 
@@ -118,6 +124,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         data.session.access_token,
         data.session.expires_at
       );
+      
+      // Sincronizar datos desde Supabase
+      try {
+        await syncFromSupabase();
+      } catch (syncError) {
+        console.error('Error al sincronizar datos:', syncError);
+      }
     }
 
     toast.success("¡Cuenta creada exitosamente!");
@@ -143,6 +156,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         data.session.access_token,
         data.session.expires_at
       );
+    }
+
+    // Sincronizar datos desde Supabase
+    try {
+      await syncFromSupabase();
+    } catch (syncError) {
+      console.error('Error al sincronizar datos:', syncError);
     }
 
     toast.success("¡Bienvenido de nuevo!");
