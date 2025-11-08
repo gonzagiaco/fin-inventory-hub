@@ -54,15 +54,8 @@ export const DynamicProductTable = ({
   // Vista por defecto
   const shouldUseCardView = true;
   const defaultViewMode = isMobile ? "cards" : columnSchema.length > 8 ? "cards" : "table";
-  const storedViewMode = storeViewMode[listId];
-  const currentViewMode = storedViewMode ?? defaultViewMode;
+  const currentViewMode = storeViewMode[listId] || defaultViewMode;
   const effectiveViewMode = currentViewMode;
-
-  useEffect(() => {
-    if (!storedViewMode) {
-      setViewMode(listId, defaultViewMode);
-    }
-  }, [storedViewMode, listId, defaultViewMode, setViewMode]);
 
   const currentOrder = columnOrder[listId] || columnSchema.map((c) => c.key);
   const visibilityState = columnVisibility[listId] || {};
