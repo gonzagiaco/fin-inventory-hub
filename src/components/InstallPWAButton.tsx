@@ -7,12 +7,7 @@ import { IOSInstallInstructions } from "./IOSInstallInstructions";
 
 export const InstallPWAButton = () => {
   const [showIOSInstructions, setShowIOSInstructions] = useState(false);
-  const {
-    isIOS,
-    handleInstall,
-    handleDismiss,
-    shouldShowInstallPrompt,
-  } = useInstallPWA();
+  const { isIOS, handleInstall, handleDismiss, shouldShowInstallPrompt } = useInstallPWA();
 
   if (!shouldShowInstallPrompt()) {
     return null;
@@ -38,38 +33,28 @@ export const InstallPWAButton = () => {
           >
             <X className="h-4 w-4" />
           </Button>
-          
+
           <div className="flex items-start gap-4">
             <div className="flex-shrink-0 p-3 bg-primary/10 rounded-xl">
               <Smartphone className="h-6 w-6 text-primary" />
             </div>
-            
+
             <div className="flex-1 space-y-2">
               <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-foreground">¡Instala la App!</h3>
+                <h3 className="font-semibold text-foreground">Instalar app</h3>
                 <Sparkles className="h-4 w-4 text-primary" />
               </div>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Accede más rápido y trabaja sin conexión. Instala nuestra app en tu dispositivo.
-              </p>
-              
-              <Button 
-                onClick={handleClick}
-                className="w-full sm:w-auto mt-2"
-                size="sm"
-              >
+
+              <Button onClick={handleClick} className="w-full sm:w-auto mt-2" size="sm">
                 <Download className="h-4 w-4 mr-2" />
-                {isIOS ? 'Ver instrucciones' : 'Instalar ahora'}
+                {isIOS ? "Ver instrucciones" : "Instalar ahora"}
               </Button>
             </div>
           </div>
         </div>
       </Card>
 
-      <IOSInstallInstructions
-        open={showIOSInstructions}
-        onOpenChange={setShowIOSInstructions}
-      />
+      <IOSInstallInstructions open={showIOSInstructions} onOpenChange={setShowIOSInstructions} />
     </>
   );
 };
