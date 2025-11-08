@@ -524,7 +524,7 @@ export async function createDeliveryNoteOffline(
 
     // Actualizar stock localmente
     if (item.product_id) {
-      await updateProductQuantityOffline(item.product_id, -item.quantity);
+      await updateProductQuantityDelta(item.product_id, -item.quantity);
     }
   }
   
@@ -559,7 +559,7 @@ export async function updateDeliveryNoteOffline(
     // Revertir stock de items antiguos
     for (const oldItem of oldItems) {
       if (oldItem.product_id) {
-        await updateProductQuantityOffline(oldItem.product_id, oldItem.quantity);
+        await updateProductQuantityDelta(oldItem.product_id, oldItem.quantity);
       }
       await localDB.delivery_note_items.delete(oldItem.id);
       await queueOperation('delivery_note_items', 'DELETE', oldItem.id, {});
@@ -580,7 +580,7 @@ export async function updateDeliveryNoteOffline(
 
       // Actualizar stock
       if (item.product_id) {
-        await updateProductQuantityOffline(item.product_id, -item.quantity);
+        await updateProductQuantityDelta(item.product_id, -item.quantity);
       }
     }
   }
@@ -596,7 +596,7 @@ export async function deleteDeliveryNoteOffline(id: string): Promise<void> {
   // Revertir stock
   for (const item of items) {
     if (item.product_id) {
-      await updateProductQuantityOffline(item.product_id, item.quantity);
+      await updateProductQuantityDelta(item.product_id, item.quantity);
     }
     await localDB.delivery_note_items.delete(item.id);
     await queueOperation('delivery_note_items', 'DELETE', item.id, {});
@@ -627,8 +627,8 @@ export async function markDeliveryNoteAsPaidOffline(id: string, paidAmount: numb
   await queueOperation('delivery_notes', 'UPDATE', id, updates);
 }
 
-// PRODUCTOS - Actualizar cantidad
-async function updateProductQuantityOffline(productId: string, quantityDelta: number): Promise<void> {
+// PRODUCTOS - Actualizar cantidad (privada, usa delta)
+async function updateProductQuantityDelta(productId: string, quantityDelta: number): Promise<void> {
   // Actualizar en index
   const indexProduct = await localDB.dynamic_products_index.get(productId);
   if (indexProduct) {
@@ -656,6 +656,102 @@ async function updateProductQuantityOffline(productId: string, quantityDelta: nu
       quantity: newQuantity
     });
   }
+}
+
+// DYNAMIC PRODUCTS - Operaciones offline públicas
+export async function updateProductQuantityOffline(
+  productId: string,
+  listId: string,
+  newQuantity: number
+): Promise<void> {
+  // Actualizar en dynamic_products_index
+  const indexRecord = await localDB.dynamic_products_index
+    .where({ product_id: productId, list_id: listId })
+    .first();
+  
+  if (indexRecord) {
+    await localDB.dynamic_products_index.put({
+      ...indexRecord,
+      quantity: newQuantity,
+      updated_at: new Date().toISOString()
+    });
+  }
+
+  // Actualizar en dynamic_products
+  const productRecord = await localDB.dynamic_products.get(productId);
+  if (productRecord) {
+    await localDB.dynamic_products.put({
+      ...productRecord,
+      quantity: newQuantity,
+      updated_at: new Date().toISOString()
+    });
+  }
+
+  // Encolar operación para sincronizar
+  await queueOperation(
+    'dynamic_products_index',
+    'UPDATE',
+    productId,
+    { quantity: newQuantity }
+  );
+}
+
+export async function getProductsForListOffline(
+  listId: string,
+  page: number = 0,
+  pageSize: number = 50,
+  searchQuery?: string
+): Promise<{ data: any[]; hasMore: boolean; total: number }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Usuario no autenticado');
+
+  // Obtener todos los productos del list_id del usuario
+  let allRecords = await localDB.dynamic_products_index
+    .where({ list_id: listId, user_id: user.id })
+    .toArray();
+
+  // Aplicar búsqueda si existe
+  if (searchQuery) {
+    const lowerQuery = searchQuery.toLowerCase();
+    allRecords = allRecords.filter(
+      (r) =>
+        r.code?.toLowerCase().includes(lowerQuery) ||
+        r.name?.toLowerCase().includes(lowerQuery)
+    );
+  }
+
+  // Ordenar por nombre
+  allRecords.sort((a, b) => {
+    const nameA = a.name || '';
+    const nameB = b.name || '';
+    return nameA.localeCompare(nameB);
+  });
+
+  const total = allRecords.length;
+  const offset = page * pageSize;
+  const paginatedRecords = allRecords.slice(offset, offset + pageSize);
+
+  // Enriquecer con data de dynamic_products
+  const enrichedData = await Promise.all(
+    paginatedRecords.map(async (indexRecord) => {
+      const fullProduct = await localDB.dynamic_products.get(indexRecord.product_id);
+      return {
+        product_id: indexRecord.product_id,
+        list_id: indexRecord.list_id,
+        code: indexRecord.code,
+        name: indexRecord.name,
+        price: indexRecord.price,
+        quantity: indexRecord.quantity,
+        dynamic_products: fullProduct ? { data: fullProduct.data } : null,
+      };
+    })
+  );
+
+  return {
+    data: enrichedData,
+    hasMore: offset + pageSize < total,
+    total,
+  };
 }
 
 // REQUEST ITEMS (Carrito)

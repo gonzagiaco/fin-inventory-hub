@@ -2,6 +2,8 @@ import React from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { updateProductQuantityOffline } from "@/lib/localDB";
 
 type Props = {
   productId: string;
@@ -18,30 +20,39 @@ export const QuantityCell: React.FC<Props> = ({
   onLocalUpdate,
 }) => {
   const queryClient = useQueryClient();
+  const isOnline = useOnlineStatus();
   const current = Number(value ?? 0);
 
   const handleCommit = async (raw: string) => {
     const newQty = Number(raw);
     if (Number.isNaN(newQty) || newQty === current) return;
 
-    const { error } = await supabase
-      .from("dynamic_products_index")
-      .update({ quantity: newQty })
-      .eq("product_id", productId);
+    try {
+      if (isOnline) {
+        // Modo online: actualizar Supabase directamente
+        const { error } = await supabase
+          .from("dynamic_products_index")
+          .update({ quantity: newQty })
+          .eq("product_id", productId);
 
-    if (error) {
-      toast.error("Error al actualizar stock");
-      return;
+        if (error) throw error;
+        toast.success("Stock actualizado");
+      } else {
+        // Modo offline: guardar en IndexedDB y encolar
+        await updateProductQuantityOffline(productId, listId, newQty);
+        toast.success("Stock actualizado (se sincronizará al reconectar)");
+      }
+
+      // Actualización optimista de UI
+      onLocalUpdate?.(newQty);
+
+      // Invalidar queries (tanto online como offline)
+      queryClient.invalidateQueries({ queryKey: ["global-search"] });
+      queryClient.invalidateQueries({ queryKey: ["list-products", listId] });
+    } catch (error: any) {
+      console.error("Error al actualizar stock:", error);
+      toast.error(`Error al actualizar stock: ${error.message}`);
     }
-
-    // Update optimista opcional (para tablas que pasan onLocalUpdate)
-    onLocalUpdate?.(newQty);
-
-    // Invalidar búsquedas y listas paginadas
-    queryClient.invalidateQueries({ queryKey: ["global-search"] });
-    queryClient.invalidateQueries({ queryKey: ["list-products", listId] });
-
-    toast.success("Stock actualizado");
   };
 
   const onKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
