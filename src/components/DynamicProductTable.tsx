@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { CardPreviewSettings } from "./CardPreviewSettings";
 import { List, LayoutGrid, Loader2 } from "lucide-react";
 import { QuantityCell } from "./stock/QuantityCell";
-import { useIsMobile } from "@/hooks/useIsMobile";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface DynamicProductTableProps {
   listId: string;
