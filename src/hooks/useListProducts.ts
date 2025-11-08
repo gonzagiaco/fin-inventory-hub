@@ -6,7 +6,8 @@ import { getProductsForListOffline } from "@/lib/localDB";
 const PAGE_SIZE = 50;
 
 async function fetchPage(listId: string, page = 0, q?: string, isOnline?: boolean) {
-  if (!isOnline) {
+  // Solo usar offline si EXPLÍCITAMENTE está offline
+  if (isOnline === false) {
     // Modo offline: usar IndexedDB
     const result = await getProductsForListOffline(listId, page, PAGE_SIZE, q);
     return {
@@ -16,7 +17,7 @@ async function fetchPage(listId: string, page = 0, q?: string, isOnline?: boolea
     };
   }
 
-  // Modo online: usar Supabase
+  // Modo online: usar Supabase (incluye cuando isOnline es undefined)
   const from = page * PAGE_SIZE,
     to = from + PAGE_SIZE - 1;
   let query = (supabase as any)
@@ -36,9 +37,22 @@ export function useListProducts(listId: string, q?: string) {
 
   return useInfiniteQuery({
     queryKey: ["list-products", listId, q, isOnline ? "online" : "offline"],
-    queryFn: ({ pageParam }) => fetchPage(listId, (pageParam as number) ?? 0, q, isOnline),
+    queryFn: async ({ pageParam }) => {
+      try {
+        return await fetchPage(listId, (pageParam as number) ?? 0, q, isOnline);
+      } catch (error: any) {
+        console.error("Error fetching products:", error);
+        // Si falla online, intentar offline como fallback
+        if (isOnline !== false) {
+          console.log("Falling back to offline data");
+          return await fetchPage(listId, (pageParam as number) ?? 0, q, false);
+        }
+        throw error;
+      }
+    },
     initialPageParam: 0,
     getNextPageParam: (last) => last.nextPage,
     staleTime: 5 * 60 * 1000,
+    retry: false,
   });
 }
