@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Package } from "lucide-react";
 import { z } from "zod";
 import { toast } from "sonner";
+import { InstallPWAButton } from "@/components/InstallPWAButton";
 
 const loginSchema = z.object({
   email: z.string().email("Email inválido"),
@@ -81,7 +82,9 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted p-4">
-      <Card className="w-full max-w-md">
+      <div className="w-full max-w-md">
+        <InstallPWAButton />
+        <Card className="w-full">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <div className="p-3 bg-primary/10 rounded-full">
@@ -242,6 +245,7 @@ const Auth = () => {
           </Button> */}
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 };
