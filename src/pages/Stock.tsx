@@ -44,6 +44,8 @@ export default function Stock() {
       }
     >();
 
+    console.log("Listas:" + sections.lists);
+
     lists.forEach((list: any) => {
       const supplier = suppliers.find((s) => s.id === list.supplier_id);
       if (!supplier) return;
