@@ -53,7 +53,7 @@ export const DynamicProductTable = ({
 
   // Vista por defecto
   const shouldUseCardView = true;
-  const defaultViewMode = !isMobile ? "table" : columnSchema.length < 8 ? "table" : "cards";
+  const defaultViewMode = isMobile ? "cards" : columnSchema.length > 8 ? "cards" : "table";
   const currentViewMode = storeViewMode[listId] || defaultViewMode;
   const effectiveViewMode = currentViewMode;
 
