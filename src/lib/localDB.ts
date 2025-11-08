@@ -474,6 +474,117 @@ export async function createSupplierOffline(supplier: Omit<SupplierDB, 'id' | 'c
   return tempId;
 }
 
+// PRODUCT LISTS
+export async function createProductListOffline(data: {
+  supplierId: string;
+  name: string;
+  fileName: string;
+  fileType: string;
+  columnSchema: any[];
+  products: any[];
+}): Promise<{ id: string }> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Usuario no autenticado');
+
+  const tempId = generateTempId();
+  const now = new Date().toISOString();
+  
+  const listData: ProductListDB = {
+    id: tempId,
+    user_id: user.id,
+    supplier_id: data.supplierId,
+    name: data.name,
+    file_name: data.fileName,
+    file_type: data.fileType,
+    product_count: data.products.length,
+    column_schema: data.columnSchema,
+    created_at: now,
+    updated_at: now,
+  };
+  
+  await localDB.product_lists.add(listData);
+  await queueOperation('product_lists', 'INSERT', tempId, listData);
+  
+  // Agregar productos
+  const productsToAdd = data.products.map(p => ({
+    id: crypto.randomUUID(),
+    user_id: user.id,
+    list_id: tempId,
+    code: p.code,
+    name: p.name,
+    price: p.price,
+    quantity: p.quantity,
+    data: p.data,
+    created_at: now,
+    updated_at: now,
+  }));
+  
+  await localDB.dynamic_products.bulkAdd(productsToAdd);
+  
+  // Encolar operación de productos (se sincronizarán cuando se cree la lista)
+  for (const product of productsToAdd) {
+    await queueOperation('dynamic_products', 'INSERT', product.id, product);
+  }
+  
+  return { id: tempId };
+}
+
+export async function updateProductListOffline(
+  listId: string, 
+  data: {
+    fileName: string;
+    columnSchema: any[];
+    products: any[];
+  }
+): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Usuario no autenticado');
+
+  const existing = await localDB.product_lists.get(listId);
+  if (!existing) throw new Error('Lista no encontrada');
+
+  const now = new Date().toISOString();
+  const updates = {
+    file_name: data.fileName,
+    product_count: data.products.length,
+    column_schema: data.columnSchema,
+    updated_at: now,
+  };
+
+  await localDB.product_lists.update(listId, updates);
+  await queueOperation('product_lists', 'UPDATE', listId, updates);
+
+  // Eliminar productos antiguos
+  await localDB.dynamic_products.where('list_id').equals(listId).delete();
+  
+  // Agregar productos nuevos
+  const productsToAdd = data.products.map(p => ({
+    id: crypto.randomUUID(),
+    user_id: user.id,
+    list_id: listId,
+    code: p.code,
+    name: p.name,
+    price: p.price,
+    quantity: p.quantity,
+    data: p.data,
+    created_at: now,
+    updated_at: now,
+  }));
+  
+  await localDB.dynamic_products.bulkAdd(productsToAdd);
+  
+  for (const product of productsToAdd) {
+    await queueOperation('dynamic_products', 'INSERT', product.id, product);
+  }
+}
+
+export async function deleteProductListOffline(listId: string): Promise<void> {
+  await localDB.product_lists.delete(listId);
+  await localDB.dynamic_products.where('list_id').equals(listId).delete();
+  await localDB.dynamic_products_index.where('list_id').equals(listId).delete();
+  await queueOperation('product_lists', 'DELETE', listId, {});
+}
+
 export async function updateSupplierOffline(id: string, updates: Partial<SupplierDB>): Promise<void> {
   const existing = await localDB.suppliers.get(id);
   if (!existing) throw new Error('Proveedor no encontrado');

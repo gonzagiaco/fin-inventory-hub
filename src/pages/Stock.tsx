@@ -15,6 +15,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { QuantityCell } from "@/components/stock/QuantityCell";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { getOfflineData } from "@/lib/localDB";
 
 export default function Stock() {
   const [supplierFilter, setSupplierFilter] = useState<string>("all");
@@ -24,6 +26,7 @@ export default function Stock() {
   const { data: lists = [], isLoading: isLoadingLists } = useProductListsIndex();
   const { suppliers = [], isLoading: isLoadingSuppliers } = useSuppliers();
   const [searchTerm, setSearchTerm] = useState("");
+  const isOnline = useOnlineStatus();
 
   const isLoading = isLoadingLists || isLoadingSuppliers;
 
@@ -137,9 +140,36 @@ export default function Stock() {
   };
 
   const { data: globalResults = [], isLoading: loadingSearch } = useQuery({
-    queryKey: ["global-search", searchTerm, supplierFilter],
+    queryKey: ["global-search", searchTerm, supplierFilter, isOnline ? 'online' : 'offline'],
     queryFn: async () => {
       if (!searchTerm || searchTerm.trim().length < 1) return [];
+      
+      // MODO OFFLINE: Buscar en IndexedDB
+      if (isOnline === false) {
+        const indexedProducts = await getOfflineData('dynamic_products_index') as any[];
+        const searchTermLower = searchTerm.trim().toLowerCase();
+        
+        // Filtrar por término de búsqueda
+        let filtered = indexedProducts.filter((p: any) => {
+          const matchesSearch = 
+            (p.code?.toLowerCase().includes(searchTermLower)) ||
+            (p.name?.toLowerCase().includes(searchTermLower));
+          return matchesSearch;
+        });
+        
+        // Filtrar por proveedor si está seleccionado
+        if (supplierFilter !== "all") {
+          const productLists = await getOfflineData('product_lists') as any[];
+          filtered = filtered.filter((p: any) => {
+            const list = productLists.find((l: any) => l.id === p.list_id);
+            return list?.supplier_id === supplierFilter;
+          });
+        }
+        
+        return filtered;
+      }
+      
+      // MODO ONLINE: Usar RPC de Supabase
       const { data, error } = await supabase.rpc("search_products", {
         p_term: searchTerm.trim(),
         p_supplier_id: supplierFilter === "all" ? null : supplierFilter,
@@ -147,8 +177,8 @@ export default function Stock() {
       if (error) throw error;
       return data || [];
     },
-    // Búsqueda global: desde 3 caracteres o proveedor filtrado sin término
     enabled: searchTerm.trim().length >= 3 || (searchTerm === "" && supplierFilter !== "all"),
+    retry: false,
   });
 
   return (
@@ -223,6 +253,9 @@ export default function Stock() {
             <Card className="p-4">
               <h2 className="text-lg font-semibold mb-4">
                 Resultados de búsqueda{searchTerm.trim() ? ` para "${searchTerm}"` : ""}
+                {isOnline === false && (
+                  <span className="ml-2 text-sm text-muted-foreground">(modo offline)</span>
+                )}
               </h2>
 
               {loadingSearch ? (

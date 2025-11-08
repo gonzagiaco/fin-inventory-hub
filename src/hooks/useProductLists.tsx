@@ -3,13 +3,35 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ProductList, DynamicProduct, ColumnSchema } from "@/types/productList";
 import { fetchAllFromTable } from "@/utils/fetchAllProducts";
+import { useOnlineStatus } from './useOnlineStatus';
+import { getOfflineData, createProductListOffline, updateProductListOffline, deleteProductListOffline } from '@/lib/localDB';
 
 export const useProductLists = (supplierId?: string) => {
   const queryClient = useQueryClient();
+  const isOnline = useOnlineStatus();
 
   const { data: productLists = [], isLoading } = useQuery({
-    queryKey: ["product-lists", supplierId],
+    queryKey: ["product-lists", supplierId, isOnline ? 'online' : 'offline'],
     queryFn: async () => {
+      // OFFLINE: Cargar desde IndexedDB
+      if (isOnline === false) {
+        const offlineLists = await getOfflineData('product_lists') as any[];
+        return (offlineLists || [])
+          .filter(list => !supplierId || list.supplier_id === supplierId)
+          .map((list) => ({
+            id: list.id,
+            supplierId: list.supplier_id,
+            name: list.name,
+            fileName: list.file_name,
+            fileType: list.file_type,
+            createdAt: list.created_at,
+            updatedAt: list.updated_at,
+            productCount: list.product_count,
+            columnSchema: Array.isArray(list.column_schema) ? list.column_schema : [],
+          })) as ProductList[];
+      }
+
+      // ONLINE: Consultar Supabase
       let query = supabase.from("product_lists").select("*").order("created_at", { ascending: false });
 
       if (supplierId) {
@@ -40,12 +62,35 @@ export const useProductLists = (supplierId?: string) => {
   });
 
   const { data: productsMap = {} } = useQuery({
-    queryKey: ["dynamic-products", supplierId],
+    queryKey: ["dynamic-products", supplierId, isOnline ? 'online' : 'offline'],
     queryFn: async () => {
       const listIds = productLists.map((list) => list.id);
       if (listIds.length === 0) return {};
 
-      // Use optimized fetch to get ALL products (no 1000 limit)
+      // OFFLINE: Cargar desde IndexedDB
+      if (isOnline === false) {
+        const offlineProducts = await getOfflineData('dynamic_products') as any[];
+        const grouped: Record<string, DynamicProduct[]> = {};
+        
+        offlineProducts
+          .filter(p => listIds.includes(p.list_id))
+          .forEach((product) => {
+            if (!grouped[product.list_id]) grouped[product.list_id] = [];
+            grouped[product.list_id].push({
+              id: product.id,
+              listId: product.list_id,
+              code: product.code,
+              name: product.name,
+              price: product.price ? Number(product.price) : undefined,
+              quantity: product.quantity,
+              data: product.data as Record<string, any>,
+            });
+          });
+        
+        return grouped;
+      }
+
+      // ONLINE: Use optimized fetch to get ALL products (no 1000 limit)
       const allProducts = await fetchAllFromTable<any>("dynamic_products", listIds);
 
       const grouped: Record<string, DynamicProduct[]> = {};
@@ -88,13 +133,25 @@ export const useProductLists = (supplierId?: string) => {
       columnSchema: ColumnSchema[];
       products: DynamicProduct[];
     }) => {
+      // OFFLINE: Crear en IndexedDB
+      if (isOnline === false) {
+        return await createProductListOffline({
+          supplierId,
+          name,
+          fileName,
+          fileType,
+          columnSchema,
+          products,
+        });
+      }
+
+      // ONLINE: Crear en Supabase
       const { data: userData, error: authError } = await supabase.auth.getUser();
 
       if (authError || !userData.user) {
         throw new Error("Usuario no autenticado");
       }
 
-      // Create the list
       const { data: listData, error: listError } = await supabase
         .from("product_lists")
         .insert([
@@ -114,7 +171,6 @@ export const useProductLists = (supplierId?: string) => {
       if (listError) throw listError;
       if (!listData) throw new Error("No se pudo crear la lista de productos");
 
-      // Insert products
       const productsToInsert = products.map((product) => ({
         user_id: userData.user.id,
         list_id: listData.id,
@@ -134,7 +190,11 @@ export const useProductLists = (supplierId?: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["product-lists"] });
       queryClient.invalidateQueries({ queryKey: ["dynamic-products"] });
-      toast.success("Lista de productos importada exitosamente");
+      toast.success(
+        isOnline
+          ? "Lista de productos importada exitosamente"
+          : "Lista creada (se sincronizará al conectar)"
+      );
     },
     onError: (error: any) => {
       toast.error(error.message || "Error al importar lista de productos");
@@ -143,13 +203,24 @@ export const useProductLists = (supplierId?: string) => {
 
   const deleteListMutation = useMutation({
     mutationFn: async (listId: string) => {
+      // OFFLINE: Eliminar de IndexedDB
+      if (isOnline === false) {
+        await deleteProductListOffline(listId);
+        return;
+      }
+
+      // ONLINE: Eliminar de Supabase
       const { error } = await supabase.from("product_lists").delete().eq("id", listId);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["product-lists"] });
       queryClient.invalidateQueries({ queryKey: ["dynamic-products"] });
-      toast.success("Lista eliminada exitosamente");
+      toast.success(
+        isOnline
+          ? "Lista eliminada exitosamente"
+          : "Lista eliminada (se sincronizará al conectar)"
+      );
     },
     onError: (error: any) => {
       toast.error(error.message || "Error al eliminar lista");
@@ -187,6 +258,17 @@ export const useProductLists = (supplierId?: string) => {
       columnSchema: ColumnSchema[];
       products: DynamicProduct[];
     }) => {
+      // OFFLINE: Actualizar en IndexedDB
+      if (isOnline === false) {
+        await updateProductListOffline(listId, {
+          fileName,
+          columnSchema,
+          products,
+        });
+        return;
+      }
+
+      // ONLINE: Actualizar en Supabase
       const { data: userData, error: authError } = await supabase.auth.getUser();
 
       if (authError || !userData.user) {
@@ -229,7 +311,11 @@ export const useProductLists = (supplierId?: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["product-lists"] });
       queryClient.invalidateQueries({ queryKey: ["dynamic-products"] });
-      toast.success("Lista actualizada exitosamente");
+      toast.success(
+        isOnline
+          ? "Lista actualizada exitosamente"
+          : "Lista actualizada (se sincronizará al conectar)"
+      );
     },
     onError: (error: any) => {
       toast.error(error.message || "Error al actualizar lista");
