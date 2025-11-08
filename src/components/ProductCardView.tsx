@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChevronDown, ChevronUp, ShoppingCart } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,9 +30,15 @@ export function ProductCardView({
   isLoadingMore = false,
 }: ProductCardViewProps) {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [displayCount, setDisplayCount] = useState(10);
   const { cardPreviewFields } = useProductListStore();
 
   const previewFieldKeys = cardPreviewFields[listId] || columnSchema.slice(0, 4).map((c) => c.key);
+
+  // Reset display count when products change
+  useEffect(() => {
+    setDisplayCount(10);
+  }, [products.length]);
 
   const toggleCard = (productId: string) => {
     const newExpanded = new Set(expandedCards);
@@ -72,10 +78,24 @@ export function ProductCardView({
 
   const otherFields = columnSchema.filter((col) => !previewFieldKeys.includes(col.key));
 
+  // Slice products for local pagination
+  const visibleProducts = products.slice(0, displayCount);
+  const hasLocalMore = displayCount < products.length;
+
+  const handleLoadMore = () => {
+    if (hasLocalMore) {
+      // Load 10 more locally
+      setDisplayCount(prev => prev + 10);
+    } else if (onLoadMore && hasMore) {
+      // Load from server if no more local products
+      onLoadMore();
+    }
+  };
+
   return (
     <>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {products.map((product) => {
+        {visibleProducts.map((product) => {
           const isExpanded = expandedCards.has(product.id);
           const quantity = product.quantity || 0;
           const isLowStock = quantity < 50;
@@ -180,16 +200,19 @@ export function ProductCardView({
         })}
       </div>
 
-      {hasMore && onLoadMore && (
+      {(hasLocalMore || hasMore) && (
         <div className="text-center mt-6">
-          <Button variant="outline" onClick={onLoadMore} disabled={isLoadingMore}>
+          <Button variant="outline" onClick={handleLoadMore} disabled={isLoadingMore}>
             {isLoadingMore ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                 Cargando más...
               </>
             ) : (
-              "Ver más productos"
+              <>
+                Ver más productos
+                {hasLocalMore && ` (${products.length - displayCount} más disponibles)`}
+              </>
             )}
           </Button>
         </div>

@@ -6,7 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "./components/ProtectedRoute";
 import CollapsibleSidebar from "./components/CollapsibleSidebar";
-import { OfflineIndicator } from "./components/OfflineIndicator";
+
 import Stock from "./pages/Stock";
 import Proveedores from "./pages/Proveedores";
 import Remitos from "./pages/Remitos";
@@ -22,7 +22,6 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <OfflineIndicator />
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />

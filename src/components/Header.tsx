@@ -1,4 +1,5 @@
 import { Search } from "lucide-react";
+import { ConnectionBadge } from "./ConnectionBadge";
 
 interface HeaderProps {
   title: string;
@@ -10,9 +11,12 @@ const Header = ({ title, subtitle, showSearch = true }: HeaderProps) => {
   return (
     <header className="mb-8">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-foreground">{title}</h1>
-          {subtitle && <p className="text-muted-foreground mt-1">{subtitle}</p>}
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground">{title}</h1>
+            {subtitle && <p className="text-muted-foreground mt-1">{subtitle}</p>}
+          </div>
+          <ConnectionBadge />
         </div>
         
         {showSearch && (
