@@ -58,7 +58,7 @@ export const DynamicProductTable = ({
   const currentViewMode = storedViewMode ?? defaultViewMode;
   const effectiveViewMode = currentViewMode;
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!storedViewMode) {
       setViewMode(listId, defaultViewMode);
     }
