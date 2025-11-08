@@ -44,7 +44,16 @@ export default function Stock() {
       }
     >();
 
-    console.log("Listas:" + sections.lists);
+    sections.forEach((section, key) => {
+      console.log("Sección:", key);
+      console.log("Proveedor:", section.supplierName);
+      console.log("Listas:");
+      section.lists.forEach((list) => {
+        console.log(`  - ID: ${list.id}`);
+        console.log(`    Nombre: ${list.name}`);
+        console.log(`    Productos: ${list.productCount}`);
+      });
+    });
 
     lists.forEach((list: any) => {
       const supplier = suppliers.find((s) => s.id === list.supplier_id);
