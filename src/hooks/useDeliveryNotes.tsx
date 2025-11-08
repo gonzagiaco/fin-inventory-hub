@@ -2,6 +2,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DeliveryNote, CreateDeliveryNoteInput, UpdateDeliveryNoteInput } from "@/types";
 import { toast } from "sonner";
+import { useOnlineStatus } from './useOnlineStatus';
+import {
+  createDeliveryNoteOffline,
+  updateDeliveryNoteOffline,
+  deleteDeliveryNoteOffline,
+  markDeliveryNoteAsPaidOffline,
+  getOfflineData
+} from '@/lib/localDB';
 
 async function updateProductStock(productId: string, quantityDelta: number) {
   const queryClient = useQueryClient();
@@ -39,10 +47,46 @@ async function updateProductStock(productId: string, quantityDelta: number) {
 
 export const useDeliveryNotes = () => {
   const queryClient = useQueryClient();
+  const isOnline = useOnlineStatus();
 
   const { data: deliveryNotes = [], isLoading } = useQuery({
     queryKey: ["delivery-notes"],
     queryFn: async () => {
+      if (!isOnline) {
+        const offlineNotes = await getOfflineData('delivery_notes') as any[];
+        const offlineItems = await getOfflineData('delivery_note_items') as any[];
+        
+        return (offlineNotes || []).map(note => ({
+          id: note.id,
+          userId: note.user_id,
+          customerName: note.customer_name,
+          customerAddress: note.customer_address,
+          customerPhone: note.customer_phone,
+          issueDate: note.issue_date,
+          totalAmount: Number(note.total_amount),
+          paidAmount: Number(note.paid_amount),
+          remainingBalance: Number(note.remaining_balance),
+          status: note.status as 'pending' | 'paid',
+          extraFields: note.extra_fields,
+          notes: note.notes,
+          createdAt: note.created_at,
+          updatedAt: note.updated_at,
+          items: (offlineItems || [])
+            .filter((item: any) => item.delivery_note_id === note.id)
+            .map((item: any) => ({
+              id: item.id,
+              deliveryNoteId: item.delivery_note_id,
+              productId: item.product_id,
+              productCode: item.product_code,
+              productName: item.product_name,
+              quantity: item.quantity,
+              unitPrice: Number(item.unit_price),
+              subtotal: Number(item.subtotal),
+              createdAt: item.created_at,
+            })),
+        })) as DeliveryNote[];
+      }
+
       const { data, error } = await supabase
         .from("delivery_notes")
         .select(`
@@ -94,6 +138,34 @@ export const useDeliveryNotes = () => {
 
       const status = (input.paidAmount || 0) >= total ? 'paid' : 'pending';
 
+      if (!isOnline) {
+        const noteData = {
+          user_id: user.user.id,
+          customer_name: input.customerName,
+          customer_address: input.customerAddress,
+          customer_phone: input.customerPhone,
+          issue_date: input.issueDate || new Date().toISOString(),
+          total_amount: total,
+          paid_amount: input.paidAmount || 0,
+          remaining_balance: total - (input.paidAmount || 0),
+          extra_fields: input.extraFields,
+          notes: input.notes,
+          status,
+        };
+
+        const items = input.items.map(item => ({
+          product_id: item.productId,
+          product_code: item.productCode,
+          product_name: item.productName,
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+          subtotal: item.quantity * item.unitPrice,
+        }));
+
+        const id = await createDeliveryNoteOffline(noteData, items);
+        return { id };
+      }
+
       const { data: note, error: noteError } = await supabase
         .from("delivery_notes")
         .insert({
@@ -139,7 +211,11 @@ export const useDeliveryNotes = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
       queryClient.invalidateQueries({ queryKey: ["list-products"] });
-      toast.success("Remito creado exitosamente y stock actualizado");
+      toast.success(
+        isOnline
+          ? "Remito creado exitosamente y stock actualizado"
+          : "Remito creado (se sincronizará al conectar)"
+      );
     },
     onError: (error: any) => {
       toast.error(`Error al crear remito: ${error.message}`);
@@ -148,6 +224,11 @@ export const useDeliveryNotes = () => {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...updates }: UpdateDeliveryNoteInput) => {
+      if (!isOnline) {
+        await updateDeliveryNoteOffline(id, updates);
+        return;
+      }
+
       const { data: originalNote, error: fetchError } = await supabase
         .from("delivery_notes")
         .select(`*, items:delivery_note_items(*)`)
@@ -218,7 +299,11 @@ export const useDeliveryNotes = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
       queryClient.invalidateQueries({ queryKey: ["list-products"] });
-      toast.success("Remito actualizado exitosamente");
+      toast.success(
+        isOnline
+          ? "Remito actualizado exitosamente"
+          : "Remito actualizado (se sincronizará al conectar)"
+      );
     },
     onError: (error: any) => {
       toast.error(`Error al actualizar remito: ${error.message}`);
@@ -227,6 +312,11 @@ export const useDeliveryNotes = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!isOnline) {
+        await deleteDeliveryNoteOffline(id);
+        return;
+      }
+
       const { data: note, error: fetchError } = await supabase
         .from("delivery_notes")
         .select(`*, items:delivery_note_items(*)`)
@@ -251,7 +341,11 @@ export const useDeliveryNotes = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
       queryClient.invalidateQueries({ queryKey: ["list-products"] });
-      toast.success("Remito eliminado y stock revertido");
+      toast.success(
+        isOnline
+          ? "Remito eliminado y stock revertido"
+          : "Remito eliminado (se sincronizará al conectar)"
+      );
     },
     onError: (error: any) => {
       toast.error(`Error al eliminar remito: ${error.message}`);
@@ -260,6 +354,17 @@ export const useDeliveryNotes = () => {
 
   const markAsPaidMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!isOnline) {
+        // Obtener el remito desde IndexedDB
+        const offlineNotes = await getOfflineData('delivery_notes') as any[];
+        const note = offlineNotes.find((n: any) => n.id === id);
+        
+        if (!note) throw new Error("Remito no encontrado");
+        
+        await markDeliveryNoteAsPaidOffline(id, note.total_amount);
+        return;
+      }
+
       const { data: note } = await supabase
         .from("delivery_notes")
         .select("total_amount")
@@ -280,7 +385,11 @@ export const useDeliveryNotes = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
-      toast.success("Remito marcado como pagado");
+      toast.success(
+        isOnline
+          ? "Remito marcado como pagado"
+          : "Remito marcado como pagado (se sincronizará al conectar)"
+      );
     },
   });
 

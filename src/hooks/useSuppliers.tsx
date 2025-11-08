@@ -2,13 +2,30 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Supplier } from '@/types';
 import { toast } from 'sonner';
+import { useOnlineStatus } from './useOnlineStatus';
+import {
+  createSupplierOffline,
+  updateSupplierOffline,
+  deleteSupplierOffline,
+  getOfflineData
+} from '@/lib/localDB';
 
 export function useSuppliers() {
   const queryClient = useQueryClient();
+  const isOnline = useOnlineStatus();
 
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ['suppliers'],
     queryFn: async () => {
+      if (!isOnline) {
+        const offlineData = await getOfflineData('suppliers') as any[];
+        return (offlineData || []).map(s => ({
+          id: s.id,
+          name: s.name,
+          logo: s.logo_url,
+        })) as Supplier[];
+      }
+
       const { data, error } = await supabase
         .from('suppliers')
         .select('*')
@@ -28,6 +45,15 @@ export function useSuppliers() {
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) throw new Error("No autenticado");
 
+      if (!isOnline) {
+        const id = await createSupplierOffline({
+          name: supplier.name,
+          logo_url: supplier.logo,
+          user_id: user.user.id,
+        });
+        return { id, ...supplier };
+      }
+
       const { data, error } = await supabase
         .from("suppliers")
         .insert({
@@ -43,7 +69,11 @@ export function useSuppliers() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      toast.success("Proveedor creado exitosamente");
+      toast.success(
+        isOnline 
+          ? "Proveedor creado exitosamente" 
+          : "Proveedor creado (se sincronizará al conectar)"
+      );
     },
     onError: (error: any) => {
       toast.error(`Error al crear proveedor: ${error.message}`);
@@ -52,6 +82,14 @@ export function useSuppliers() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...updates }: Supplier) => {
+      if (!isOnline) {
+        await updateSupplierOffline(id, {
+          name: updates.name,
+          logo_url: updates.logo,
+        });
+        return;
+      }
+
       const { error } = await supabase
         .from("suppliers")
         .update({
@@ -64,7 +102,11 @@ export function useSuppliers() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      toast.success("Proveedor actualizado exitosamente");
+      toast.success(
+        isOnline
+          ? "Proveedor actualizado exitosamente"
+          : "Proveedor actualizado (se sincronizará al conectar)"
+      );
     },
     onError: (error: any) => {
       toast.error(`Error al actualizar proveedor: ${error.message}`);
@@ -73,12 +115,21 @@ export function useSuppliers() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!isOnline) {
+        await deleteSupplierOffline(id);
+        return;
+      }
+
       const { error } = await supabase.from("suppliers").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      toast.success("Proveedor eliminado exitosamente");
+      toast.success(
+        isOnline
+          ? "Proveedor eliminado exitosamente"
+          : "Proveedor eliminado (se sincronizará al conectar)"
+      );
     },
     onError: (error: any) => {
       toast.error(`Error al eliminar proveedor: ${error.message}`);

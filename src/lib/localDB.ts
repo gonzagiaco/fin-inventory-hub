@@ -101,6 +101,22 @@ interface RequestItemDB {
   created_at: string;
 }
 
+interface StockItemDB {
+  id: string;
+  user_id: string;
+  code: string;
+  name: string;
+  quantity: number;
+  category?: string;
+  cost_price?: number;
+  supplier_id?: string;
+  special_discount: boolean;
+  min_stock_limit: number;
+  extras?: any;
+  created_at: string;
+  updated_at: string;
+}
+
 interface AuthTokenDB {
   userId: string;
   refreshToken: string;
@@ -119,6 +135,7 @@ class LocalDatabase extends Dexie {
   delivery_notes!: Table<DeliveryNoteDB, string>;
   delivery_note_items!: Table<DeliveryNoteItemDB, string>;
   request_items!: Table<RequestItemDB, string>;
+  stock_items!: Table<StockItemDB, string>;
   pending_operations!: Table<PendingOperation, number>;
   tokens!: Table<AuthTokenDB, string>;
 
@@ -133,6 +150,7 @@ class LocalDatabase extends Dexie {
       delivery_notes: 'id, user_id, customer_name, status, issue_date',
       delivery_note_items: 'id, delivery_note_id, product_id',
       request_items: 'id, user_id, product_id',
+      stock_items: 'id, user_id, code, name, category, supplier_id',
       pending_operations: '++id, table_name, timestamp, record_id',
       tokens: 'userId, updatedAt'
     });
@@ -148,6 +166,7 @@ const SYNC_ORDER = [
   'product_lists',
   'dynamic_products',
   'dynamic_products_index',
+  'stock_items',
   'delivery_notes',
   'delivery_note_items',
   'request_items'
@@ -269,6 +288,17 @@ export async function syncFromSupabase(): Promise<void> {
     if (requestItems && requestItems.length > 0) {
       await localDB.request_items.bulkPut(requestItems as RequestItemDB[]);
       console.log(`✅ ${requestItems.length} items del carrito sincronizados`);
+    }
+
+    // Sincronizar stock_items
+    const { data: stockItems, error: stockError } = await supabase
+      .from('stock_items')
+      .select('*')
+      .eq('user_id', user.id);
+    if (stockError) throw stockError;
+    if (stockItems && stockItems.length > 0) {
+      await localDB.stock_items.bulkPut(stockItems as StockItemDB[]);
+      console.log(`✅ ${stockItems.length} productos de stock sincronizados`);
     }
 
     console.log('✅ Sincronización completa desde Supabase');
@@ -682,6 +712,53 @@ export async function clearCartOffline(): Promise<void> {
   }
 }
 
+// ==================== STOCK ITEMS ====================
+
+export async function createStockItemOffline(
+  item: Omit<StockItemDB, 'id' | 'created_at' | 'updated_at'>
+): Promise<string> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Usuario no autenticado');
+
+  const tempId = generateTempId();
+  const now = new Date().toISOString();
+  
+  const newItem: StockItemDB = {
+    id: tempId,
+    ...item,
+    user_id: user.id,
+    created_at: now,
+    updated_at: now
+  };
+
+  await localDB.stock_items.add(newItem);
+  await queueOperation('stock_items', 'INSERT', tempId, newItem);
+  
+  return tempId;
+}
+
+export async function updateStockItemOffline(
+  id: string,
+  updates: Partial<StockItemDB>
+): Promise<void> {
+  const existing = await localDB.stock_items.get(id);
+  if (!existing) throw new Error('Producto no encontrado');
+
+  const updated = {
+    ...existing,
+    ...updates,
+    updated_at: new Date().toISOString()
+  };
+
+  await localDB.stock_items.put(updated);
+  await queueOperation('stock_items', 'UPDATE', id, updates);
+}
+
+export async function deleteStockItemOffline(id: string): Promise<void> {
+  await localDB.stock_items.delete(id);
+  await queueOperation('stock_items', 'DELETE', id, {});
+}
+
 // ==================== MANEJO DE TOKENS DE SESIÓN ====================
 
 export async function saveAuthToken(
@@ -743,6 +820,8 @@ export async function getOfflineData<T>(tableName: string): Promise<T[]> {
       return (await localDB.delivery_note_items.toArray()) as any;
     case 'request_items':
       return (await localDB.request_items.toArray()) as any;
+    case 'stock_items':
+      return (await localDB.stock_items.toArray()) as any;
     default:
       throw new Error(`Tabla no soportada: ${tableName}`);
   }

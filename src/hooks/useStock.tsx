@@ -2,13 +2,36 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { StockItem } from "@/types";
+import { useOnlineStatus } from './useOnlineStatus';
+import {
+  createStockItemOffline,
+  updateStockItemOffline,
+  deleteStockItemOffline,
+  getOfflineData
+} from '@/lib/localDB';
 
 export const useStock = () => {
   const queryClient = useQueryClient();
+  const isOnline = useOnlineStatus();
 
   const { data: stockItems = [], isLoading } = useQuery({
     queryKey: ["stock-items"],
     queryFn: async () => {
+      if (!isOnline) {
+        const offlineData = await getOfflineData('stock_items') as any[];
+        return (offlineData || []).map((item) => ({
+          id: item.id,
+          code: item.code,
+          name: item.name,
+          quantity: item.quantity,
+          category: item.category,
+          costPrice: item.cost_price,
+          supplierId: item.supplier_id,
+          specialDiscount: item.special_discount,
+          minStockLimit: item.min_stock_limit,
+        })) as StockItem[];
+      }
+
       const { data, error } = await supabase
         .from("stock_items")
         .select("*")
@@ -16,7 +39,6 @@ export const useStock = () => {
 
       if (error) throw error;
       
-      // Convert snake_case to camelCase
       return (data || []).map((item) => ({
         id: item.id,
         code: item.code,
@@ -39,6 +61,21 @@ export const useStock = () => {
         throw new Error("Usuario no autenticado");
       }
       
+      if (!isOnline) {
+        const id = await createStockItemOffline({
+          user_id: userData.user.id,
+          code: item.code,
+          name: item.name,
+          quantity: item.quantity || 0,
+          category: item.category,
+          cost_price: item.costPrice,
+          supplier_id: item.supplierId,
+          special_discount: item.specialDiscount || false,
+          min_stock_limit: item.minStockLimit || 0,
+        });
+        return { id, ...item };
+      }
+
       const { data, error } = await supabase
         .from("stock_items")
         .insert([{
@@ -61,7 +98,11 @@ export const useStock = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stock-items"] });
-      toast.success("Producto agregado exitosamente");
+      toast.success(
+        isOnline
+          ? "Producto agregado exitosamente"
+          : "Producto agregado (se sincronizará al conectar)"
+      );
     },
     onError: (error: any) => {
       toast.error(error.message || "Error al agregar producto");
@@ -81,6 +122,11 @@ export const useStock = () => {
       if (item.specialDiscount !== undefined) updates.special_discount = item.specialDiscount;
       if (item.minStockLimit !== undefined) updates.min_stock_limit = item.minStockLimit;
 
+      if (!isOnline) {
+        await updateStockItemOffline(id, updates);
+        return;
+      }
+
       const { data, error } = await supabase
         .from("stock_items")
         .update(updates)
@@ -94,7 +140,11 @@ export const useStock = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stock-items"] });
-      toast.success("Producto actualizado exitosamente");
+      toast.success(
+        isOnline
+          ? "Producto actualizado exitosamente"
+          : "Producto actualizado (se sincronizará al conectar)"
+      );
     },
     onError: (error: any) => {
       toast.error(error.message || "Error al actualizar producto");
@@ -103,12 +153,21 @@ export const useStock = () => {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
+      if (!isOnline) {
+        await deleteStockItemOffline(id);
+        return;
+      }
+
       const { error } = await supabase.from("stock_items").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stock-items"] });
-      toast.success("Producto eliminado exitosamente");
+      toast.success(
+        isOnline
+          ? "Producto eliminado exitosamente"
+          : "Producto eliminado (se sincronizará al conectar)"
+      );
     },
     onError: (error: any) => {
       toast.error(error.message || "Error al eliminar producto");
