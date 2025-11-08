@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { saveAuthToken, getAuthToken, clearAuthToken, clearAllLocalData } from "@/lib/localDB";
 
 interface AuthContextType {
   user: User | null;
@@ -23,18 +24,68 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
+
+        // Guardar token cuando hay sesión exitosa
+        if (session?.user && session.refresh_token) {
+          await saveAuthToken(
+            session.user.id,
+            session.refresh_token,
+            session.access_token,
+            session.expires_at
+          );
+        }
       }
     );
 
     // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      setLoading(false);
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) {
+        // Si supabase no encontró sesión, verificar IndexedDB
+        try {
+          const storedToken = await getAuthToken();
+          if (storedToken) {
+            console.log('🔄 Intentando restaurar sesión desde IndexedDB...');
+            
+            // Intentar restaurar sesión con refresh token
+            const { data, error } = await supabase.auth.setSession({
+              refresh_token: storedToken.refreshToken,
+              access_token: storedToken.accessToken || storedToken.refreshToken
+            });
+            
+            if (data?.session) {
+              setSession(data.session);
+              setUser(data.session.user);
+              toast.success('Sesión restaurada');
+              console.log('✅ Sesión restaurada exitosamente');
+            } else if (error) {
+              console.warn('⚠️ No se pudo restaurar sesión:', error.message);
+              await clearAuthToken();
+            }
+          }
+        } catch (error) {
+          console.error('❌ Error al restaurar sesión:', error);
+        }
+        setLoading(false);
+      } else {
+        // Ya había sesión en Supabase
+        setSession(session);
+        setUser(session.user);
+        setLoading(false);
+        
+        // Asegurar que el token esté guardado en IndexedDB
+        if (session.refresh_token) {
+          await saveAuthToken(
+            session.user.id,
+            session.refresh_token,
+            session.access_token,
+            session.expires_at
+          );
+        }
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -43,7 +94,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const signUp = async (email: string, password: string, fullName: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
@@ -59,12 +110,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       return { error };
     }
 
+    // Guardar token en IndexedDB si la sesión se creó inmediatamente
+    if (data.session?.refresh_token) {
+      await saveAuthToken(
+        data.session.user.id,
+        data.session.refresh_token,
+        data.session.access_token,
+        data.session.expires_at
+      );
+    }
+
     toast.success("¡Cuenta creada exitosamente!");
     return { error: null };
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -72,6 +133,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     if (error) {
       toast.error(error.message);
       return { error };
+    }
+
+    // Guardar token en IndexedDB
+    if (data.session?.refresh_token) {
+      await saveAuthToken(
+        data.session.user.id,
+        data.session.refresh_token,
+        data.session.access_token,
+        data.session.expires_at
+      );
     }
 
     toast.success("¡Bienvenido de nuevo!");
@@ -92,12 +163,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
-    
-    if (error) {
-      toast.error(error.message);
-    } else {
+    try {
+      // Primero cerrar sesión en Supabase
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+
+      // Luego limpiar TODOS los datos locales
+      await clearAllLocalData();
+      
       toast.success("Sesión cerrada");
+    } catch (error: any) {
+      console.error('Error al cerrar sesión:', error);
+      toast.error(error.message || "Error al cerrar sesión");
     }
   };
 

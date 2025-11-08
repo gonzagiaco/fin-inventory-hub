@@ -102,6 +102,11 @@ const Auth = () => {
 
             <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4">
+                {!navigator.onLine && (
+                  <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded-md text-sm">
+                    ⚠️ Sin conexión a internet. Debes conectarte para iniciar sesión por primera vez.
+                  </div>
+                )}
                 <div className="space-y-2">
                   <Label htmlFor="login-email">Email</Label>
                   <Input

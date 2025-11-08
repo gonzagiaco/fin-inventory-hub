@@ -101,6 +101,14 @@ interface RequestItemDB {
   created_at: string;
 }
 
+interface AuthTokenDB {
+  userId: string;
+  refreshToken: string;
+  accessToken?: string;
+  expiresAt?: number;
+  updatedAt: string;
+}
+
 // ==================== DEXIE DATABASE ====================
 
 class LocalDatabase extends Dexie {
@@ -112,6 +120,7 @@ class LocalDatabase extends Dexie {
   delivery_note_items!: Table<DeliveryNoteItemDB, string>;
   request_items!: Table<RequestItemDB, string>;
   pending_operations!: Table<PendingOperation, number>;
+  tokens!: Table<AuthTokenDB, string>;
 
   constructor() {
     super('ProveedoresLocalDB');
@@ -124,7 +133,8 @@ class LocalDatabase extends Dexie {
       delivery_notes: 'id, user_id, customer_name, status, issue_date',
       delivery_note_items: 'id, delivery_note_id, product_id',
       request_items: 'id, user_id, product_id',
-      pending_operations: '++id, table_name, timestamp, record_id'
+      pending_operations: '++id, table_name, timestamp, record_id',
+      tokens: 'userId, updatedAt'
     });
   }
 }
@@ -669,6 +679,49 @@ export async function clearCartOffline(): Promise<void> {
   for (const item of items) {
     await localDB.request_items.delete(item.id);
     await queueOperation('request_items', 'DELETE', item.id, {});
+  }
+}
+
+// ==================== MANEJO DE TOKENS DE SESIÓN ====================
+
+export async function saveAuthToken(
+  userId: string,
+  refreshToken: string,
+  accessToken?: string,
+  expiresAt?: number
+): Promise<void> {
+  const tokenData: AuthTokenDB = {
+    userId,
+    refreshToken,
+    accessToken,
+    expiresAt,
+    updatedAt: new Date().toISOString()
+  };
+
+  await localDB.tokens.put(tokenData);
+  console.log('🔐 Token de sesión guardado en IndexedDB');
+}
+
+export async function getAuthToken(): Promise<AuthTokenDB | undefined> {
+  const token = await localDB.tokens.toCollection().first();
+  return token;
+}
+
+export async function clearAuthToken(): Promise<void> {
+  await localDB.tokens.clear();
+  console.log('🗑️ Tokens de sesión eliminados de IndexedDB');
+}
+
+export async function clearAllLocalData(): Promise<void> {
+  console.log('🗑️ Limpiando todos los datos locales...');
+  
+  try {
+    await localDB.delete();
+    await localDB.open();
+    console.log('✅ Todos los datos locales eliminados');
+  } catch (error) {
+    console.error('❌ Error al limpiar datos locales:', error);
+    throw error;
   }
 }
 
