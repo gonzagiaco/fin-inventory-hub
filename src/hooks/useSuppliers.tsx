@@ -15,7 +15,7 @@ export function useSuppliers() {
   const isOnline = useOnlineStatus();
 
   const { data: suppliers = [], isLoading } = useQuery({
-    queryKey: ['suppliers'],
+    queryKey: ['suppliers', isOnline ? 'online' : 'offline'],
     queryFn: async () => {
       if (isOnline === false) {
         const offlineData = await getOfflineData('suppliers') as any[];
@@ -37,7 +37,8 @@ export function useSuppliers() {
         logo: s.logo_url,
       })) as Supplier[];
     },
-    staleTime: 10 * 60 * 1000,
+    staleTime: isOnline ? 10 * 60 * 1000 : Infinity,
+    retry: false,
   });
 
   const createMutation = useMutation({

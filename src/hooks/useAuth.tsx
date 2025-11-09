@@ -20,23 +20,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [offlineUser, setOfflineUser] = useState<User | null>(null);
 
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (event === 'SIGNED_OUT' && !navigator.onLine) {
+          console.log('⚠️ Sesión cerrada pero offline - manteniendo sesión local');
+          const storedUser = localStorage.getItem('offline_user');
+          if (storedUser) {
+            const user = JSON.parse(storedUser);
+            setUser(user);
+            setOfflineUser(user);
+            return;
+          }
+        }
+
         setSession(session);
         setUser(session?.user ?? null);
         setLoading(false);
 
-        // Guardar token cuando hay sesión exitosa
-        if (session?.user && session.refresh_token) {
+        // Guardar usuario en localStorage para sesión offline
+        if (session?.user) {
+          localStorage.setItem('offline_user', JSON.stringify(session.user));
           await saveAuthToken(
             session.user.id,
             session.refresh_token,
             session.access_token,
             session.expires_at
           );
+        } else if (navigator.onLine) {
+          localStorage.removeItem('offline_user');
         }
       }
     );
@@ -44,6 +59,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // THEN check for existing session
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) {
+        // Sin sesión pero offline: intentar restaurar desde localStorage
+        if (!navigator.onLine) {
+          const storedUser = localStorage.getItem('offline_user');
+          if (storedUser) {
+            const user = JSON.parse(storedUser);
+            setUser(user);
+            setOfflineUser(user);
+            console.log('✅ Sesión offline restaurada desde localStorage');
+            setLoading(false);
+            return;
+          }
+        }
+
         // Si supabase no encontró sesión, verificar IndexedDB
         try {
           const storedToken = await getAuthToken();
@@ -96,6 +124,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Listener para validar sesión cuando vuelve online
+  useEffect(() => {
+    const handleOnline = async () => {
+      if (offlineUser) {
+        console.log('🌐 Conexión restaurada - validando sesión...');
+        
+        const storedToken = await getAuthToken();
+        if (storedToken) {
+          const { data, error } = await supabase.auth.setSession({
+            refresh_token: storedToken.refreshToken,
+            access_token: storedToken.accessToken || storedToken.refreshToken
+          });
+          
+          if (data?.session) {
+            toast.success('Sesión validada correctamente');
+            setOfflineUser(null);
+          } else {
+            toast.warning('Tu sesión expiró. Por favor inicia sesión nuevamente.');
+          }
+        }
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, [offlineUser]);
 
   const signUp = async (email: string, password: string, fullName: string) => {
     const redirectUrl = `${window.location.origin}/`;
