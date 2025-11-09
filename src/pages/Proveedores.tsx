@@ -71,7 +71,7 @@ const Proveedores = () => {
       .reduce((sum, list: any) => sum + (list.product_count || 0), 0);
   };
   return (
-    <div className="flex-1 p-6 lg:p-10 w-full max-w-full overflow-hidden" style={{ paddingTop: 'max(env(safe-area-inset-top), 1.5rem)', paddingLeft: 'max(4rem, 1.5rem)' }}>
+    <div className="flex-1 p-6 lg:p-10 w-full max-w-full overflow-hidden safe-top">
       <Header title="Proveedores" subtitle="Gestiona tus proveedores y sus productos." showSearch={false} />
 
       <div className="mb-6 flex justify-end">

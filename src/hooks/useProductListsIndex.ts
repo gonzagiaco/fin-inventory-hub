@@ -31,7 +31,6 @@ export function useProductListsIndex() {
       if (error) throw error;
       return data ?? [];
     },
-    staleTime: isOnline ? 5 * 60 * 1000 : Infinity,
-    retry: false,
+    staleTime: 5 * 60 * 1000,
   });
 }
