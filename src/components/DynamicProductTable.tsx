@@ -17,6 +17,7 @@ import { ColumnSettingsDrawer } from "./ColumnSettingsDrawer";
 import { cn } from "@/lib/utils";
 import { ProductCardView } from "./ProductCardView";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { CardPreviewSettings } from "./CardPreviewSettings";
 import { List, LayoutGrid, Loader2 } from "lucide-react";
 import { QuantityCell } from "./stock/QuantityCell";
@@ -106,12 +107,27 @@ export const DynamicProductTable = ({
           return row.data[schema.key];
         },
         header: schema.label,
-        cell: ({ getValue }) => {
+        cell: ({ getValue, row }) => {
           const value = getValue();
           if (value === null || value === undefined) return "-";
           const isNumericField = schema.type === "number" || schema.key === "price";
+          
+          // Check si esta columna tiene modificadores aplicados
+          const hasOverride = row.original.calculated_data && schema.key in row.original.calculated_data;
+          const isPriceColumn = schema.key === "price";
+          const hasModifiers = row.original.calculated_data && Object.keys(row.original.calculated_data).length > 0;
+          
           if (isNumericField && typeof value === "number") {
-            return value.toFixed(2);
+            return (
+              <div className="flex items-center gap-1.5">
+                {value.toFixed(2)}
+                {(hasOverride || (isPriceColumn && hasModifiers)) && (
+                  <Badge variant="outline" className="text-[10px] px-1 py-0">
+                    ✓
+                  </Badge>
+                )}
+              </div>
+            );
           }
           return String(value);
         },

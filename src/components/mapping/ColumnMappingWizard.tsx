@@ -167,6 +167,12 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
         exact: false, // Invalida todas las variantes (con search, online/offline, etc.)
       });
 
+      // Forzar refetch inmediato para actualizar UI
+      await queryClient.refetchQueries({
+        queryKey: ["list-products", listId],
+        exact: false,
+      });
+
       toast.success("Mapeo guardado e índice actualizado correctamente");
       onSaved?.();
     } catch (error: any) {

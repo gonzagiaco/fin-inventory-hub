@@ -52,7 +52,7 @@ export function useListProducts(listId: string, q?: string) {
     },
     initialPageParam: 0,
     getNextPageParam: (last) => last.nextPage,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 1000, // 30 segundos para refrescar más frecuentemente
     retry: false,
   });
 }

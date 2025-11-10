@@ -62,11 +62,22 @@ export function ProductCardView({
     return product.data?.[key];
   };
 
-  const formatValue = (value: any, type: ColumnSchema["type"], key: string) => {
+  const formatValue = (value: any, type: ColumnSchema["type"], key: string, product: any) => {
     if (value == null) return "-";
     const isNumericField = type === "number" || key === "price";
+    const hasOverride = product.calculated_data && key in product.calculated_data;
+    
     if (isNumericField && typeof value === "number") {
-      return value.toFixed(2);
+      return (
+        <span className="flex items-center gap-1.5">
+          {value.toFixed(2)}
+          {hasOverride && (
+            <Badge variant="outline" className="text-[10px] px-1 py-0">
+              ✓
+            </Badge>
+          )}
+        </span>
+      );
     }
     if (type === "date" && value instanceof Date) {
       return value.toLocaleDateString("es-AR");
@@ -110,7 +121,7 @@ export function ProductCardView({
                 <div className="space-y-2">
                   {keyFields.map((field) => {
                     const value = getFieldValue(product, field.key);
-                    const displayValue = formatValue(value, field.type, field.key);
+                    const displayValue = formatValue(value, field.type, field.key, product);
 
                     // Special styling for common fields
                     if (field.key === "code") {
@@ -179,7 +190,7 @@ export function ProductCardView({
                     <CollapsibleContent className="space-y-2 mb-3">
                       {otherFields.map((field) => {
                         const value = getFieldValue(product, field.key);
-                        const displayValue = formatValue(value, field.type, field.key);
+                        const displayValue = formatValue(value, field.type, field.key, product);
 
                         return (
                           <div key={field.key} className="text-sm border-b pb-1">
