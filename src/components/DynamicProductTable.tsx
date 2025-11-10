@@ -94,16 +94,18 @@ export const DynamicProductTable = ({
       return {
         id: schema.key,
         accessorFn: (row: DynamicProduct) => {
+          // PRIMERO chequear calculated_data para TODOS los campos
+          if (row.calculated_data && schema.key in row.calculated_data) {
+            return row.calculated_data[schema.key];
+          }
+          
+          // Luego usar valores estándar
           if (schema.key === "code") return row.code;
           if (schema.key === "name") return row.name;
           if (schema.key === "price") return row.price;
           if (schema.key === "quantity") return row.quantity;
           if (schema.key === "precio") return row.price;
           if (schema.key === "descripcion") return row.name;
-          // Check calculated_data first for overridden prices
-          if (row.calculated_data && schema.key in row.calculated_data) {
-            return row.calculated_data[schema.key];
-          }
           return row.data[schema.key];
         },
         header: schema.label,

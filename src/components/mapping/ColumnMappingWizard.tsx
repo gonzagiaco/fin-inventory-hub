@@ -162,13 +162,12 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
       await queryClient.invalidateQueries({
         queryKey: ["product-lists-index"],
       });
-      await queryClient.invalidateQueries({
-        queryKey: ["list-products", listId],
-        exact: false, // Invalida todas las variantes (con search, online/offline, etc.)
-      });
 
-      // Forzar refetch inmediato para actualizar UI
-      await queryClient.refetchQueries({
+      // Pequeño delay para asegurar que el índice termine de actualizarse
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Resetear caché completamente para forzar nuevo fetch
+      await queryClient.resetQueries({
         queryKey: ["list-products", listId],
         exact: false,
       });

@@ -51,14 +51,16 @@ export function ProductCardView({
   };
 
   const getFieldValue = (product: any, key: string) => {
+    // PRIMERO chequear calculated_data
+    if (product.calculated_data && key in product.calculated_data) {
+      return product.calculated_data[key];
+    }
+    
+    // Luego usar valores estándar
     if (key === "code") return product.code;
     if (key === "name") return product.name;
     if (key === "price") return product.price;
     if (key === "quantity") return product.quantity;
-    // Check calculated_data first for overridden prices
-    if (product.calculated_data && key in product.calculated_data) {
-      return product.calculated_data[key];
-    }
     return product.data?.[key];
   };
 
