@@ -71,7 +71,6 @@ const Remitos = () => {
     <div className="flex-1 overflow-auto" style={{ paddingTop: "max(env(safe-area-inset-top), 1.5rem)" }}>
       <div className="">
         <Header
-          className="pl-16 lg:pl-4"
           title="Remitos de Venta"
           subtitle="Gestiona remitos, descuenta stock automáticamente y comunica con clientes"
         />
