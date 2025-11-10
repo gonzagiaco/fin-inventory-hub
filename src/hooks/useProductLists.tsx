@@ -250,9 +250,30 @@ export const useProductLists = (supplierId?: string) => {
       const { error } = await supabase.from("product_lists").delete().eq("id", listId);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["product-lists"] });
-      queryClient.invalidateQueries({ queryKey: ["dynamic-products"] });
+    onSuccess: (_, listId) => {
+      // Resetear queries específicas de esta lista (fuerza limpieza completa)
+      queryClient.resetQueries({
+        queryKey: ["list-products", listId],
+        exact: false,
+      });
+      
+      // Invalidar queries generales con refetchType: 'all' para incluir queries inactivas
+      queryClient.invalidateQueries({ 
+        queryKey: ["product-lists"],
+        refetchType: 'all' 
+      });
+      
+      queryClient.invalidateQueries({ 
+        queryKey: ["dynamic-products"],
+        refetchType: 'all' 
+      });
+      
+      // Invalidar índices globales
+      queryClient.invalidateQueries({ 
+        queryKey: ["product-lists-index"],
+        refetchType: 'all' 
+      });
+      
       toast.success(
         isOnline
           ? "Lista eliminada exitosamente"
@@ -273,9 +294,30 @@ export const useProductLists = (supplierId?: string) => {
 
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["product-lists"] });
-      queryClient.invalidateQueries({ queryKey: ["all-product-lists"] });
+    onSuccess: (_, variables) => {
+      const { listId } = variables;
+      
+      // Resetear queries específicas de esta lista
+      queryClient.resetQueries({
+        queryKey: ["list-products", listId],
+        exact: false,
+      });
+      
+      queryClient.invalidateQueries({ 
+        queryKey: ["product-lists"],
+        refetchType: 'all' 
+      });
+      
+      queryClient.invalidateQueries({ 
+        queryKey: ["all-product-lists"],
+        refetchType: 'all' 
+      });
+      
+      queryClient.invalidateQueries({ 
+        queryKey: ["product-lists-index"],
+        refetchType: 'all' 
+      });
+      
       toast.success("Esquema de columnas actualizado");
     },
     onError: (error: any) => {
@@ -345,9 +387,32 @@ export const useProductLists = (supplierId?: string) => {
 
       if (insertError) throw insertError;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["product-lists"] });
-      queryClient.invalidateQueries({ queryKey: ["dynamic-products"] });
+    onSuccess: (_, variables) => {
+      const { listId } = variables;
+      
+      // Resetear queries específicas de esta lista
+      queryClient.resetQueries({
+        queryKey: ["list-products", listId],
+        exact: false,
+      });
+      
+      // Invalidar queries generales con refetchType: 'all'
+      queryClient.invalidateQueries({ 
+        queryKey: ["product-lists"],
+        refetchType: 'all' 
+      });
+      
+      queryClient.invalidateQueries({ 
+        queryKey: ["dynamic-products"],
+        refetchType: 'all' 
+      });
+      
+      // Invalidar índices globales
+      queryClient.invalidateQueries({ 
+        queryKey: ["product-lists-index"],
+        refetchType: 'all' 
+      });
+      
       toast.success(
         isOnline
           ? "Lista actualizada exitosamente"
