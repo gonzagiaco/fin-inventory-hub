@@ -75,7 +75,7 @@ const Proveedores = () => {
       className="flex-1 w-full max-w-full overflow-hidden"
       style={{ paddingTop: "max(env(safe-area-inset-top), 1.5rem)" }}
     >
-      <div className="p-4 lg:p-10">
+      <div className="p-4 lg:px-4 lg:py-10">
         <Header title="Proveedores" subtitle="Gestiona tus proveedores y sus productos." showSearch={false} />
 
         <div className="mb-6 flex justify-end">
