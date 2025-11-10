@@ -71,8 +71,9 @@ const Proveedores = () => {
       .reduce((sum, list: any) => sum + (list.product_count || 0), 0);
   };
   return (
-    <div className="flex-1 p-6 lg:p-10 w-full max-w-full overflow-hidden safe-top">
-      <Header title="Proveedores" subtitle="Gestiona tus proveedores y sus productos." showSearch={false} />
+    <div className="flex-1 w-full max-w-full overflow-hidden" style={{ paddingTop: 'max(env(safe-area-inset-top), 1.5rem)' }}>
+      <div className="p-6 lg:p-10 pl-16 lg:pl-10">
+        <Header title="Proveedores" subtitle="Gestiona tus proveedores y sus productos." showSearch={false} />
 
       <div className="mb-6 flex justify-end">
         <Button onClick={handleCreateSupplier} className="gap-2">
@@ -179,6 +180,7 @@ const Proveedores = () => {
         title="¿Eliminar proveedor?"
         description={`¿Estás seguro de que deseas eliminar a ${supplierToDelete?.name}? Esto también eliminará todos los productos asociados.`}
       />
+      </div>
     </div>
   );
 };

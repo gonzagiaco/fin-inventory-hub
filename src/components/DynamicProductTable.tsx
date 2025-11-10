@@ -171,13 +171,14 @@ export const DynamicProductTable = ({
             className="pl-10"
           />
         </div>
-        <div className="flex gap-2 justify-end">
+        <div className="flex gap-1.5 flex-wrap justify-end">
           {shouldUseCardView && (
             <>
               <Button
                 variant={effectiveViewMode === "table" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setViewMode(listId, "table")}
+                className="flex-shrink-0"
               >
                 <List className="h-4 w-4" />
               </Button>
@@ -185,6 +186,7 @@ export const DynamicProductTable = ({
                 variant={effectiveViewMode === "cards" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setViewMode(listId, "cards")}
+                className="flex-shrink-0"
               >
                 <LayoutGrid className="h-4 w-4" />
               </Button>

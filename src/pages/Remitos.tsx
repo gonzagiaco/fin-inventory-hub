@@ -70,13 +70,15 @@ const Remitos = () => {
   };
 
   return (
-    <div className="flex-1 overflow-auto safe-top">
-      <Header 
-        title="Remitos de Venta"
-        subtitle="Gestiona remitos, descuenta stock automáticamente y comunica con clientes"
-      />
+    <div className="flex-1 overflow-auto" style={{ paddingTop: 'max(env(safe-area-inset-top), 1.5rem)' }}>
+      <div className="pl-16 lg:pl-0">
+        <Header 
+          title="Remitos de Venta"
+          subtitle="Gestiona remitos, descuenta stock automáticamente y comunica con clientes"
+        />
+      </div>
       
-      <div className="p-8 space-y-6">
+      <div className="p-8 pl-16 lg:pl-8 space-y-6">
         <div className="flex justify-between items-center">
           <Button onClick={() => { setEditingNote(undefined); setIsDialogOpen(true); }}>
             <Plus className="mr-2 h-4 w-4" />
