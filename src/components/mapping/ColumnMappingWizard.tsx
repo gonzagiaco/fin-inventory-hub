@@ -164,6 +164,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
       });
       await queryClient.invalidateQueries({
         queryKey: ["list-products", listId],
+        exact: false, // Invalida todas las variantes (con search, online/offline, etc.)
       });
 
       toast.success("Mapeo guardado e índice actualizado correctamente");

@@ -54,6 +54,7 @@ const SupplierListProducts = ({
         quantity: item.quantity,
         // si la relación no viene, intenta con item.data
         data: item?.dynamic_products?.data ?? item?.data ?? {},
+        calculated_data: item.calculated_data ?? {},
       })),
     );
   }, [data]);
