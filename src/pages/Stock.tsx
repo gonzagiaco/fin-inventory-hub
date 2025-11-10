@@ -222,9 +222,12 @@ export default function Stock() {
 
   return (
     <div className="min-h-screen w-full bg-background overflow-x-hidden">
-      <header className="sticky top-0 z-10 bg-background border-b" style={{ paddingTop: 'max(env(safe-area-inset-top), 1.5rem)' }}>
-        <div className="w-full px-4 py-6 pl-16 lg:pl-4 max-w-full overflow-hidden">
-          <h1 className="text-3xl font-bold mb-6">Stock de Productos</h1>
+      <header
+        className="sticky top-0 z-10 bg-background border-b"
+        style={{ paddingTop: "max(env(safe-area-inset-top), 1.5rem)" }}
+      >
+        <div className="w-full px-4 py-6 lg:pl-4 max-w-full overflow-hidden">
+          <h1 className="text-3xl pl-16 lg:pl-4 font-bold mb-6">Stock de Productos</h1>
 
           <div className="flex flex-col md:flex-row gap-4 mb-4">
             <div className="flex w-full flex-1 gap-2">
