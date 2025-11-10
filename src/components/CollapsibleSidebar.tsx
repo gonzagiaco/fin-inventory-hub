@@ -22,7 +22,7 @@ const CollapsibleSidebar = () => {
   const navigation = [
     { name: "Stock", href: "/", icon: Package2 },
     { name: "Proveedores", href: "/proveedores", icon: Warehouse },
-    { name: "Remitos", href: "/remitos", icon: FileText },
+    // { name: "Remitos", href: "/remitos", icon: FileText },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -34,8 +34,8 @@ const CollapsibleSidebar = () => {
         onClick={() => setIsMobileOpen(!isMobileOpen)}
         className="lg:hidden fixed z-50 p-2 rounded-lg glassmorphism"
         style={{
-          top: 'max(env(safe-area-inset-top), 1rem)',
-          left: '1rem'
+          top: "max(env(safe-area-inset-top), 1rem)",
+          left: "1rem",
         }}
       >
         {isMobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
@@ -55,8 +55,8 @@ const CollapsibleSidebar = () => {
           ${isCollapsed ? "lg:w-20" : "w-64"}
         `}
         style={{
-          paddingTop: 'max(env(safe-area-inset-top), 1.5rem)',
-          paddingBottom: 'max(env(safe-area-inset-bottom), 1.5rem)'
+          paddingTop: "max(env(safe-area-inset-top), 1.5rem)",
+          paddingBottom: "max(env(safe-area-inset-bottom), 1.5rem)",
         }}
       >
         {/* Desktop Collapse Toggle */}
