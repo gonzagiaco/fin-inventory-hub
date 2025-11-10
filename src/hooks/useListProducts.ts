@@ -22,7 +22,7 @@ async function fetchPage(listId: string, page = 0, q?: string, isOnline?: boolea
     to = from + PAGE_SIZE - 1;
   let query = (supabase as any)
     .from("dynamic_products_index")
-    .select("product_id, list_id, code, name, price, quantity, dynamic_products(data)", { count: "exact" })
+    .select("product_id, list_id, code, name, price, quantity, calculated_data, dynamic_products(data)", { count: "exact" })
     .eq("list_id", listId)
     .order("name", { ascending: true, nullsFirst: true })
     .range(from, to);

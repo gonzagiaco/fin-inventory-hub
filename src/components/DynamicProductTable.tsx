@@ -99,6 +99,10 @@ export const DynamicProductTable = ({
           if (schema.key === "quantity") return row.quantity;
           if (schema.key === "precio") return row.price;
           if (schema.key === "descripcion") return row.name;
+          // Check calculated_data first for overridden prices
+          if (row.calculated_data && schema.key in row.calculated_data) {
+            return row.calculated_data[schema.key];
+          }
           return row.data[schema.key];
         },
         header: schema.label,

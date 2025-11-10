@@ -15,6 +15,7 @@ export interface DynamicProduct {
   price?: number;
   quantity?: number;
   data: Record<string, any>; // All extra fields
+  calculated_data?: Record<string, number>; // Calculated prices with overrides
 }
 
 export interface ProductList {

@@ -199,6 +199,7 @@ export type Database = {
       }
       dynamic_products_index: {
         Row: {
+          calculated_data: Json | null
           code: string | null
           created_at: string | null
           id: string
@@ -212,6 +213,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          calculated_data?: Json | null
           code?: string | null
           created_at?: string | null
           id?: string
@@ -225,6 +227,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          calculated_data?: Json | null
           code?: string | null
           created_at?: string | null
           id?: string
@@ -648,6 +651,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      calculate_price_with_modifiers: {
+        Args: {
+          add_vat?: boolean
+          base_value: string
+          percentage?: number
+          vat_rate?: number
+        }
+        Returns: number
+      }
       parse_price_string: { Args: { input: string }; Returns: number }
       refresh_list_index: { Args: { p_list_id: string }; Returns: undefined }
       search_products: {

@@ -8,6 +8,7 @@ export interface EnrichedProduct {
   price?: number;
   quantity?: number;
   data: Record<string, any>;
+  calculated_data?: Record<string, number>;
   supplierName: string;
   supplierLogo?: string;
   supplierId: string;
