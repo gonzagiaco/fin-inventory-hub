@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { DynamicProduct, ColumnSchema } from "@/types/productList";
+import { DynamicProduct, ColumnSchema, ProductList } from "@/types/productList";
 import { Loader2 } from "lucide-react";
 import { useProductListStore } from "@/stores/productListStore";
 
@@ -12,6 +12,7 @@ interface ProductCardViewProps {
   listId: string;
   products: DynamicProduct[] | any[];
   columnSchema: ColumnSchema[];
+  mappingConfig?: ProductList['mapping_config'];
   onAddToRequest?: (product: any) => void;
   showActions?: boolean;
   onLoadMore?: () => void;
@@ -23,6 +24,7 @@ export function ProductCardView({
   listId,
   products,
   columnSchema,
+  mappingConfig,
   onAddToRequest,
   showActions = false,
   onLoadMore,
@@ -51,16 +53,23 @@ export function ProductCardView({
   };
 
   const getFieldValue = (product: any, key: string) => {
-    // PRIMERO chequear calculated_data
+    // PRIMERO: Si esta columna es la columna de precio principal configurada
+    if (mappingConfig?.price_primary_key && key === mappingConfig.price_primary_key) {
+      return product.price; // Precio calculado del índice
+    }
+    
+    // SEGUNDO: Si hay override específico para esta columna
     if (product.calculated_data && key in product.calculated_data) {
       return product.calculated_data[key];
     }
     
-    // Luego usar valores estándar
+    // TERCERO: Mapeos estándar
     if (key === "code") return product.code;
     if (key === "name") return product.name;
     if (key === "price") return product.price;
     if (key === "quantity") return product.quantity;
+    
+    // CUARTO: Leer de data original
     return product.data?.[key];
   };
 

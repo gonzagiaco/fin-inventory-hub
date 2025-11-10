@@ -8,7 +8,7 @@ import {
   ColumnDef,
   SortingState,
 } from "@tanstack/react-table";
-import { DynamicProduct, ColumnSchema } from "@/types/productList";
+import { DynamicProduct, ColumnSchema, ProductList } from "@/types/productList";
 import { Input } from "@/components/ui/input";
 import { Search, ChevronDown, ChevronUp, Plus } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -27,6 +27,7 @@ interface DynamicProductTableProps {
   listId: string;
   products: DynamicProduct[];
   columnSchema: ColumnSchema[];
+  mappingConfig?: ProductList['mapping_config'];
   onAddToRequest?: (product: DynamicProduct) => void;
   showStockActions?: boolean;
   onLoadMore?: () => void;
@@ -38,6 +39,7 @@ export const DynamicProductTable = ({
   listId,
   products,
   columnSchema,
+  mappingConfig,
   onAddToRequest,
   showStockActions = false,
   onLoadMore,
@@ -94,18 +96,25 @@ export const DynamicProductTable = ({
       return {
         id: schema.key,
         accessorFn: (row: DynamicProduct) => {
-          // PRIMERO chequear calculated_data para TODOS los campos
-          if (row.calculated_data && schema.key in row.calculated_data) {
-            return row.calculated_data[schema.key];
+          // PRIMERO: Si esta columna es la columna de precio principal configurada
+          if (mappingConfig?.price_primary_key && schema.key === mappingConfig.price_primary_key) {
+            return row.price; // Precio calculado del índice con modificadores generales
           }
           
-          // Luego usar valores estándar
+          // SEGUNDO: Si esta columna tiene un override específico
+          if (row.calculated_data && schema.key in row.calculated_data) {
+            return row.calculated_data[schema.key]; // Precio con override específico
+          }
+          
+          // TERCERO: Mapeos estándar de campos conocidos
           if (schema.key === "code") return row.code;
           if (schema.key === "name") return row.name;
-          if (schema.key === "price") return row.price;
+          if (schema.key === "price") return row.price; // Fallback para "price" estándar
           if (schema.key === "quantity") return row.quantity;
           if (schema.key === "precio") return row.price;
           if (schema.key === "descripcion") return row.name;
+          
+          // CUARTO: Para columnas custom sin mapeo especial, leer de data original
           return row.data[schema.key];
         },
         header: schema.label,

@@ -39,16 +39,17 @@ export const useProductLists = (supplierId?: string) => {
         return (offlineLists || [])
           .filter(list => !supplierId || list.supplier_id === supplierId)
           .map((list) => ({
-            id: list.id,
-            supplierId: list.supplier_id,
-            name: list.name,
-            fileName: list.file_name,
-            fileType: list.file_type,
-            createdAt: list.created_at,
-            updatedAt: list.updated_at,
-            productCount: list.product_count,
-            columnSchema: Array.isArray(list.column_schema) ? list.column_schema : [],
-          })) as ProductList[];
+          id: list.id,
+          supplierId: list.supplier_id,
+          name: list.name,
+          fileName: list.file_name,
+          fileType: list.file_type,
+          createdAt: list.created_at,
+          updatedAt: list.updated_at,
+          productCount: list.product_count,
+          columnSchema: Array.isArray(list.column_schema) ? list.column_schema : [],
+          mapping_config: list.mapping_config || undefined,
+        })) as ProductList[];
       }
 
       // ONLINE: Consultar Supabase
@@ -75,6 +76,7 @@ export const useProductLists = (supplierId?: string) => {
           updatedAt: list.updated_at,
           productCount: list.product_count,
           columnSchema,
+          mapping_config: list.mapping_config || undefined,
         };
       }) as ProductList[];
     },

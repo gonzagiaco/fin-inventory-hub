@@ -9,7 +9,7 @@ import { useProductListStore } from "@/stores/productListStore";
 import { DynamicProductTable } from "./DynamicProductTable";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { ColumnSchema, DynamicProduct } from "@/types/productList";
+import { ColumnSchema, DynamicProduct, ProductList } from "@/types/productList";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,10 +34,12 @@ interface SupplierProductListsProps {
 const SupplierListProducts = ({
   listId,
   columnSchema,
+  mappingConfig,
   onAddToRequest,
 }: {
   listId: string;
   columnSchema: ColumnSchema[];
+  mappingConfig?: ProductList['mapping_config'];
   onAddToRequest?: (product: DynamicProduct) => void;
 }) => {
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useListProducts(listId);
@@ -68,6 +70,7 @@ const SupplierListProducts = ({
       listId={listId}
       products={allProducts}
       columnSchema={columnSchema}
+      mappingConfig={mappingConfig}
       onAddToRequest={onAddToRequest}
       showStockActions
       onLoadMore={() => {
@@ -411,7 +414,7 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
                 </CardHeader>
                 {!isCollapsed && (
                   <CardContent>
-                    <SupplierListProducts listId={list.id} columnSchema={list.columnSchema} />
+                    <SupplierListProducts listId={list.id} columnSchema={list.columnSchema} mappingConfig={list.mapping_config} />
                   </CardContent>
                 )}
               </Card>

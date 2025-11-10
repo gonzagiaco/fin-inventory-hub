@@ -28,6 +28,18 @@ export interface ProductList {
   updatedAt: string;
   productCount: number;
   columnSchema: ColumnSchema[];
+  mapping_config?: {
+    code_keys: string[];
+    name_keys: string[];
+    quantity_key: string | null;
+    price_primary_key: string | null;
+    price_alt_keys: string[];
+    extra_index_keys: string[];
+    price_modifiers?: {
+      general: { percentage: number; add_vat: boolean; vat_rate?: number };
+      overrides: Record<string, { percentage: number; add_vat: boolean; vat_rate?: number }>;
+    };
+  };
 }
 
 export interface ProcessedDocument {
