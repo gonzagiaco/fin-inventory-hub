@@ -13,7 +13,7 @@ interface ProductCardViewProps {
   listId: string;
   products: DynamicProduct[] | any[];
   columnSchema: ColumnSchema[];
-  mappingConfig?: ProductList['mapping_config'];
+  mappingConfig?: ProductList["mapping_config"];
   onAddToRequest?: (product: any) => void;
   showActions?: boolean;
   onLoadMore?: () => void;
@@ -54,35 +54,58 @@ export function ProductCardView({
   };
 
   const getFieldValue = (product: any, key: string) => {
+    const effectiveMappingConfig = product.mappingConfig || mappingConfig;
+
     // PRIMERO: Si esta columna es la columna de precio principal configurada
-    if (mappingConfig?.price_primary_key && key === mappingConfig.price_primary_key) {
+    if (effectiveMappingConfig?.price_primary_key && key === effectiveMappingConfig.price_primary_key) {
       return product.price; // Precio calculado del índice
     }
-    
+
     // SEGUNDO: Si hay override específico para esta columna
     if (product.calculated_data && key in product.calculated_data) {
       return product.calculated_data[key];
     }
-    
+
     // TERCERO: Mapeos estándar
     if (key === "code") return product.code;
     if (key === "name") return product.name;
     if (key === "price") return product.price;
     if (key === "quantity") return product.quantity;
-    
+
     // CUARTO: Leer de data original
     return product.data?.[key];
   };
 
-  const formatValue = (value: any, type: ColumnSchema["type"], key: string, product: any) => {
+  const formatValue = (
+    value: any,
+    type: ColumnSchema["type"],
+    key: string,
+    product: any,
+    mappingConfig?: ProductList["mapping_config"],
+  ) => {
     if (value == null) return "-";
-    const isNumericField = type === "number" || key === "price";
+    const effectiveMappingConfig = product.mappingConfig || mappingConfig;
+    const isPriceColumn =
+      key === "price" ||
+      key === effectiveMappingConfig?.price_primary_key ||
+      (effectiveMappingConfig?.price_alt_keys && effectiveMappingConfig.price_alt_keys.includes(key));
+
+    const isNumericField = type === "number" || isPriceColumn;
+
+    // Verificar si tiene modificación aplicada
+    const hasGeneralModifier = isPriceColumn && effectiveMappingConfig?.price_primary_key === key;
     const hasOverride = product.calculated_data && key in product.calculated_data;
-    
+    const hasModification = hasGeneralModifier || hasOverride;
+
     if (isNumericField && typeof value === "number") {
       return (
         <span className="flex items-center gap-1.5">
           {value.toFixed(2)}
+          {hasOverride && (
+            <Badge variant="outline" className="text-[10px] px-1 py-0">
+              ✓
+            </Badge>
+          )}
         </span>
       );
     }
@@ -107,7 +130,7 @@ export function ProductCardView({
   const handleLoadMore = () => {
     if (hasLocalMore) {
       // Load 10 more locally
-      setDisplayCount(prev => prev + 10);
+      setDisplayCount((prev) => prev + 10);
     } else if (onLoadMore && hasMore) {
       // Load from server if no more local products
       onLoadMore();
@@ -128,7 +151,7 @@ export function ProductCardView({
                 <div className="space-y-2">
                   {keyFields.map((field) => {
                     const value = getFieldValue(product, field.key);
-                    const displayValue = formatValue(value, field.type, field.key, product);
+                    const displayValue = formatValue(value, field.type, field.key, product, mappingConfig);
 
                     // Special styling for common fields
                     if (field.key === "code") {
@@ -210,7 +233,7 @@ export function ProductCardView({
                     <CollapsibleContent className="space-y-2 mb-3">
                       {otherFields.map((field) => {
                         const value = getFieldValue(product, field.key);
-                        const displayValue = formatValue(value, field.type, field.key, product);
+                        const displayValue = formatValue(value, field.type, field.key, product, mappingConfig);
 
                         return (
                           <div key={field.key} className="text-sm border-b pb-1">

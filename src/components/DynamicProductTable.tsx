@@ -27,7 +27,7 @@ interface DynamicProductTableProps {
   listId: string;
   products: DynamicProduct[];
   columnSchema: ColumnSchema[];
-  mappingConfig?: ProductList['mapping_config'];
+  mappingConfig?: ProductList["mapping_config"];
   onAddToRequest?: (product: DynamicProduct) => void;
   showStockActions?: boolean;
   onLoadMore?: () => void;
@@ -101,12 +101,12 @@ export const DynamicProductTable = ({
           if (mappingConfig?.price_primary_key && schema.key === mappingConfig.price_primary_key) {
             return row.price; // Precio calculado del índice con modificadores generales
           }
-          
+
           // SEGUNDO: Si esta columna tiene un override específico
           if (row.calculated_data && schema.key in row.calculated_data) {
             return row.calculated_data[schema.key]; // Precio con override específico
           }
-          
+
           // TERCERO: Mapeos estándar de campos conocidos
           if (schema.key === "code") return row.code;
           if (schema.key === "name") return row.name;
@@ -114,7 +114,7 @@ export const DynamicProductTable = ({
           if (schema.key === "quantity") return row.quantity;
           if (schema.key === "precio") return row.price;
           if (schema.key === "descripcion") return row.name;
-          
+
           // CUARTO: Para columnas custom sin mapeo especial, leer de data original
           return row.data[schema.key];
         },
@@ -123,21 +123,17 @@ export const DynamicProductTable = ({
           const value = getValue();
           if (value === null || value === undefined) return "-";
           const isNumericField = schema.type === "number" || schema.key === "price";
-          
+
           // Check si esta columna tiene modificadores aplicados
           const hasOverride = row.original.calculated_data && schema.key in row.original.calculated_data;
           const isPriceColumn = schema.key === "price";
           const hasModifiers = row.original.calculated_data && Object.keys(row.original.calculated_data).length > 0;
-          
+
           if (isNumericField && typeof value === "number") {
             return (
               <div className="flex items-center gap-1.5">
                 {value.toFixed(2)}
-                {(hasOverride || (isPriceColumn && hasModifiers)) && (
-                  <Badge variant="outline" className="text-[10px] px-1 py-0">
-                    ✓
-                  </Badge>
-                )}
+                
               </div>
             );
           }
@@ -235,6 +231,7 @@ export const DynamicProductTable = ({
           listId={listId}
           products={table.getRowModel().rows.map((row) => row.original)}
           columnSchema={columnSchema}
+          mappingConfig={mappingConfig}
           onAddToRequest={onAddToRequest}
           showActions={showStockActions}
           onLoadMore={onLoadMore}
