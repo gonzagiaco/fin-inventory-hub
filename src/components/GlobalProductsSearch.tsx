@@ -69,13 +69,39 @@ export function GlobalProductSearch({
     [],
   );
 
-  // Transformar resultados a formato DynamicProduct
-  const transformedResults = useMemo(() => {
-    return globalResults.map((item: any) => {
+    // Agrupar resultados por lista para renderizar con configuraciones específicas
+  const resultsByList = useMemo(() => {
+    const grouped = new Map<string, {
+      listId: string;
+      listName: string;
+      supplierId: string;
+      supplierName: string;
+      supplierLogo: string | null;
+      columnSchema: ColumnSchema[];
+      mappingConfig: any;
+      products: DynamicProduct[];
+    }>();
+  
+    globalResults.forEach((item: any) => {
       const listInfo = lists.find((l: any) => l.id === item.list_id);
       const supplierInfo = suppliers.find((s: any) => s.id === listInfo?.supplier_id);
-
-      return {
+  
+      if (!listInfo) return;
+  
+      if (!grouped.has(item.list_id)) {
+        grouped.set(item.list_id, {
+          listId: item.list_id,
+          listName: listInfo.name,
+          supplierId: supplierInfo?.id || "",
+          supplierName: supplierInfo?.name || "-",
+          supplierLogo: supplierInfo?.logo || null,
+          columnSchema: listInfo.column_schema || [],
+          mappingConfig: listInfo.mapping_config,
+          products: [],
+        });
+      }
+  
+      grouped.get(item.list_id)!.products.push({
         id: item.product_id,
         listId: item.list_id,
         code: item.code || "-",
@@ -84,18 +110,14 @@ export function GlobalProductSearch({
         quantity: item.quantity || 0,
         supplierId: supplierInfo?.id || "",
         mappingConfig: listInfo?.mapping_config,
-        data: {
-          code: item.code || "-",
-          name: item.name || "-",
-          price: Number(item.price) || 0,
-          quantity: item.quantity || 0,
-          supplier_name: supplierInfo?.name || "-",
-          list_name: listInfo?.name || "-",
-        },
+        data: item.dynamic_products?.data || {},
         calculated_data: item.calculated_data || {},
-      } as DynamicProduct;
+      } as DynamicProduct);
     });
+  
+    return Array.from(grouped.values());
   }, [globalResults, lists, suppliers]);
+
 
   // Estado: Proveedor seleccionado sin término de búsqueda
   if (isSupplierSelectedNoTerm) {
@@ -166,88 +188,120 @@ export function GlobalProductSearch({
 
       {/* Contenido condicional: tabla o tarjetas */}
       {viewMode === "card" ? (
-        <ProductCardView
-          listId="global-search"
-          products={transformedResults}
-          columnSchema={globalSearchSchema}
-          onAddToRequest={(product) =>
-            onAddToRequest({
-              id: product.id,
-              code: product.code,
-              name: product.name,
-              price: product.price,
-              supplierId: product.supplierId,
-            })
-          }
-          showActions={true}
-        />
-      ) : (
-        <div className="overflow-x-auto">
-          <Table className="min-w-full text-sm">
-            <TableHeader>
-              <TableRow>
-                <TableHead className="text-right">Acciones</TableHead>
-                <TableHead>Stock</TableHead>
-                <TableHead>Código</TableHead>
-                <TableHead>Nombre</TableHead>
-                <TableHead>Proveedor</TableHead>
-                <TableHead>Lista</TableHead>
-                <TableHead>Precio</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {globalResults.map((item: any) => {
-                const listInfo = lists.find((l: any) => l.id === item.list_id);
-                const supplierInfo = suppliers.find((s: any) => s.id === listInfo?.supplier_id);
-
-                return (
-                  <TableRow key={item.product_id}>
-                    <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          onAddToRequest({
-                            id: item.product_id,
-                            code: item.code,
-                            name: item.name,
-                            price: Number(item.price) || 0,
-                            quantity: 1,
-                            supplierId: supplierInfo ? supplierInfo.id : "",
-                          })
-                        }
-                      >
-                        <Plus className="h-4 w-4 mr-1" /> Agregar
-                      </Button>
-                    </TableCell>
-
-                    <TableCell>
-                      <QuantityCell
-                        productId={item.product_id}
-                        listId={item.list_id}
-                        value={item.quantity}
-                        visibleSpan={false}
-                      />
-                    </TableCell>
-
-                    <TableCell>{item.code || "-"}</TableCell>
-                    <TableCell>{item.name || "-"}</TableCell>
-                    <TableCell>{supplierInfo ? supplierInfo.name : "-"}</TableCell>
-                    <TableCell>{listInfo ? listInfo.name : "-"}</TableCell>
-                    <TableCell>
-                      {item.price && !isNaN(item.price)
-                        ? new Intl.NumberFormat("es-AR", {
-                            style: "currency",
-                            currency: "ARS",
-                          }).format(item.price)
-                        : "-"}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          <div className="space-y-6">
+            {resultsByList.map((listGroup) => (
+              <div key={listGroup.listId} className="border rounded-lg p-4">
+                {/* Header de la lista */}
+                <div className="flex items-center gap-3 mb-4">
+                  {listGroup.supplierLogo && (
+                    <img 
+                      src={listGroup.supplierLogo} 
+                      alt={listGroup.supplierName} 
+                      className="h-8 w-8 object-contain rounded" 
+                    />
+                  )}
+                  <div>
+                    <h3 className="font-semibold">{listGroup.listName}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {listGroup.supplierName} • {listGroup.products.length} productos
+                    </p>
+                  </div>
+                </div>
+        
+                {/* Tarjetas de productos - 100% idénticas a Stock */}
+                <ProductCardView
+                  listId={listGroup.listId}
+                  products={listGroup.products}
+                  columnSchema={listGroup.columnSchema}
+                  mappingConfig={listGroup.mappingConfig}
+                  onAddToRequest={(product) =>
+                    onAddToRequest({
+                      id: product.id,
+                      code: product.code,
+                      name: product.name,
+                      price: product.price,
+                      supplierId: listGroup.supplierId,
+                    })
+                  }
+                  showActions={true}
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+         {viewMode === "table" ? (
+  <div className="space-y-6">
+    {resultsByList.map((listGroup) => (
+      <div key={listGroup.listId} className="border rounded-lg overflow-hidden">
+        {/* Header */}
+        <div className="bg-muted/50 px-4 py-2 flex items-center gap-3">
+          {listGroup.supplierLogo && (
+            <img 
+              src={listGroup.supplierLogo} 
+              alt={listGroup.supplierName} 
+              className="h-6 w-6 object-contain rounded" 
+            />
+          )}
+          <div>
+            <span className="font-semibold">{listGroup.listName}</span>
+            <span className="text-sm text-muted-foreground ml-2">
+              ({listGroup.supplierName})
+            </span>
+          </div>
         </div>
+
+        {/* Tabla */}
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Código</TableHead>
+              <TableHead>Nombre</TableHead>
+              <TableHead>Precio</TableHead>
+              <TableHead>Stock</TableHead>
+              <TableHead></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {listGroup.products.map((product) => (
+              <TableRow key={product.id}>
+                <TableCell>{product.code}</TableCell>
+                <TableCell>{product.name}</TableCell>
+                <TableCell>${product.price.toFixed(2)}</TableCell>
+                <TableCell>
+                  <QuantityCell
+                    productId={product.id}
+                    listId={listGroup.listId}
+                    value={product.quantity}
+                    onLocalUpdate={() => {}}
+                  />
+                </TableCell>
+                <TableCell>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      onAddToRequest({
+                        id: product.id,
+                        code: product.code,
+                        name: product.name,
+                        price: product.price,
+                        supplierId: listGroup.supplierId,
+                      })
+                    }
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Agregar
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    ))}
+  </div>
+) : null}
+
       )}
     </Card>
   );
