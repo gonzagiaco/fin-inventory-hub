@@ -7,6 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { DynamicProduct, ColumnSchema, ProductList } from "@/types/productList";
 import { Loader2 } from "lucide-react";
 import { useProductListStore } from "@/stores/productListStore";
+import { QuantityCell } from "./stock/QuantityCell";
 
 interface ProductCardViewProps {
   listId: string;
@@ -82,11 +83,6 @@ export function ProductCardView({
       return (
         <span className="flex items-center gap-1.5">
           {value.toFixed(2)}
-          {hasOverride && (
-            <Badge variant="outline" className="text-[10px] px-1 py-0">
-              ✓
-            </Badge>
-          )}
         </span>
       );
     }
@@ -99,7 +95,7 @@ export function ProductCardView({
   // Separate key fields based on user configuration and other fields
   // Sort keyFields based on the order in previewFieldKeys
   const keyFields = previewFieldKeys
-    .map((key) => columnSchema.find((col) => col.key === key))
+    .map((key) => columnSchema.find((col) => col.key === key)) 
     .filter((col): col is ColumnSchema => col !== undefined);
 
   const otherFields = columnSchema.filter((col) => !previewFieldKeys.includes(col.key));
@@ -158,16 +154,29 @@ export function ProductCardView({
                     }
                     if (field.key === "quantity") {
                       return (
-                        <div key={field.key} className="flex items-center gap-2">
+                        <div
+                          key={field.key}
+                          className="flex items-center gap-2"
+                        >
                           {isLowStock && (
                             <Badge variant="destructive" className="text-xs">
                               Bajo Stock
                             </Badge>
                           )}
-                          <span className="text-sm">Stock: {quantity}</span>
+                          <QuantityCell
+                            productId={product.id}
+                            listId={listId}
+                            value={product.quantity}
+                            onLocalUpdate={(newQty) => {
+                              // update optimista local para reflejar en la UI
+                              product.quantity = newQty;
+                            }}
+                            visibleSpan={true}
+                          />
                         </div>
                       );
                     }
+
 
                     // Default display for other configured fields
                     return (

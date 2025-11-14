@@ -71,7 +71,7 @@ export const DynamicProductTable = ({
     const dataColumns = orderedSchema.map((schema) => {
       const isVisible = visibilityState[schema.key] !== false;
 
-      // 🔸 Caso especial: columna de stock editable (reutiliza QuantityCell)
+      // Caso especial: columna de stock editable (reutiliza QuantityCell)
       if (schema.key === "quantity") {
         return {
           id: schema.key,
@@ -86,6 +86,7 @@ export const DynamicProductTable = ({
                 // update optimista local para reflejar de inmediato
                 row.original.quantity = newQty;
               }}
+              visibleSpan={false}
             />
           ),
           meta: { isStandard: schema.isStandard, visible: isVisible },

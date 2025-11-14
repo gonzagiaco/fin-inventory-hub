@@ -11,6 +11,7 @@ type Props = {
   value: number | null | undefined;
   /** Opcional: para actualizar inmediatamente la UI del padre (ej. row.original.quantity) */
   onLocalUpdate?: (newQty: number) => void;
+  visibleSpan: boolean;
 };
 
 export const QuantityCell: React.FC<Props> = ({
@@ -18,6 +19,7 @@ export const QuantityCell: React.FC<Props> = ({
   listId,
   value,
   onLocalUpdate,
+  visibleSpan
 }) => {
   const queryClient = useQueryClient();
   const isOnline = useOnlineStatus();
@@ -64,6 +66,8 @@ export const QuantityCell: React.FC<Props> = ({
   };
 
   return (
+    <>
+      {visibleSpan && <span className="ml-2">Stock:</span>}
     <input
       type="number"
       className="h-8 w-24 bg-black border rounded px-2"
@@ -71,5 +75,7 @@ export const QuantityCell: React.FC<Props> = ({
       onBlur={(e) => { void handleCommit(e.target.value); }}
       onKeyDown={onKeyDown}
     />
+    
+    </>
   );
 };
