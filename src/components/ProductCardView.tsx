@@ -176,7 +176,7 @@ export function ProductCardView({
                           )}
                           <QuantityCell
                             productId={product.id}
-                            listId={listId}
+                            listId={product.listId ?? listId}
                             value={product.quantity}
                             onLocalUpdate={(newQty) => {
                               product.quantity = newQty;
