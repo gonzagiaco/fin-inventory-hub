@@ -21,22 +21,35 @@ import { GlobalProductSearch } from "@/components/GlobalProductsSearch";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 // Helper function to extract name from product data for search results
-function extractNameFromFullData(data: Record<string, any>, schema: any[]): string {
-  // Try to find first non-standard text column with data
+function extractNameFromFullData(
+  data: Record<string, any>, 
+  schema: any[], 
+  mappingConfig?: any
+): string {
+  // 1. PRIORIDAD: Usar name_keys del mapping_config
+  if (mappingConfig?.name_keys && Array.isArray(mappingConfig.name_keys)) {
+    for (const key of mappingConfig.name_keys) {
+      if (data[key] && String(data[key]).trim()) {
+        return String(data[key]).trim();
+      }
+    }
+  }
+  
+  // 2. FALLBACK: Buscar en schema (columnas text que no sean code/price)
   for (const col of schema) {
     if (col.key !== "code" && col.key !== "price" && col.type === "text" && data[col.key]) {
       return String(data[col.key]);
     }
   }
-
-  // Fallback: try common name fields
+  
+  // 3. FALLBACK FINAL: Campos comunes
   const commonNameFields = ["name", "nombre", "descripcion", "description", "producto", "product"];
   for (const field of commonNameFields) {
     if (data[field]) {
       return String(data[field]);
     }
   }
-
+  
   return "Sin nombre";
 }
 
@@ -178,9 +191,38 @@ export default function Stock() {
 
         // Filtrar por término de búsqueda
         let filtered = indexedProducts.filter((p: any) => {
-          const matchesSearch =
-            p.code?.toLowerCase().includes(searchTermLower) || p.name?.toLowerCase().includes(searchTermLower);
-          return matchesSearch;
+          // Buscar en índice primero
+          if (p.code?.toLowerCase().includes(searchTermLower) 
+              || p.name?.toLowerCase().includes(searchTermLower)) {
+            return true;
+          }
+          
+          // Si el índice no tiene datos, buscar en producto completo
+          const fullProduct = fullProducts.find((fp: any) => fp.id === p.product_id);
+          if (!fullProduct?.data) return false;
+          
+          const list = productLists.find((l: any) => l.id === p.list_id);
+          const mappingConfig = list?.mapping_config;
+          
+          // Buscar en todos los code_keys configurados
+          if (mappingConfig?.code_keys && Array.isArray(mappingConfig.code_keys)) {
+            for (const key of mappingConfig.code_keys) {
+              if (fullProduct.data[key]?.toString().toLowerCase().includes(searchTermLower)) {
+                return true;
+              }
+            }
+          }
+          
+          // Buscar en todos los name_keys configurados
+          if (mappingConfig?.name_keys && Array.isArray(mappingConfig.name_keys)) {
+            for (const key of mappingConfig.name_keys) {
+              if (fullProduct.data[key]?.toString().toLowerCase().includes(searchTermLower)) {
+                return true;
+              }
+            }
+          }
+          
+          return false;
         });
 
         // Filtrar por proveedor si está seleccionado
@@ -197,10 +239,11 @@ export default function Stock() {
             const fullProduct = fullProducts.find((fp: any) => fp.id === p.product_id);
             const list = productLists.find((l: any) => l.id === p.list_id);
             const columnSchema = list?.column_schema || [];
+            const mappingConfig = list?.mapping_config;
 
             if (fullProduct?.data) {
-              // Extract name from data using schema
-              const extractedName = extractNameFromFullData(fullProduct.data, columnSchema);
+              // Extract name from data using schema and mappingConfig
+              const extractedName = extractNameFromFullData(fullProduct.data, columnSchema, mappingConfig);
               return { ...p, name: extractedName };
             }
           }

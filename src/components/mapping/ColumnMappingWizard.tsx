@@ -213,61 +213,80 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label>
-            Claves para CÓDIGO
-            <span className="text-xs text-muted-foreground ml-2">(selecciona una o más)</span>
-          </Label>
-          <Select
-            value={map.code_keys[0] ?? "__none__"}
-            onValueChange={(value) => {
-              setMap((m) => ({
-                ...m,
-                code_keys: value === "__none__" ? [] : [value],
-              }));
-            }}
-            disabled={isSaving}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccionar clave para código" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">Sin código</SelectItem>
-              {keys.map((k) => (
-                <SelectItem key={k} value={k}>
-                  {k}
-                </SelectItem>
+          <Label>Campos de Código (múltiples variantes)</Label>
+          <p className="text-xs text-muted-foreground">
+            Selecciona todas las columnas que pueden contener el código del producto.
+            El sistema usará la primera que tenga datos.
+          </p>
+          <ScrollArea className="h-[120px] border rounded-md p-2">
+            <div className="space-y-2">
+              {keys.map((key) => (
+                <div key={key} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`code-${key}`}
+                    checked={map.code_keys.includes(key)}
+                    onCheckedChange={(checked) => {
+                      setMap((prev) => ({
+                        ...prev,
+                        code_keys: checked
+                          ? [...prev.code_keys, key]
+                          : prev.code_keys.filter((k) => k !== key),
+                      }));
+                    }}
+                    disabled={isSaving}
+                  />
+                  <label
+                    htmlFor={`code-${key}`}
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    {key}
+                  </label>
+                </div>
               ))}
-            </SelectContent>
-          </Select>
+            </div>
+          </ScrollArea>
+          <p className="text-xs text-muted-foreground">
+            {map.code_keys.length > 0
+              ? `✓ ${map.code_keys.length} campo(s) seleccionado(s): ${map.code_keys.join(", ")}`
+              : "⚠️ No hay campos seleccionados"}
+          </p>
         </div>
 
         <div className="space-y-2">
-          <Label>
-            Claves para NOMBRE/DESCRIPCIÓN
-            <span className="text-xs text-muted-foreground ml-2">(selecciona una o más)</span>
-          </Label>
-          <Select
-            value={map.name_keys[0] ?? "__none__"}
-            onValueChange={(value) => {
-              setMap((m) => ({
-                ...m,
-                name_keys: value === "__none__" ? [] : [value],
-              }));
-            }}
-            disabled={isSaving}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccionar clave para nombre" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">Sin nombre</SelectItem>
-              {keys.map((k) => (
-                <SelectItem key={k} value={k}>
-                  {k}
-                </SelectItem>
+          <Label>Campos de Nombre/Descripción (múltiples variantes)</Label>
+          <p className="text-xs text-muted-foreground">
+            Selecciona todas las columnas que pueden contener el nombre o descripción.
+            El sistema usará la primera que tenga datos.
+          </p>
+          <ScrollArea className="h-[120px] border rounded-md p-2">
+            <div className="space-y-2">
+              {keys.map((key) => (
+                <div key={key} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`name-${key}`}
+                    checked={map.name_keys.includes(key)}
+                    onCheckedChange={(checked) => {
+                      setMap((prev) => ({
+                        ...prev,
+                        name_keys: checked
+                          ? [...prev.name_keys, key]
+                          : prev.name_keys.filter((k) => k !== key),
+                      }));
+                    }}
+                    disabled={isSaving}
+                  />
+                  <label htmlFor={`name-${key}`} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    {key}
+                  </label>
+                </div>
               ))}
-            </SelectContent>
-          </Select>
+            </div>
+          </ScrollArea>
+          <p className="text-xs text-muted-foreground">
+            {map.name_keys.length > 0
+              ? `✓ ${map.name_keys.length} campo(s) seleccionado(s): ${map.name_keys.join(", ")}`
+              : "⚠️ No hay campos seleccionados"}
+          </p>
         </div>
 
         <div className="space-y-2">

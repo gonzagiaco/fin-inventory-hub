@@ -7,15 +7,28 @@ import { useOnlineStatus } from './useOnlineStatus';
 import { getOfflineData, createProductListOffline, updateProductListOffline, deleteProductListOffline } from '@/lib/localDB';
 
 // Helper function to extract name from product data when index is missing it
-function extractNameFromData(data: Record<string, any>, schema: ColumnSchema[]): string {
-  // Try to find first non-standard text column with data
+function extractNameFromData(
+  data: Record<string, any>, 
+  schema: ColumnSchema[], 
+  mappingConfig?: any
+): string {
+  // 1. PRIORIDAD: Usar name_keys del mapping_config
+  if (mappingConfig?.name_keys && Array.isArray(mappingConfig.name_keys)) {
+    for (const key of mappingConfig.name_keys) {
+      if (data[key] && String(data[key]).trim()) {
+        return String(data[key]).trim();
+      }
+    }
+  }
+  
+  // 2. FALLBACK: Buscar en schema
   for (const col of schema) {
     if (col.key !== 'code' && col.key !== 'price' && col.type === 'text' && data[col.key]) {
       return String(data[col.key]);
     }
   }
   
-  // Fallback: try common name fields
+  // 3. FALLBACK FINAL: Campos comunes
   const commonNameFields = ['name', 'nombre', 'descripcion', 'description', 'producto', 'product'];
   for (const field of commonNameFields) {
     if (data[field]) {
@@ -106,9 +119,10 @@ export const useProductLists = (supplierId?: string) => {
             grouped[indexProduct.list_id] = [];
           }
 
-          // Find the list to get its column schema for fallback
+          // Find the list to get its column schema and mapping config for fallback
           const list = productLists.find(l => l.id === indexProduct.list_id);
           const columnSchema = list?.columnSchema || [];
+          const mappingConfig = list?.mapping_config;
 
           // Obtener datos completos del producto original
           const fullProduct = fullProductsMap.get(indexProduct.product_id);
@@ -117,7 +131,7 @@ export const useProductLists = (supplierId?: string) => {
             id: indexProduct.product_id, // ID del producto original
             listId: indexProduct.list_id,
             code: indexProduct.code, // Del índice (ya normalizado)
-            name: indexProduct.name || extractNameFromData(fullProduct?.data || {}, columnSchema), // Del índice con fallback
+            name: indexProduct.name || extractNameFromData(fullProduct?.data || {}, columnSchema, mappingConfig), // Del índice con fallback usando mappingConfig
             price: indexProduct.price !== null ? Number(indexProduct.price) : undefined, // Del índice (ya calculado)
             quantity: indexProduct.quantity, // Del índice
             data: fullProduct?.data as Record<string, any> || {}, // Del producto completo para columnas dinámicas
