@@ -229,80 +229,78 @@ export function GlobalProductSearch({
             ))}
           </div>
         ) : (
-         {viewMode === "table" ? (
-  <div className="space-y-6">
-    {resultsByList.map((listGroup) => (
-      <div key={listGroup.listId} className="border rounded-lg overflow-hidden">
-        {/* Header */}
-        <div className="bg-muted/50 px-4 py-2 flex items-center gap-3">
-          {listGroup.supplierLogo && (
-            <img 
-              src={listGroup.supplierLogo} 
-              alt={listGroup.supplierName} 
-              className="h-6 w-6 object-contain rounded" 
-            />
-          )}
-          <div>
-            <span className="font-semibold">{listGroup.listName}</span>
-            <span className="text-sm text-muted-foreground ml-2">
-              ({listGroup.supplierName})
-            </span>
-          </div>
-        </div>
+          <div className="space-y-6">
+            {resultsByList.map((listGroup) => (
+              <div key={listGroup.listId} className="border rounded-lg overflow-hidden">
+                {/* Header */}
+                <div className="bg-muted/50 px-4 py-2 flex items-center gap-3">
+                  {listGroup.supplierLogo && (
+                    <img 
+                      src={listGroup.supplierLogo} 
+                      alt={listGroup.supplierName} 
+                      className="h-6 w-6 object-contain rounded" 
+                    />
+                  )}
+                  <div>
+                    <span className="font-semibold">{listGroup.listName}</span>
+                    <span className="text-sm text-muted-foreground ml-2">
+                      ({listGroup.supplierName})
+                    </span>
+                  </div>
+                </div>
 
-        {/* Tabla */}
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Código</TableHead>
-              <TableHead>Nombre</TableHead>
-              <TableHead>Precio</TableHead>
-              <TableHead>Stock</TableHead>
-              <TableHead></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {listGroup.products.map((product) => (
-              <TableRow key={product.id}>
-                <TableCell>{product.code}</TableCell>
-                <TableCell>{product.name}</TableCell>
-                <TableCell>${product.price.toFixed(2)}</TableCell>
-                <TableCell>
-                  <QuantityCell
-                    productId={product.id}
-                    listId={listGroup.listId}
-                    value={product.quantity}
-                    onLocalUpdate={() => {}}
-                  />
-                </TableCell>
-                <TableCell>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      onAddToRequest({
-                        id: product.id,
-                        code: product.code,
-                        name: product.name,
-                        price: product.price,
-                        supplierId: listGroup.supplierId,
-                      })
-                    }
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Agregar
-                  </Button>
-                </TableCell>
-              </TableRow>
+                {/* Tabla */}
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Código</TableHead>
+                      <TableHead>Nombre</TableHead>
+                      <TableHead>Precio</TableHead>
+                      <TableHead>Stock</TableHead>
+                      <TableHead></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {listGroup.products.map((product) => (
+                      <TableRow key={product.id}>
+                        <TableCell>{product.code}</TableCell>
+                        <TableCell>{product.name}</TableCell>
+                        <TableCell>${product.price.toFixed(2)}</TableCell>
+                        <TableCell>
+                          <QuantityCell
+                            productId={product.id}
+                            listId={listGroup.listId}
+                            value={product.quantity}
+                            onLocalUpdate={() => {}}
+                            visibleSpan={false}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              onAddToRequest({
+                                id: product.id,
+                                code: product.code,
+                                name: product.name,
+                                price: product.price,
+                                supplierId: listGroup.supplierId,
+                              })
+                            }
+                          >
+                            <Plus className="h-4 w-4 mr-1" />
+                            Agregar
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             ))}
-          </TableBody>
-        </Table>
-      </div>
-    ))}
-  </div>
-) : null}
-
-      )}
+          </div>
+        )}
     </Card>
   );
 }
