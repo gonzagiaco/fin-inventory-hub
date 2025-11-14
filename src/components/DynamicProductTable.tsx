@@ -77,18 +77,30 @@ export const DynamicProductTable = ({
           id: schema.key,
           accessorKey: "quantity",
           header: schema.label,
-          cell: ({ row }) => (
-            <QuantityCell
-              productId={row.original.id}
-              listId={listId}
-              value={row.original.quantity}
-              onLocalUpdate={(newQty) => {
-                // update optimista local para reflejar de inmediato
-                row.original.quantity = newQty;
-              }}
-              visibleSpan={false}
-            />
-          ),
+          cell: ({ row }) => {
+            const quantity = row.original.quantity || 0;
+            const lowStockThreshold = mappingConfig?.low_stock_threshold || 50;
+            const isLowStock = quantity < lowStockThreshold;
+
+            return (
+              <div className="flex items-center gap-2">
+                {isLowStock && (
+                  <Badge variant="destructive" className="text-xs">
+                    Bajo Stock
+                  </Badge>
+                )}
+                <QuantityCell
+                  productId={row.original.id}
+                  listId={listId}
+                  value={row.original.quantity}
+                  onLocalUpdate={(newQty) => {
+                    row.original.quantity = newQty;
+                  }}
+                  visibleSpan={false}
+                />
+              </div>
+            );
+          },
           meta: { isStandard: schema.isStandard, visible: isVisible },
         } as ColumnDef<DynamicProduct>;
       }
@@ -130,12 +142,7 @@ export const DynamicProductTable = ({
           const hasModifiers = row.original.calculated_data && Object.keys(row.original.calculated_data).length > 0;
 
           if (isNumericField && typeof value === "number") {
-            return (
-              <div className="flex items-center gap-1.5">
-                {value.toFixed(2)}
-                
-              </div>
-            );
+            return <div className="flex items-center gap-1.5">{value.toFixed(2)}</div>;
           }
           return String(value);
         },

@@ -134,7 +134,9 @@ export function ProductCardView({
         {visibleProducts.map((product) => {
           const isExpanded = expandedCards.has(product.id);
           const quantity = product.quantity || 0;
-          const isLowStock = quantity < 50;
+          const effectiveMappingConfig = product.mappingConfig || mappingConfig;
+          const lowStockThreshold = effectiveMappingConfig?.low_stock_threshold || 50;
+          const isLowStock = quantity < lowStockThreshold;
 
           return (
             <Card key={product.id} className="flex flex-col">

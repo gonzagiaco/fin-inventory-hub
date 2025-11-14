@@ -1,13 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -23,12 +17,10 @@ type MappingConfig = {
   price_primary_key: string | null;
   price_alt_keys: string[];
   extra_index_keys: string[];
+  low_stock_threshold?: number;
   price_modifiers?: {
     general: { percentage: number; add_vat: boolean; vat_rate?: number };
-    overrides: Record<
-      string,
-      { percentage: number; add_vat: boolean; vat_rate?: number }
-    >;
+    overrides: Record<string, { percentage: number; add_vat: boolean; vat_rate?: number }>;
   };
 };
 
@@ -49,6 +41,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
     price_primary_key: null,
     price_alt_keys: [],
     extra_index_keys: [],
+    low_stock_threshold: 50,
     price_modifiers: {
       // Default: no percentage change, no agregar IVA y VAT rate por defecto 21%
       general: { percentage: 0, add_vat: false, vat_rate: 21 },
@@ -65,20 +58,9 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
     const loadSample = async () => {
       setIsLoading(true);
       try {
-        const [
-          { data: sampleData, error: sampleError },
-          { data: configData, error: configError },
-        ] = await Promise.all([
-          supabase
-            .from("dynamic_products")
-            .select("data")
-            .eq("list_id", listId)
-            .limit(20),
-          supabase
-            .from("product_lists")
-            .select("mapping_config")
-            .eq("id", listId)
-            .single(),
+        const [{ data: sampleData, error: sampleError }, { data: configData, error: configError }] = await Promise.all([
+          supabase.from("dynamic_products").select("data").eq("list_id", listId).limit(20),
+          supabase.from("product_lists").select("mapping_config").eq("id", listId).single(),
         ]);
 
         if (sampleError) throw sampleError;
@@ -87,13 +69,11 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
 
         setSample(sampleData ?? []);
         const k = new Set<string>();
-        (sampleData ?? []).forEach((row) =>
-          Object.keys(row.data || {}).forEach((kk) => k.add(kk))
-        );
+        (sampleData ?? []).forEach((row) => Object.keys(row.data || {}).forEach((kk) => k.add(kk)));
         setKeys(Array.from(k).sort());
 
         if (configData?.mapping_config) {
-            const loaded = configData.mapping_config as MappingConfig;
+          const loaded = configData.mapping_config as MappingConfig;
           setMap((prev) => ({
             ...prev,
             ...loaded,
@@ -138,18 +118,13 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
 
       if (updateError) {
         console.error("Error al actualizar product_lists:", updateError);
-        throw new Error(
-          `Error al guardar configuración: ${updateError.message}`
-        );
+        throw new Error(`Error al guardar configuración: ${updateError.message}`);
       }
 
       console.log("Mapping guardado, refrescando índice...");
 
       // 2. Refrescar índice
-      const { data: rpcData, error: refreshError } = await supabase.rpc(
-        "refresh_list_index",
-        { p_list_id: listId }
-      );
+      const { data: rpcData, error: refreshError } = await supabase.rpc("refresh_list_index", { p_list_id: listId });
 
       if (refreshError) {
         console.error("Error al refrescar índice:", refreshError);
@@ -164,7 +139,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
       });
 
       // Pequeño delay para asegurar que el índice termine de actualizarse
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Resetear caché completamente para forzar nuevo fetch
       await queryClient.resetQueries({
@@ -204,9 +179,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
         <div className="space-y-2">
           <Label>
             Claves para CÓDIGO
-            <span className="text-xs text-muted-foreground ml-2">
-              (selecciona una o más)
-            </span>
+            <span className="text-xs text-muted-foreground ml-2">(selecciona una o más)</span>
           </Label>
           <Select
             value={map.code_keys[0] ?? "__none__"}
@@ -235,9 +208,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
         <div className="space-y-2">
           <Label>
             Claves para NOMBRE/DESCRIPCIÓN
-            <span className="text-xs text-muted-foreground ml-2">
-              (selecciona una o más)
-            </span>
+            <span className="text-xs text-muted-foreground ml-2">(selecciona una o más)</span>
           </Label>
           <Select
             value={map.name_keys[0] ?? "__none__"}
@@ -428,9 +399,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
                   <Input
                     type="number"
                     value={
-                      map.price_modifiers.overrides[columnKey].vat_rate ??
-                      map.price_modifiers?.general.vat_rate ??
-                      21
+                      map.price_modifiers.overrides[columnKey].vat_rate ?? map.price_modifiers?.general.vat_rate ?? 21
                     }
                     onChange={(e) => {
                       const rate = parseFloat(e.target.value) || 0;
@@ -457,6 +426,26 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
           ))}
       </div>
 
+      {/* Umbral de Bajo Stock */}
+      <div className="space-y-2">
+        <Label htmlFor="low_stock_threshold">Umbral de Bajo Stock</Label>
+        <Input
+          id="low_stock_threshold"
+          type="number"
+          min={0}
+          value={map.low_stock_threshold || 50}
+          onChange={(e) => {
+            setMap((prev) => ({
+              ...prev,
+              low_stock_threshold: Number(e.target.value) || 50,
+            }));
+          }}
+        />
+        <p className="text-xs text-muted-foreground">
+          Los productos con cantidad menor a este valor se marcarán como "Bajo Stock" (por defecto: 50)
+        </p>
+      </div>
+
       <div className="flex justify-end gap-2">
         <Button onClick={handleSave} disabled={isSaving}>
           {isSaving ? (
@@ -475,9 +464,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
           <summary className="text-xs font-medium cursor-pointer">
             Vista previa de datos (primeras {sample.length} filas)
           </summary>
-          <pre className="mt-3 max-h-64 overflow-auto text-xs">
-            {JSON.stringify(sample, null, 2)}
-          </pre>
+          <pre className="mt-3 max-h-64 overflow-auto text-xs">{JSON.stringify(sample, null, 2)}</pre>
         </details>
       )}
     </div>

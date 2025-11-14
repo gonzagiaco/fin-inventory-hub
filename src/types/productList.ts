@@ -1,7 +1,7 @@
 export interface ColumnSchema {
   key: string;
   label: string;
-  type: 'text' | 'number' | 'date';
+  type: "text" | "number" | "date";
   visible: boolean;
   order: number;
   isStandard?: boolean; // code, name, price
@@ -35,6 +35,7 @@ export interface ProductList {
     price_primary_key: string | null;
     price_alt_keys: string[];
     extra_index_keys: string[];
+    low_stock_threshold?: number;
     price_modifiers?: {
       general: { percentage: number; add_vat: boolean; vat_rate?: number };
       overrides: Record<string, { percentage: number; add_vat: boolean; vat_rate?: number }>;
