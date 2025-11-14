@@ -249,6 +249,7 @@ export function GlobalProductSearch({
                             productId={item.product_id}
                             listId={item.list_id}
                             value={item.quantity}
+                            visibleSpan={false}
                         />
                         </TableCell>
 
