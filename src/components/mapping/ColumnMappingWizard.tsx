@@ -22,10 +22,10 @@ type MappingConfig = {
     general: { percentage: number; add_vat: boolean; vat_rate?: number };
     overrides: Record<string, { percentage: number; add_vat: boolean; vat_rate?: number }>;
   };
-  
+
   dollar_conversion?: {
-    rate: number; // Valor del dólar en pesos 
-    target_columns: string[]; // Columnas donde aplicar 
+    rate: number; // Valor del dólar en pesos
+    target_columns: string[]; // Columnas donde aplicar
   };
 };
 
@@ -57,6 +57,28 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
       target_columns: [],
     },
   });
+
+  const isNumericColumn = (columnKey: string): boolean => {
+    // Verificar si al menos el 50% de las muestras contienen valores numéricos
+    const numericCount = sample.filter((row) => {
+      const value = row.data?.[columnKey];
+      if (value == null) return false;
+
+      // Intentar parsear como número
+      const parsed =
+        typeof value === "number"
+          ? value
+          : parseFloat(
+              String(value)
+                .replace(/[^0-9.,-]/g, "")
+                .replace(",", "."),
+            );
+
+      return !isNaN(parsed) && isFinite(parsed);
+    }).length;
+
+    return numericCount > 0 && numericCount >= sample.length * 0.5;
+  };
 
   const queryClient = useQueryClient();
 
@@ -119,7 +141,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
       toast.error("Si configuras el valor del dólar, debes seleccionar al menos una columna para convertir");
       return;
     }
-    
+
     setIsSaving(true);
     try {
       console.log("Guardando mapping_config:", map);
@@ -193,9 +215,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
         <div className="space-y-2">
           <Label>
             Claves para CÓDIGO
-            <span className="text-xs text-muted-foreground ml-2">
-              (selecciona una o más)
-            </span>
+            <span className="text-xs text-muted-foreground ml-2">(selecciona una o más)</span>
           </Label>
           <Select
             value={map.code_keys[0] ?? "__none__"}
@@ -224,9 +244,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
         <div className="space-y-2">
           <Label>
             Claves para NOMBRE/DESCRIPCIÓN
-            <span className="text-xs text-muted-foreground ml-2">
-              (selecciona una o más)
-            </span>
+            <span className="text-xs text-muted-foreground ml-2">(selecciona una o más)</span>
           </Label>
           <Select
             value={map.name_keys[0] ?? "__none__"}
@@ -417,9 +435,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
                   <Input
                     type="number"
                     value={
-                      map.price_modifiers.overrides[columnKey].vat_rate ??
-                      map.price_modifiers?.general.vat_rate ??
-                      21
+                      map.price_modifiers.overrides[columnKey].vat_rate ?? map.price_modifiers?.general.vat_rate ?? 21
                     }
                     onChange={(e) => {
                       const rate = parseFloat(e.target.value) || 0;
@@ -445,7 +461,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
             </div>
           ))}
       </div>
-      
+
       {/* Conversión de Dólar a Pesos */}
       <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
         <div className="space-y-2">
@@ -456,7 +472,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
             Si tus precios están en dólares, configura el valor del dólar y selecciona las columnas a convertir.
           </p>
         </div>
-      
+
         {/* Input del valor del dólar */}
         <div className="space-y-2">
           <Label htmlFor="dollar_rate">Valor del Dólar (en pesos)</Label>
@@ -479,27 +495,16 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
               }));
             }}
           />
-          <p className="text-xs text-muted-foreground">
-            Dejar en 0 para deshabilitar la conversión
-          </p>
+          <p className="text-xs text-muted-foreground">Dejar en 0 para deshabilitar la conversión</p>
         </div>
-      
+
         {/* Selección de columnas donde aplicar */}
         {(map.dollar_conversion?.rate || 0) > 0 && (
           <div className="space-y-3">
             <Label>Columnas a convertir (múltiple selección)</Label>
             <ScrollArea className="h-[200px] border rounded-md p-3">
               {keys
-                .filter((k) => {
-                  // Mostrar solo columnas que parecen ser precios (contienen "precio", "price", etc.)
-                  const lowerKey = k.toLowerCase();
-                  return (
-                    lowerKey.includes("precio") ||
-                    lowerKey.includes("price") ||
-                    lowerKey.includes("$") ||
-                    lowerKey.includes("cost")
-                  );
-                })
+                .filter((k) => isNumericColumn(k))
                 .map((key) => {
                   const isSelected = map.dollar_conversion?.target_columns.includes(key);
                   return (
@@ -510,9 +515,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
                         onCheckedChange={(checked) => {
                           setMap((prev) => {
                             const current = prev.dollar_conversion?.target_columns || [];
-                            const updated = checked
-                              ? [...current, key]
-                              : current.filter((k) => k !== key);
+                            const updated = checked ? [...current, key] : current.filter((k) => k !== key);
                             return {
                               ...prev,
                               dollar_conversion: {
@@ -523,10 +526,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
                           });
                         }}
                       />
-                      <label
-                        htmlFor={`dollar-col-${key}`}
-                        className="text-sm font-medium cursor-pointer"
-                      >
+                      <label htmlFor={`dollar-col-${key}`} className="text-sm font-medium cursor-pointer">
                         {key}
                       </label>
                     </div>
@@ -534,7 +534,8 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
                 })}
             </ScrollArea>
             <p className="text-xs text-muted-foreground">
-              Selecciona las columnas que contienen precios en dólares. Se multiplicarán por {map.dollar_conversion?.rate || 0}.
+              Selecciona las columnas que contienen precios en dólares. Se multiplicarán por{" "}
+              {map.dollar_conversion?.rate || 0}.
             </p>
           </div>
         )}
@@ -570,8 +571,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
           }}
         />
         <p className="text-xs text-muted-foreground">
-          Los productos con cantidad menor a este valor se marcarán como "Bajo
-          Stock" (por defecto: 50)
+          Los productos con cantidad menor a este valor se marcarán como "Bajo Stock" (por defecto: 50)
         </p>
       </div>
 
@@ -593,9 +593,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
           <summary className="text-xs font-medium cursor-pointer">
             Vista previa de datos (primeras {sample.length} filas)
           </summary>
-          <pre className="mt-3 max-h-64 overflow-auto text-xs">
-            {JSON.stringify(sample, null, 2)}
-          </pre>
+          <pre className="mt-3 max-h-64 overflow-auto text-xs">{JSON.stringify(sample, null, 2)}</pre>
         </details>
       )}
     </div>
