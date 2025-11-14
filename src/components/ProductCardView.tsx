@@ -97,16 +97,7 @@ export function ProductCardView({
     const hasModification = hasGeneralModifier || hasOverride;
 
     if (isNumericField && typeof value === "number") {
-      return (
-        <span className="flex items-center gap-1.5">
-          {value.toFixed(2)}
-          {hasModification && (
-            <Badge variant="outline" className="text-[10px] px-1 py-0">
-              ✓
-            </Badge>
-          )}
-        </span>
-      );
+      return <span className="flex items-center gap-1.5">{value.toFixed(2)}</span>;
     }
     if (type === "date" && value instanceof Date) {
       return value.toLocaleDateString("es-AR");
