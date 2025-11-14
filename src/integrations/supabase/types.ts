@@ -651,6 +651,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      apply_dollar_conversion: {
+        Args: { base_price: number; dollar_rate: number }
+        Returns: number
+      }
       calculate_price_with_modifiers: {
         Args: {
           add_vat?: boolean
