@@ -81,6 +81,7 @@ export function SupplierStockSection({ supplierName, supplierLogo, lists, onAddT
                     <ListProductsWrapper
                       listId={list.id}
                       columnSchema={list.columnSchema}
+                      mappingConfig={list.mappingConfig}
                       onAddToRequest={onAddToRequest}
                     />
                   ) : (
@@ -123,10 +124,12 @@ export function SupplierStockSection({ supplierName, supplierLogo, lists, onAddT
 function ListProductsWrapper({
   listId,
   columnSchema,
+  mappingConfig,
   onAddToRequest,
 }: {
   listId: string;
   columnSchema: any[];
+  mappingConfig: any;
   onAddToRequest: (product: any) => void;
 }) {
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useListProducts(listId);
@@ -144,6 +147,7 @@ function ListProductsWrapper({
             price: item.price,
             quantity: item.quantity,
             data: item.dynamic_products ? item.dynamic_products.data : (item.data ?? {}),
+            calculated_data: item.calculated_data ?? {},
           }) as DynamicProduct,
       ),
     );
@@ -159,6 +163,7 @@ function ListProductsWrapper({
         listId={listId}
         products={allProducts}
         columnSchema={columnSchema}
+        mappingConfig={mappingConfig}
         onAddToRequest={onAddToRequest}
         showStockActions
         onLoadMore={() => {
