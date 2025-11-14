@@ -181,6 +181,7 @@ export function ProductCardView({
                             onLocalUpdate={(newQty) => {
                               product.quantity = newQty;
                             }}
+                            visibleSpan={true}
                           />
                         </div>
                       );
