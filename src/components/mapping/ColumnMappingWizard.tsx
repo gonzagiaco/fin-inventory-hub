@@ -179,7 +179,9 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
         <div className="space-y-2">
           <Label>
             Claves para CÓDIGO
-            <span className="text-xs text-muted-foreground ml-2">(selecciona una o más)</span>
+            <span className="text-xs text-muted-foreground ml-2">
+              (selecciona una o más)
+            </span>
           </Label>
           <Select
             value={map.code_keys[0] ?? "__none__"}
@@ -208,7 +210,9 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
         <div className="space-y-2">
           <Label>
             Claves para NOMBRE/DESCRIPCIÓN
-            <span className="text-xs text-muted-foreground ml-2">(selecciona una o más)</span>
+            <span className="text-xs text-muted-foreground ml-2">
+              (selecciona una o más)
+            </span>
           </Label>
           <Select
             value={map.name_keys[0] ?? "__none__"}
@@ -399,7 +403,9 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
                   <Input
                     type="number"
                     value={
-                      map.price_modifiers.overrides[columnKey].vat_rate ?? map.price_modifiers?.general.vat_rate ?? 21
+                      map.price_modifiers.overrides[columnKey].vat_rate ??
+                      map.price_modifiers?.general.vat_rate ??
+                      21
                     }
                     onChange={(e) => {
                       const rate = parseFloat(e.target.value) || 0;
@@ -433,16 +439,31 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
           id="low_stock_threshold"
           type="number"
           min={0}
-          value={map.low_stock_threshold || 50}
+          value={map.low_stock_threshold?.toString() ?? ""}
           onChange={(e) => {
-            setMap((prev) => ({
-              ...prev,
-              low_stock_threshold: Number(e.target.value) || 50,
-            }));
+            const raw = e.target.value;
+
+            // Si está vacío, dejamos undefined para que el usuario termine de escribir
+            if (raw === "") {
+              setMap((prev) => ({
+                ...prev,
+                low_stock_threshold: undefined,
+              }));
+              return;
+            }
+
+            const parsed = Number(raw);
+            if (!Number.isNaN(parsed) && parsed >= 0) {
+              setMap((prev) => ({
+                ...prev,
+                low_stock_threshold: parsed,
+              }));
+            }
           }}
         />
         <p className="text-xs text-muted-foreground">
-          Los productos con cantidad menor a este valor se marcarán como "Bajo Stock" (por defecto: 50)
+          Los productos con cantidad menor a este valor se marcarán como "Bajo
+          Stock" (por defecto: 50)
         </p>
       </div>
 
@@ -464,7 +485,9 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
           <summary className="text-xs font-medium cursor-pointer">
             Vista previa de datos (primeras {sample.length} filas)
           </summary>
-          <pre className="mt-3 max-h-64 overflow-auto text-xs">{JSON.stringify(sample, null, 2)}</pre>
+          <pre className="mt-3 max-h-64 overflow-auto text-xs">
+            {JSON.stringify(sample, null, 2)}
+          </pre>
         </details>
       )}
     </div>
