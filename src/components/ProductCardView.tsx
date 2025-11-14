@@ -75,16 +75,32 @@ export function ProductCardView({
     return product.data?.[key];
   };
 
-  const formatValue = (value: any, type: ColumnSchema["type"], key: string, product: any) => {
+  const formatValue = (
+    value: any,
+    type: ColumnSchema["type"],
+    key: string,
+    product: any,
+    mappingConfig?: ProductList["mapping_config"],
+  ) => {
     if (value == null) return "-";
-    const isNumericField = type === "number" || key === "price";
+    const effectiveMappingConfig = product.mappingConfig || mappingConfig;
+    const isPriceColumn =
+      key === "price" ||
+      key === effectiveMappingConfig?.price_primary_key ||
+      (effectiveMappingConfig?.price_alt_keys && effectiveMappingConfig.price_alt_keys.includes(key));
+
+    const isNumericField = type === "number" || isPriceColumn;
+
+    // Verificar si tiene modificación aplicada
+    const hasGeneralModifier = isPriceColumn && effectiveMappingConfig?.price_primary_key === key;
     const hasOverride = product.calculated_data && key in product.calculated_data;
+    const hasModification = hasGeneralModifier || hasOverride;
 
     if (isNumericField && typeof value === "number") {
       return (
         <span className="flex items-center gap-1.5">
           {value.toFixed(2)}
-          {hasOverride && (
+          {hasModification && (
             <Badge variant="outline" className="text-[10px] px-1 py-0">
               ✓
             </Badge>
@@ -134,7 +150,7 @@ export function ProductCardView({
                 <div className="space-y-2">
                   {keyFields.map((field) => {
                     const value = getFieldValue(product, field.key);
-                    const displayValue = formatValue(value, field.type, field.key, product);
+                    const displayValue = formatValue(value, field.type, field.key, product, mappingConfig);
 
                     // Special styling for common fields
                     if (field.key === "code") {
@@ -203,7 +219,7 @@ export function ProductCardView({
                     <CollapsibleContent className="space-y-2 mb-3">
                       {otherFields.map((field) => {
                         const value = getFieldValue(product, field.key);
-                        const displayValue = formatValue(value, field.type, field.key, product);
+                        const displayValue = formatValue(value, field.type, field.key, product, mappingConfig);
 
                         return (
                           <div key={field.key} className="text-sm border-b pb-1">
