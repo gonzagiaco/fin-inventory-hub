@@ -164,7 +164,7 @@ export function ProductCardView({
                               Bajo Stock
                             </Badge>
                           )}
-                          <span className="text-sm">Stock: {displayValue}</span>
+                          <span className="text-sm">Stock: {quantity}</span>
                         </div>
                       );
                     }
