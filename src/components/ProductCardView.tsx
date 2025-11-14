@@ -12,7 +12,7 @@ interface ProductCardViewProps {
   listId: string;
   products: DynamicProduct[] | any[];
   columnSchema: ColumnSchema[];
-  mappingConfig?: ProductList['mapping_config'];
+  mappingConfig?: ProductList["mapping_config"];
   onAddToRequest?: (product: any) => void;
   showActions?: boolean;
   onLoadMore?: () => void;
@@ -53,22 +53,24 @@ export function ProductCardView({
   };
 
   const getFieldValue = (product: any, key: string) => {
+    const effectiveMappingConfig = product.mappingConfig || mappingConfig;
+
     // PRIMERO: Si esta columna es la columna de precio principal configurada
-    if (mappingConfig?.price_primary_key && key === mappingConfig.price_primary_key) {
+    if (effectiveMappingConfig?.price_primary_key && key === effectiveMappingConfig.price_primary_key) {
       return product.price; // Precio calculado del índice
     }
-    
+
     // SEGUNDO: Si hay override específico para esta columna
     if (product.calculated_data && key in product.calculated_data) {
       return product.calculated_data[key];
     }
-    
+
     // TERCERO: Mapeos estándar
     if (key === "code") return product.code;
     if (key === "name") return product.name;
     if (key === "price") return product.price;
     if (key === "quantity") return product.quantity;
-    
+
     // CUARTO: Leer de data original
     return product.data?.[key];
   };
@@ -77,7 +79,7 @@ export function ProductCardView({
     if (value == null) return "-";
     const isNumericField = type === "number" || key === "price";
     const hasOverride = product.calculated_data && key in product.calculated_data;
-    
+
     if (isNumericField && typeof value === "number") {
       return (
         <span className="flex items-center gap-1.5">
@@ -111,7 +113,7 @@ export function ProductCardView({
   const handleLoadMore = () => {
     if (hasLocalMore) {
       // Load 10 more locally
-      setDisplayCount(prev => prev + 10);
+      setDisplayCount((prev) => prev + 10);
     } else if (onLoadMore && hasMore) {
       // Load from server if no more local products
       onLoadMore();
