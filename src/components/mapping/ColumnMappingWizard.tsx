@@ -52,10 +52,10 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
       general: { percentage: 0, add_vat: false, vat_rate: 21 },
       overrides: {},
     },
-    dollar_conversion?: {
-      rate: number;
-      target_columns: string[];
-    };
+    dollar_conversion: {
+      rate: 0,
+      target_columns: [],
+    },
   });
 
   const queryClient = useQueryClient();
