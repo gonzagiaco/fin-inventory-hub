@@ -40,6 +40,10 @@ export interface ProductList {
       general: { percentage: number; add_vat: boolean; vat_rate?: number };
       overrides: Record<string, { percentage: number; add_vat: boolean; vat_rate?: number }>;
     };
+    dollar_conversion?: {
+      rate: number; // Valor del dólar en pesos
+      target_columns: string[]; // Columnas donde aplicar
+    };
   };
 }
 

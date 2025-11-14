@@ -22,6 +22,11 @@ type MappingConfig = {
     general: { percentage: number; add_vat: boolean; vat_rate?: number };
     overrides: Record<string, { percentage: number; add_vat: boolean; vat_rate?: number }>;
   };
+  
+  dollar_conversion?: {
+    rate: number; // Valor del dólar en pesos 
+    target_columns: string[]; // Columnas donde aplicar 
+  };
 };
 
 type Props = {
@@ -47,6 +52,10 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
       general: { percentage: 0, add_vat: false, vat_rate: 21 },
       overrides: {},
     },
+    dollar_conversion?: {
+      rate: number;
+      target_columns: string[];
+    };
   });
 
   const queryClient = useQueryClient();
@@ -106,6 +115,11 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
       return;
     }
 
+    if ((map.dollar_conversion?.rate || 0) > 0 && map.dollar_conversion?.target_columns.length === 0) {
+      toast.error("Si configuras el valor del dólar, debes seleccionar al menos una columna para convertir");
+      return;
+    }
+    
     setIsSaving(true);
     try {
       console.log("Guardando mapping_config:", map);
@@ -430,6 +444,100 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
               )}
             </div>
           ))}
+      </div>
+      
+      {/* Conversión de Dólar a Pesos */}
+      <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
+        <div className="space-y-2">
+          <Label htmlFor="dollar_rate" className="text-base font-semibold">
+            Conversión de Dólar a Pesos
+          </Label>
+          <p className="text-sm text-muted-foreground">
+            Si tus precios están en dólares, configura el valor del dólar y selecciona las columnas a convertir.
+          </p>
+        </div>
+      
+        {/* Input del valor del dólar */}
+        <div className="space-y-2">
+          <Label htmlFor="dollar_rate">Valor del Dólar (en pesos)</Label>
+          <Input
+            id="dollar_rate"
+            type="number"
+            min={0}
+            step={0.01}
+            placeholder="Ej: 1400"
+            value={map.dollar_conversion?.rate || 0}
+            onChange={(e) => {
+              const rate = Number(e.target.value) || 0;
+              setMap((prev) => ({
+                ...prev,
+                dollar_conversion: {
+                  ...prev.dollar_conversion,
+                  rate,
+                  target_columns: prev.dollar_conversion?.target_columns || [],
+                },
+              }));
+            }}
+          />
+          <p className="text-xs text-muted-foreground">
+            Dejar en 0 para deshabilitar la conversión
+          </p>
+        </div>
+      
+        {/* Selección de columnas donde aplicar */}
+        {(map.dollar_conversion?.rate || 0) > 0 && (
+          <div className="space-y-3">
+            <Label>Columnas a convertir (múltiple selección)</Label>
+            <ScrollArea className="h-[200px] border rounded-md p-3">
+              {keys
+                .filter((k) => {
+                  // Mostrar solo columnas que parecen ser precios (contienen "precio", "price", etc.)
+                  const lowerKey = k.toLowerCase();
+                  return (
+                    lowerKey.includes("precio") ||
+                    lowerKey.includes("price") ||
+                    lowerKey.includes("$") ||
+                    lowerKey.includes("cost")
+                  );
+                })
+                .map((key) => {
+                  const isSelected = map.dollar_conversion?.target_columns.includes(key);
+                  return (
+                    <div key={key} className="flex items-center space-x-2 py-2">
+                      <Checkbox
+                        id={`dollar-col-${key}`}
+                        checked={isSelected}
+                        onCheckedChange={(checked) => {
+                          setMap((prev) => {
+                            const current = prev.dollar_conversion?.target_columns || [];
+                            const updated = checked
+                              ? [...current, key]
+                              : current.filter((k) => k !== key);
+                            return {
+                              ...prev,
+                              dollar_conversion: {
+                                rate: prev.dollar_conversion?.rate || 0,
+                                target_columns: updated,
+                              },
+                            };
+                          });
+                        }}
+                      />
+                      <label
+                        htmlFor={`dollar-col-${key}`}
+                        className="text-sm font-medium cursor-pointer"
+                      >
+                        {key}
+                      </label>
+                    </div>
+                  );
+                })}
+            </ScrollArea>
+            <p className="text-xs text-muted-foreground">
+              Selecciona las columnas que contienen precios en dólares. Se multiplicarán por {map.dollar_conversion?.rate || 0}.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Umbral de Bajo Stock */}
