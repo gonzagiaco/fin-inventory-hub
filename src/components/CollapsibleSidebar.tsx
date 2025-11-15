@@ -74,9 +74,7 @@ const CollapsibleSidebar = () => {
         {/* Logo */}
         <div className={`flex items-center mb-10 ${isCollapsed ? "justify-center" : "gap-3"}`}>
           <div className="w-8 h-8 text-primary flex-shrink-0">
-            <svg fill="currentColor" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
-              <path d="M4 4H17.3334V17.3334H30.6666V30.6666H44V44H4V4Z" />
-            </svg>
+            <img src="LogoTransparente.png" className="w-8" alt="" />
           </div>
           {!isCollapsed && <h1 className="text-xl font-bold text-foreground whitespace-nowrap">InspiraStock</h1>}
         </div>
