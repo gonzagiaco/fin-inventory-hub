@@ -317,6 +317,26 @@ export async function syncFromSupabase(): Promise<void> {
       console.log(`✅ ${stockItems.length} productos de stock sincronizados`);
     }
 
+    // Sincronizar settings (dólar oficial, etc.)
+    console.log('📥 Sincronizando settings...');
+    const { data: settingsData, error: settingsError } = await supabase
+      .from('settings')
+      .select('*');
+
+    if (settingsError) throw settingsError;
+
+    if (settingsData && settingsData.length > 0) {
+      await localDB.settings.bulkPut(
+        settingsData.map((s: any) => ({
+          key: s.key,
+          value: s.value,
+          updated_at: s.updated_at,
+          created_at: s.created_at,
+        }))
+      );
+      console.log(`✅ ${settingsData.length} setting(s) sincronizado(s)`);
+    }
+
     console.log('✅ Sincronización completa desde Supabase');
     const totalItems = 
       (suppliers?.length || 0) + 
@@ -1047,6 +1067,20 @@ export async function clearAllLocalData(): Promise<void> {
   } catch (error) {
     console.error('❌ Error al limpiar datos locales:', error);
     throw error;
+  }
+}
+
+// Helper para obtener dólar oficial offline
+export async function getOfficialDollarRate(): Promise<number> {
+  try {
+    const setting = await localDB.settings.get('dollar_official');
+    if (!setting || !setting.value || !setting.value.rate) {
+      return 0;
+    }
+    return setting.value.rate;
+  } catch (error) {
+    console.error('Error obteniendo dólar oficial offline:', error);
+    return 0;
   }
 }
 

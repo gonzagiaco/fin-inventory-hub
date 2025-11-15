@@ -137,10 +137,13 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
             ...prev,
             ...loaded,
             price_modifiers: {
-              // asegurar defaults si faltan en la configuración almacenada
               general: { percentage: 0, add_vat: false, vat_rate: 21 },
               overrides: {},
               ...loaded.price_modifiers,
+            },
+            // Limpiar dollar_conversion.rate si existe (ahora es global)
+            dollar_conversion: {
+              target_columns: loaded.dollar_conversion?.target_columns || [],
             },
           }));
         }
@@ -165,14 +168,19 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
       return;
     }
 
-    if ((map.dollar_conversion?.rate || 0) > 0 && map.dollar_conversion?.target_columns.length === 0) {
-      toast.error("Si configuras el valor del dólar, debes seleccionar al menos una columna para convertir");
-      return;
-    }
-
     setIsSaving(true);
     try {
-      console.log("Guardando mapping_config:", map);
+      // Limpiar dollar_conversion para NO guardar 'rate'
+      const cleanedMapping: MappingConfig = {
+        ...map,
+        dollar_conversion: map.dollar_conversion?.target_columns?.length > 0
+          ? {
+              target_columns: map.dollar_conversion.target_columns,
+            }
+          : undefined,
+      };
+
+      console.log("Guardando mapping_config:", cleanedMapping);
 
       // 1. Guardar mapping_config
       const { error: updateError } = await supabase
@@ -512,43 +520,67 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
       {/* Conversión de Dólar a Pesos */}
       <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
         <div className="space-y-2">
-          <Label htmlFor="dollar_rate" className="text-base font-semibold">
+          <Label className="text-base font-semibold">
             Conversión de Dólar a Pesos
           </Label>
           <p className="text-sm text-muted-foreground">
-            Si tus precios están en dólares, configura el valor del dólar y selecciona las columnas a convertir.
+            Si tus precios están en dólares, selecciona las columnas a convertir usando el valor oficial.
           </p>
         </div>
 
-        {/* Input del valor del dólar */}
-        <div className="space-y-2">
-          <Label htmlFor="dollar_rate">Valor del Dólar (en pesos)</Label>
-          <Input
-            id="dollar_rate"
-            type="number"
-            min={0}
-            step={0.01}
-            placeholder="Ej: 1400"
-            value={map.dollar_conversion?.rate || 0}
-            onChange={(e) => {
-              const rate = Number(e.target.value) || 0;
-              setMap((prev) => ({
-                ...prev,
-                dollar_conversion: {
-                  ...prev.dollar_conversion,
-                  rate,
-                  target_columns: prev.dollar_conversion?.target_columns || [],
-                },
-              }));
-            }}
-          />
-          <p className="text-xs text-muted-foreground">Dejar en 0 para deshabilitar la conversión</p>
+        {/* Mostrar valor actual del dólar oficial */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between p-3 bg-primary/5 border border-primary/20 rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-primary/10 rounded-full">
+                <DollarSign className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Dólar Oficial</p>
+                {loadingDollar ? (
+                  <p className="text-lg font-bold">Cargando...</p>
+                ) : officialDollar ? (
+                  <>
+                    <p className="text-2xl font-bold text-primary">
+                      ${officialDollar.rate.toFixed(2)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Actualizado: {new Date(officialDollar.updatedAt).toLocaleString('es-AR')}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-destructive">No disponible</p>
+                )}
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => refetchDollar()}
+              disabled={loadingDollar}
+            >
+              <RefreshCw className={`h-4 w-4 ${loadingDollar ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+          
+          <Alert>
+            <Info className="h-4 w-4" />
+            <AlertTitle>Conversión Automática</AlertTitle>
+            <AlertDescription>
+              El valor del dólar se actualiza automáticamente todos los días a las 9:00 AM.
+              Este valor se aplicará a todas las columnas seleccionadas abajo.
+            </AlertDescription>
+          </Alert>
         </div>
 
         {/* Selección de columnas donde aplicar */}
-        {(map.dollar_conversion?.rate || 0) > 0 && (
+        {officialDollar && officialDollar.rate > 0 && (
           <div className="space-y-3">
-            <Label>Columnas a convertir (múltiple selección)</Label>
+            <Label>Columnas a convertir de USD a ARS</Label>
+            <p className="text-xs text-muted-foreground">
+              Se multiplicarán por el valor oficial: ${officialDollar.rate.toFixed(2)}
+            </p>
             <ScrollArea className="h-[200px] border rounded-md p-3">
               {keys
                 .filter((k) => isNumericColumn(k))
@@ -566,7 +598,6 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
                             return {
                               ...prev,
                               dollar_conversion: {
-                                rate: prev.dollar_conversion?.rate || 0,
                                 target_columns: updated,
                               },
                             };
@@ -580,11 +611,24 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
                   );
                 })}
             </ScrollArea>
-            <p className="text-xs text-muted-foreground">
-              Selecciona las columnas que contienen precios en dólares. Se multiplicarán por{" "}
-              {map.dollar_conversion?.rate || 0}.
-            </p>
+            {map.dollar_conversion?.target_columns.length > 0 && (
+              <p className="text-xs text-success font-medium">
+                ✓ {map.dollar_conversion.target_columns.length} columna(s) seleccionada(s)
+              </p>
+            )}
           </div>
+        )}
+
+        {/* Mensaje si no hay dólar configurado */}
+        {(!officialDollar || officialDollar.rate === 0) && (
+          <Alert variant="default">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Conversión no disponible</AlertTitle>
+            <AlertDescription>
+              El valor del dólar oficial aún no está configurado en el sistema.
+              La conversión automática estará disponible una vez que se actualice el valor.
+            </AlertDescription>
+          </Alert>
         )}
       </div>
 
