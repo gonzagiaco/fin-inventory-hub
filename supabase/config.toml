@@ -2,3 +2,6 @@ project_id = "xwefrpkhinkafalpmpwb"
 
 [functions.process-document]
 verify_jwt = true
+
+[functions.update-dollar-rate]
+verify_jwt = false
