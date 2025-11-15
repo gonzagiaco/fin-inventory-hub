@@ -125,6 +125,23 @@ export default function Stock() {
     return lists.reduce((sum, list: any) => sum + (list.product_count || 0), 0);
   }, [lists]);
 
+  function parsePriceValue(value: any): number | null {
+  if (value == null) return null;
+
+  if (typeof value === "number") {
+    return isFinite(value) ? value : null;
+  }
+
+  const cleaned = String(value)
+    // quitar símbolos de moneda, espacios, etc.
+    .replace(/[^0-9.,-]/g, "")
+    // pasar coma decimal a punto
+    .replace(",", ".");
+
+  const parsed = parseFloat(cleaned);
+  return !isNaN(parsed) && isFinite(parsed) ? parsed : null;
+
+
   const handleAddToRequest = (product: any, mappingConfig?: any) => {
     const existingItem = requestList.find((r) => r.productId === product.id);
 
@@ -132,19 +149,28 @@ export default function Stock() {
       setRequestList((prev) => prev.map((r) => (r.productId === product.id ? { ...r, quantity: r.quantity + 1 } : r)));
       toast.success("Cantidad actualizada en la lista de pedidos");
     } else {
-      let finalPrice = Number(product.price) || 0;
+      let finalPrice = parsePriceValue(product.price) ?? 0;
 
       // Si hay una columna específica configurada para el carrito
       const cartPriceColumn = mappingConfig?.cart_price_column;
 
       if (cartPriceColumn) {
-        // 1. Intentar primero calculated_data (con overrides)
-        if (product.calculated_data?.[cartPriceColumn] !== undefined) {
-          finalPrice = Number(product.calculated_data[cartPriceColumn]) || finalPrice;
-        }
-        // 2. Si no existe en calculated_data, intentar con data (valor original)
-        else if (product.data?.[cartPriceColumn] !== undefined) {
-          finalPrice = Number(product.data[cartPriceColumn]) || finalPrice;
+        // 1) Intentar primero con calculated_data (si ya tenés precios recalculados)
+        const fromCalculated =
+          product.calculated_data && cartPriceColumn in product.calculated_data
+            ? parsePriceValue(product.calculated_data[cartPriceColumn])
+            : null;
+      
+        // 2) Si no hay en calculated_data, intentar con data (valor original)
+        const fromRawData =
+          !fromCalculated && product.data && cartPriceColumn in product.data
+            ? parsePriceValue(product.data[cartPriceColumn])
+            : null;
+      
+        if (fromCalculated != null) {
+          finalPrice = fromCalculated;
+        } else if (fromRawData != null) {
+          finalPrice = fromRawData;
         }
       }
 
