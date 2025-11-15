@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
 }
 
 export const useInstallPWA = () => {
@@ -10,15 +10,18 @@ export const useInstallPWA = () => {
   const [isInstallable, setIsInstallable] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [isPWA, setIsPWA] = useState(false);
 
   useEffect(() => {
     // Detectar si es iOS
     const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
     setIsIOS(ios);
 
-    // Detectar si ya está instalado
-    const standalone = window.matchMedia('(display-mode: standalone)').matches;
-    const installed = standalone || localStorage.getItem('pwa_installed') === 'true';
+    const standalone = window.matchMedia("(display-mode: standalone)").matches;
+    setIsPWA(standalone);
+
+    // Detectar si la app YA FUE instalada (flag persistente)
+    const installed = localStorage.getItem("pwa_installed") === "true";
     setIsInstalled(installed);
 
     // Escuchar el evento beforeinstallprompt
@@ -28,18 +31,18 @@ export const useInstallPWA = () => {
       setIsInstallable(true);
     };
 
-    window.addEventListener('beforeinstallprompt', handler);
+    window.addEventListener("beforeinstallprompt", handler);
 
     // Detectar cuando se instala la app
-    window.addEventListener('appinstalled', () => {
+    window.addEventListener("appinstalled", () => {
       setIsInstalled(true);
-      localStorage.setItem('pwa_installed', 'true');
+      localStorage.setItem("pwa_installed", "true");
       setDeferredPrompt(null);
       setIsInstallable(false);
     });
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handler);
+      window.removeEventListener("beforeinstallprompt", handler);
     };
   }, []);
 
@@ -50,15 +53,15 @@ export const useInstallPWA = () => {
       await deferredPrompt.prompt();
       const result = await deferredPrompt.userChoice;
 
-      if (result.outcome === 'accepted') {
-        localStorage.setItem('pwa_installed', 'true');
+      if (result.outcome === "accepted") {
+        localStorage.setItem("pwa_installed", "true");
         setIsInstalled(true);
       }
 
       setDeferredPrompt(null);
       setIsInstallable(false);
     } catch (error) {
-      console.error('Error al instalar PWA:', error);
+      console.error("Error al instalar PWA:", error);
     }
   };
 
@@ -69,6 +72,7 @@ export const useInstallPWA = () => {
   return {
     isInstallable,
     isInstalled,
+    isPWA,
     isIOS,
     handleInstall,
     shouldShowInstallPrompt,
