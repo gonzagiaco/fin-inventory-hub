@@ -7,25 +7,9 @@ import { IOSInstallInstructions } from "./IOSInstallInstructions";
 
 export const InstallPWAButton = () => {
   const [showIOSInstructions, setShowIOSInstructions] = useState(false);
-  const { isIOS, isInstalled, handleInstall } = useInstallPWA();
+  const { isIOS, handleInstall } = useInstallPWA();
 
   const getInstallContent = () => {
-    if (isInstalled) {
-      return {
-        title: "✓ App instalada",
-        description: "La aplicación ya está instalada en tu dispositivo",
-        buttonText: "Abrir app",
-        buttonAction: () => {
-          if (isIOS) {
-            setShowIOSInstructions(true);
-          } else {
-            window.open(window.location.origin, '_blank');
-          }
-        },
-        showSparkles: false
-      };
-    }
-    
     return {
       title: "Instalar app",
       description: null,
@@ -37,7 +21,7 @@ export const InstallPWAButton = () => {
           handleInstall();
         }
       },
-      showSparkles: true
+      showSparkles: true,
     };
   };
 
@@ -58,9 +42,7 @@ export const InstallPWAButton = () => {
                 {content.showSparkles && <Sparkles className="h-4 w-4 text-primary" />}
               </div>
 
-              {content.description && (
-                <p className="text-sm text-muted-foreground">{content.description}</p>
-              )}
+              {content.description && <p className="text-sm text-muted-foreground">{content.description}</p>}
 
               <Button onClick={content.buttonAction} className="w-full sm:w-auto mt-2" size="sm">
                 <Download className="h-4 w-4 mr-2" />
