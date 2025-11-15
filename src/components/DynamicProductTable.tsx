@@ -142,7 +142,15 @@ export const DynamicProductTable = ({
           const hasModifiers = row.original.calculated_data && Object.keys(row.original.calculated_data).length > 0;
 
           if (isNumericField && typeof value === "number") {
-            return <div className="flex items-center gap-1.5">{value.toFixed(2)}</div>;
+            // Formatear como moneda argentina con símbolo $
+            const formattedValue = new Intl.NumberFormat("es-AR", {
+              style: "currency",
+              currency: "ARS",
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            }).format(value);
+
+            return <div className="flex items-center gap-1.5">{formattedValue}</div>;
           }
           return String(value);
         },
