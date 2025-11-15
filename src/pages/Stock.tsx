@@ -21,11 +21,7 @@ import { GlobalProductSearch } from "@/components/GlobalProductsSearch";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 // Helper function to extract name from product data for search results
-function extractNameFromFullData(
-  data: Record<string, any>, 
-  schema: any[], 
-  mappingConfig?: any
-): string {
+function extractNameFromFullData(data: Record<string, any>, schema: any[], mappingConfig?: any): string {
   // 1. PRIORIDAD: Usar name_keys del mapping_config
   if (mappingConfig?.name_keys && Array.isArray(mappingConfig.name_keys)) {
     for (const key of mappingConfig.name_keys) {
@@ -34,14 +30,14 @@ function extractNameFromFullData(
       }
     }
   }
-  
+
   // 2. FALLBACK: Buscar en schema (columnas text que no sean code/price)
   for (const col of schema) {
     if (col.key !== "code" && col.key !== "price" && col.type === "text" && data[col.key]) {
       return String(data[col.key]);
     }
   }
-  
+
   // 3. FALLBACK FINAL: Campos comunes
   const commonNameFields = ["name", "nombre", "descripcion", "description", "producto", "product"];
   for (const field of commonNameFields) {
@@ -49,7 +45,7 @@ function extractNameFromFullData(
       return String(data[field]);
     }
   }
-  
+
   return "Sin nombre";
 }
 
@@ -136,15 +132,29 @@ export default function Stock() {
       setRequestList((prev) => prev.map((r) => (r.productId === product.id ? { ...r, quantity: r.quantity + 1 } : r)));
       toast.success("Cantidad actualizada en la lista de pedidos");
     } else {
-      // Determinar qué precio usar
       let finalPrice = Number(product.price) || 0;
 
       // Si hay una columna específica configurada para el carrito
       const cartPriceColumn = mappingConfig?.cart_price_column;
-      if (cartPriceColumn && product.calculated_data?.[cartPriceColumn]) {
-        // Usar el precio de la columna configurada (con su override específico)
-        finalPrice = Number(product.calculated_data[cartPriceColumn]) || finalPrice;
+
+      if (cartPriceColumn) {
+        // 1. Intentar primero calculated_data (con overrides)
+        if (product.calculated_data?.[cartPriceColumn] !== undefined) {
+          finalPrice = Number(product.calculated_data[cartPriceColumn]) || finalPrice;
+        }
+        // 2. Si no existe en calculated_data, intentar con data (valor original)
+        else if (product.data?.[cartPriceColumn] !== undefined) {
+          finalPrice = Number(product.data[cartPriceColumn]) || finalPrice;
+        }
       }
+
+      console.log("🛒 Agregando al carrito:", {
+        productName: product.name,
+        cartPriceColumn: mappingConfig?.cart_price_column,
+        calculatedData: product.calculated_data,
+        rawData: product.data,
+        finalPrice,
+      });
 
       const newRequest: RequestItem = {
         id: Date.now().toString(),
@@ -202,18 +212,17 @@ export default function Stock() {
         // Filtrar por término de búsqueda
         let filtered = indexedProducts.filter((p: any) => {
           // Buscar en índice primero
-          if (p.code?.toLowerCase().includes(searchTermLower) 
-              || p.name?.toLowerCase().includes(searchTermLower)) {
+          if (p.code?.toLowerCase().includes(searchTermLower) || p.name?.toLowerCase().includes(searchTermLower)) {
             return true;
           }
-          
+
           // Si el índice no tiene datos, buscar en producto completo
           const fullProduct = fullProducts.find((fp: any) => fp.id === p.product_id);
           if (!fullProduct?.data) return false;
-          
+
           const list = productLists.find((l: any) => l.id === p.list_id);
           const mappingConfig = list?.mapping_config;
-          
+
           // Buscar en todos los code_keys configurados
           if (mappingConfig?.code_keys && Array.isArray(mappingConfig.code_keys)) {
             for (const key of mappingConfig.code_keys) {
@@ -222,7 +231,7 @@ export default function Stock() {
               }
             }
           }
-          
+
           // Buscar en todos los name_keys configurados
           if (mappingConfig?.name_keys && Array.isArray(mappingConfig.name_keys)) {
             for (const key of mappingConfig.name_keys) {
@@ -231,7 +240,7 @@ export default function Stock() {
               }
             }
           }
-          
+
           return false;
         });
 
@@ -309,11 +318,7 @@ export default function Stock() {
                 </SelectContent>
               </Select>
 
-              <Button
-                variant="outline"
-                onClick={handleExportToExcel}
-                disabled={requestList.length === 0}
-              >
+              <Button variant="outline" onClick={handleExportToExcel} disabled={requestList.length === 0}>
                 <FileDown className="mr-2 h-4 w-4" />
                 Exportar Pedido
               </Button>
@@ -323,10 +328,7 @@ export default function Stock() {
           <div className="flex items-center gap-3 flex-wrap">
             <div className="text-sm text-muted-foreground">
               {totalProducts} productos en total{" • "}
-              {visibleSupplierSections.length}{" "}
-              {visibleSupplierSections.length === 1
-                ? "proveedor"
-                : "proveedores"}
+              {visibleSupplierSections.length} {visibleSupplierSections.length === 1 ? "proveedor" : "proveedores"}
             </div>
           </div>
         </div>
@@ -352,8 +354,7 @@ export default function Stock() {
               </div>
               <p className="text-muted-foreground">Cargando listas...</p>
             </div>
-          ) : searchTerm.trim().length >= 3 ||
-            (searchTerm === "" && supplierFilter !== "all") ? (
+          ) : searchTerm.trim().length >= 3 || (searchTerm === "" && supplierFilter !== "all") ? (
             hasSearchTerm && (
               <GlobalProductSearch
                 searchTerm={searchTerm}
@@ -370,9 +371,7 @@ export default function Stock() {
           ) : visibleSupplierSections.length === 0 ? (
             // ------- Sin proveedores -------
             <Card className="p-12 text-center">
-              <p className="text-muted-foreground">
-                No se encontraron proveedores
-              </p>
+              <p className="text-muted-foreground">No se encontraron proveedores</p>
             </Card>
           ) : (
             // ------- Secciones de proveedores (como antes) -------

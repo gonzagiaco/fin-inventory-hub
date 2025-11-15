@@ -130,7 +130,7 @@ function ListProductsWrapper({
   listId: string;
   columnSchema: any[];
   mappingConfig: any;
-  onAddToRequest: (product: any) => void;
+  onAddToRequest: (product: any, mappingConfig?: any) => void;
 }) {
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useListProducts(listId);
 
@@ -164,7 +164,7 @@ function ListProductsWrapper({
         products={allProducts}
         columnSchema={columnSchema}
         mappingConfig={mappingConfig}
-        onAddToRequest={onAddToRequest}
+        onAddToRequest={(product) => onAddToRequest(product, mappingConfig)}
         showStockActions
         onLoadMore={() => {
           void fetchNextPage();
