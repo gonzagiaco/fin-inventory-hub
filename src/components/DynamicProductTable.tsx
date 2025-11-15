@@ -134,24 +134,41 @@ export const DynamicProductTable = ({
         cell: ({ getValue, row }) => {
           const value = getValue();
           if (value === null || value === undefined) return "-";
-          const isNumericField = schema.type === "number" || schema.key === "price";
 
-          // Check si esta columna tiene modificadores aplicados
-          const hasOverride = row.original.calculated_data && schema.key in row.original.calculated_data;
-          const isPriceColumn = schema.key === "price";
-          const hasModifiers = row.original.calculated_data && Object.keys(row.original.calculated_data).length > 0;
+          const key = schema.key.toLowerCase();
 
-          if (isNumericField && typeof value === "number") {
-            // Formatear como moneda argentina con símbolo $
-            const formattedValue = new Intl.NumberFormat("es-AR", {
-              style: "currency",
-              currency: "ARS",
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            }).format(value);
+          const isNumericField =
+            schema.type === "number" ||
+            key === "price" ||
+            key === "precio" ||
+            key.includes("precio") ||
+            key.includes("price");
 
-            return <div className="flex items-center gap-1.5">${formattedValue}</div>;
+          if (isNumericField) {
+            // si viene como número, lo usamos directo
+            // si viene como string numérico, lo convertimos
+            const numericValue =
+              typeof value === "number"
+                ? value
+                : typeof value === "string" &&
+                    value.trim() !== "" &&
+                    !isNaN(Number(value.replace(/\./g, "").replace(",", ".")))
+                  ? Number(value.replace(/\./g, "").replace(",", "."))
+                  : null;
+
+            if (numericValue !== null) {
+              const formattedValue = new Intl.NumberFormat("es-AR", {
+                style: "currency",
+                currency: "ARS",
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              }).format(numericValue);
+
+              return <div className="flex items-center gap-1.5">{formattedValue}</div>;
+            }
           }
+
+          // fallback para columnas no numéricas o valores no convertibles
           return String(value);
         },
         meta: {
