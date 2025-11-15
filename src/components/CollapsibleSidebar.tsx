@@ -74,7 +74,7 @@ const CollapsibleSidebar = () => {
         {/* Logo */}
         <div className={`flex items-center mb-10 ${isCollapsed ? "justify-center" : "gap-3"}`}>
           <div className="w-8 h-8 text-primary flex-shrink-0">
-            <img src="LogoTransparente.png" className="w-14" alt="" />
+            <img src="LogoTransparente.png" width="50" alt="" />
           </div>
           {!isCollapsed && <h1 className="text-xl font-bold text-foreground whitespace-nowrap">InspiraStock</h1>}
         </div>
