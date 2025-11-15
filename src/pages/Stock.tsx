@@ -140,7 +140,7 @@ export default function Stock() {
 
   const parsed = parseFloat(cleaned);
   return !isNaN(parsed) && isFinite(parsed) ? parsed : null;
-
+}
 
   const handleAddToRequest = (product: any, mappingConfig?: any) => {
     const existingItem = requestList.find((r) => r.productId === product.id);
