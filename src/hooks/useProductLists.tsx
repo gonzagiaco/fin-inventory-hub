@@ -386,7 +386,7 @@ export const useProductLists = (supplierId?: string) => {
         throw new Error("Usuario no autenticado");
       }
 
-      // 1. Update list metadata (SIN mapping_config para preservarlo)
+      // 1. Actualizar metadatos de la lista
       const { error: updateError } = await supabase
         .from("product_lists")
         .update({
@@ -399,89 +399,48 @@ export const useProductLists = (supplierId?: string) => {
 
       if (updateError) throw updateError;
 
-      // 2. Obtener productos existentes (con sus IDs y cantidades)
-      const { data: existingProducts } = await supabase
-        .from("dynamic_products")
-        .select("id, code, quantity")
-        .eq("list_id", listId);
+      // 2. ✅ UPSERT DUAL en ambas tablas (1 sola llamada batch)
+      console.log('🚀 Ejecutando UPSERT dual batch...');
+      const startTime = Date.now();
 
-      const existingByCode = new Map(
-        existingProducts?.map(p => [p.code, { id: p.id, quantity: p.quantity }]) || []
+      const { data: result, error: upsertError } = await supabase.rpc(
+        "upsert_products_batch",
+        {
+          p_list_id: listId,
+          p_user_id: userData.user.id,
+          p_products: products.map(p => ({
+            code: p.code,
+            name: p.name,
+            price: p.price,
+            quantity: p.quantity,
+            data: p.data,
+          })),
+        }
       );
 
-      const existingIds = new Set(existingProducts?.map(p => p.id) || []);
-      const updatedIds = new Set<string>();
+      const duration = Date.now() - startTime;
+      console.log(`✅ UPSERT dual completado en ${duration}ms:`, result);
 
-      // 3. UPSERT: Actualizar existentes e insertar nuevos
-      for (const product of products) {
-        if (product.code && existingByCode.has(product.code)) {
-          // ✅ UPDATE: Producto existe, actualizar campos excepto quantity
-          const existing = existingByCode.get(product.code)!;
-          updatedIds.add(existing.id);
+      if (upsertError) throw upsertError;
 
-          const { error: updateProductError } = await supabase
-            .from("dynamic_products")
-            .update({
-              name: product.name,
-              price: product.price,
-              data: product.data,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", existing.id);
-
-          if (updateProductError) throw updateProductError;
-
-        } else {
-          // ✅ INSERT: Producto nuevo
-          const { data: insertedProduct, error: insertProductError } = await supabase
-            .from("dynamic_products")
-            .insert({
-              user_id: userData.user.id,
-              list_id: listId,
-              code: product.code,
-              name: product.name,
-              price: product.price,
-              quantity: product.quantity,
-              data: product.data,
-            })
-            .select("id")
-            .single();
-
-          if (insertProductError) throw insertProductError;
-          if (insertedProduct) updatedIds.add(insertedProduct.id);
-        }
-      }
-
-      // 4. DELETE: Eliminar productos que ya no están en el archivo nuevo
-      const idsToDelete = Array.from(existingIds).filter(id => !updatedIds.has(id));
-      
-      if (idsToDelete.length > 0) {
-        const { error: deleteError } = await supabase
-          .from("dynamic_products")
-          .delete()
-          .in("id", idsToDelete);
-
-        if (deleteError) throw deleteError;
-      }
-
-      console.log(`✅ UPSERT completado: ${updatedIds.size} productos actualizados/insertados, ${idsToDelete.length} eliminados`);
-
-      // 5. Regenerar índice (preserva cantidades automáticamente porque los IDs no cambiaron)
-      const { error: refreshError } = await supabase.rpc("refresh_list_index", {
-        p_list_id: listId,
-      });
-
-      if (refreshError) throw refreshError;
-
-      // ✅ Limpiar productos viejos de IndexedDB
+      // 3. Sincronizar IndexedDB: eliminar datos viejos
       await localDB.dynamic_products.where('list_id').equals(listId).delete();
       await localDB.dynamic_products_index.where('list_id').equals(listId).delete();
 
-      // ✅ Sincronizar productos nuevos desde Supabase a IndexedDB
+      // 4. Sincronizar IndexedDB: recargar desde Supabase
+      const { data: productsData } = await supabase
+        .from("dynamic_products")
+        .select("*")
+        .eq("list_id", listId);
+
       const { data: indexData } = await supabase
         .from("dynamic_products_index")
         .select("*")
         .eq("list_id", listId);
+
+      if (productsData) {
+        await localDB.dynamic_products.bulkAdd(productsData);
+      }
 
       if (indexData) {
         await localDB.dynamic_products_index.bulkAdd(indexData);

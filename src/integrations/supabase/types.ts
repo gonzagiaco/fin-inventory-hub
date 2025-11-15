@@ -705,6 +705,14 @@ export type Database = {
           rank: number
         }[]
       }
+      upsert_products_batch: {
+        Args: { p_list_id: string; p_products: Json; p_user_id: string }
+        Returns: {
+          deleted_count: number
+          inserted_count: number
+          updated_count: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never
