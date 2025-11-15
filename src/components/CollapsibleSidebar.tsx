@@ -1,5 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
-import { Package2, Users, Warehouse, Menu, X, LogOut, ChevronLeft, ChevronRight, FileText } from "lucide-react";
+import { Package2, Users, Warehouse, Menu, X, LogOut, ChevronLeft, ChevronRight, FileText, CircleHelp } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ const CollapsibleSidebar = () => {
     { name: "Stock", href: "/", icon: Package2 },
     { name: "Proveedores", href: "/proveedores", icon: Warehouse },
     // { name: "Remitos", href: "/remitos", icon: FileText },
+    {name: "Ayuda", href: "/ayuda", icon: CircleHelp}
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -73,8 +74,8 @@ const CollapsibleSidebar = () => {
 
         {/* Logo */}
         <div className={`flex items-center mb-10 ${isCollapsed ? "justify-center" : "gap-3"}`}>
-          <div className="w-8 h-8 text-primary flex-shrink-0">
-            <img src="LogoTransparente.png" classname="w-[50px]" alt="" />
+          <div className="w-14 h-14 text-primary flex-shrink-0">
+            <img src="LogoTransparente.png" alt="" />
           </div>
           {!isCollapsed && <h1 className="text-xl font-bold text-foreground whitespace-nowrap">InspiraStock</h1>}
         </div>

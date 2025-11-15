@@ -7,9 +7,9 @@ const Ayuda = () => {
     <div className="flex-1 p-6 lg:p-10">
       <Header title="Ayuda" subtitle="¿Necesitas asistencia?" showSearch={false} />
       
-      <div className="space-y-6 max-w-4xl">
+      <div className="space-y-6">
         {/* Configuración de Proveedores */}
-        <div className="glassmorphism rounded-xl shadow-lg p-6 space-y-4">
+        <div className="glassmorphism rounded-xl shadow-lg p-6 space-y-4 w-full">
           <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
             <Database className="h-6 w-6" />
             Configuración de Proveedores
@@ -141,6 +141,11 @@ const Ayuda = () => {
             Si tienes alguna pregunta adicional o necesitas soporte técnico, contáctanos.
           </p>
         </div>
+
+        <a href="https://www.inspirawebstudio.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+          <img src="LogoTransparente.png" width={35} alt="" />
+          <p>Inspira Web Studio | Todos los derechos reservados.</p>
+        </a>
       </div>
     </div>
   );

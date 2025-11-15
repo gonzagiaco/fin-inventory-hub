@@ -88,10 +88,10 @@ const Auth = () => {
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <div className="p-3 bg-primary/10 rounded-full">
-              <Package className="h-8 w-8 text-primary" />
+              <img src="LogoTransparente.png" width={80} alt="" />
             </div>
           </div>
-          <CardTitle className="text-2xl">Sistema de Inventario</CardTitle>
+          <CardTitle className="text-2xl">InspiraStock</CardTitle>
           <CardDescription>
             Gestiona tu inventario, proveedores y clientes
           </CardDescription>
