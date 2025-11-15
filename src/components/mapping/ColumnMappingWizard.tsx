@@ -575,7 +575,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
         </div>
 
         {/* Selección de columnas donde aplicar */}
-        {officialDollar && officialDollar.rate > 0 && (
+        {officialDollar && (
           <div className="space-y-3">
             <Label>Columnas a convertir de USD a ARS</Label>
             <p className="text-xs text-muted-foreground">
