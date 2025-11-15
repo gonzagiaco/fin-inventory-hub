@@ -6,9 +6,38 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { Loader2, RefreshCw, DollarSign, Info, AlertCircle } from "lucide-react";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Input } from "../ui/input";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
+// Hook personalizado para obtener dólar oficial
+function useOfficialDollar() {
+  return useQuery({
+    queryKey: ["dollar-official"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("settings")
+        .select("value, updated_at")
+        .eq("key", "dollar_official")
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) return null;
+
+      const value = data.value as any;
+      return {
+        rate: value.rate || 0,
+        venta: value.venta,
+        compra: value.compra,
+        source: value.source,
+        updatedAt: data.updated_at,
+      };
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutos
+    refetchInterval: 10 * 60 * 1000, // Refetch cada 10 minutos
+  });
+}
 
 type MappingConfig = {
   code_keys: string[];
@@ -24,8 +53,7 @@ type MappingConfig = {
   };
 
   dollar_conversion?: {
-    rate: number; // Valor del dólar en pesos
-    target_columns: string[]; // Columnas donde aplicar
+    target_columns: string[]; // Columnas donde aplicar conversión
   };
 };
 
@@ -35,6 +63,7 @@ type Props = {
 };
 
 export function ColumnMappingWizard({ listId, onSaved }: Props) {
+  const { data: officialDollar, isLoading: loadingDollar, refetch: refetchDollar } = useOfficialDollar();
   const [sample, setSample] = useState<any[]>([]);
   const [keys, setKeys] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,7 +82,6 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
       overrides: {},
     },
     dollar_conversion: {
-      rate: 0,
       target_columns: [],
     },
   });
@@ -149,7 +177,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
       // 1. Guardar mapping_config
       const { error: updateError } = await supabase
         .from("product_lists")
-        .update({ mapping_config: map })
+        .update({ mapping_config: cleanedMapping })
         .eq("id", listId);
 
       if (updateError) {

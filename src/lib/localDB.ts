@@ -126,6 +126,13 @@ interface AuthTokenDB {
   updatedAt: string;
 }
 
+interface SettingsDB {
+  key: string;
+  value: any;
+  updated_at: string;
+  created_at: string;
+}
+
 // ==================== DEXIE DATABASE ====================
 
 class LocalDatabase extends Dexie {
@@ -139,6 +146,7 @@ class LocalDatabase extends Dexie {
   stock_items!: Table<StockItemDB, string>;
   pending_operations!: Table<PendingOperation, number>;
   tokens!: Table<AuthTokenDB, string>;
+  settings!: Table<SettingsDB, string>;
 
   constructor() {
     super('ProveedoresLocalDB');
@@ -150,6 +158,7 @@ class LocalDatabase extends Dexie {
       dynamic_products: 'id, user_id, list_id, code, name',
       delivery_notes: 'id, user_id, customer_name, status, issue_date',
       delivery_note_items: 'id, delivery_note_id, product_id',
+      settings: 'key, updated_at',
       request_items: 'id, user_id, product_id',
       stock_items: 'id, user_id, code, name, category, supplier_id',
       pending_operations: '++id, table_name, timestamp, record_id',
