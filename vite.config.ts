@@ -31,25 +31,25 @@ export default defineConfig(({ mode }) => ({
         lang: "es",
         icons: [
           {
-            src: "/pwa-192x192.png",
+            src: "/LogoPWA192.png",
             sizes: "192x192",
             type: "image/png",
             purpose: "any",
           },
           {
-            src: "/pwa-512x512.png",
+            src: "/LogoPWA512.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "any",
           },
           {
-            src: "/pwa-maskable-192x192.png",
+            src: "/Maskable192.png",
             sizes: "192x192",
             type: "image/png",
             purpose: "maskable",
           },
           {
-            src: "/pwa-maskable-512x512.png",
+            src: "/Maskable512.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "maskable",
