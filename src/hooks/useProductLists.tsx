@@ -386,21 +386,6 @@ export const useProductLists = (supplierId?: string) => {
         throw new Error("Usuario no autenticado");
       }
 
-      // 🔹 PASO 0: Obtener cantidades actuales ANTES de borrar
-      const { data: currentProducts } = await supabase
-        .from("dynamic_products_index")
-        .select("code, quantity")
-        .eq("list_id", listId);
-
-      const quantitiesMap = new Map<string, number>();
-      currentProducts?.forEach((p) => {
-        if (p.code) {
-          quantitiesMap.set(p.code, p.quantity || 0);
-        }
-      });
-
-      console.log('📦 Cantidades preservadas:', Object.fromEntries(quantitiesMap));
-
       // 1. Update list metadata (SIN mapping_config para preservarlo)
       const { error: updateError } = await supabase
         .from("product_lists")
@@ -409,33 +394,84 @@ export const useProductLists = (supplierId?: string) => {
           updated_at: new Date().toISOString(),
           product_count: products.length,
           column_schema: JSON.parse(JSON.stringify(columnSchema)),
-          // ❌ NO incluir mapping_config aquí (se preserva automáticamente)
         })
         .eq("id", listId);
 
       if (updateError) throw updateError;
 
-      // 2. Delete old products
-      const { error: deleteError } = await supabase.from("dynamic_products").delete().eq("list_id", listId);
+      // 2. Obtener productos existentes (con sus IDs y cantidades)
+      const { data: existingProducts } = await supabase
+        .from("dynamic_products")
+        .select("id, code, quantity")
+        .eq("list_id", listId);
 
-      if (deleteError) throw deleteError;
+      const existingByCode = new Map(
+        existingProducts?.map(p => [p.code, { id: p.id, quantity: p.quantity }]) || []
+      );
 
-      // 3. Insert new products CON cantidades preservadas
-      const productsToInsert = products.map((product) => ({
-        user_id: userData.user.id,
-        list_id: listId,
-        code: product.code,
-        name: product.name,
-        price: product.price,
-        quantity: product.code && quantitiesMap.has(product.code)
-          ? quantitiesMap.get(product.code)  // ✅ Usar cantidad preservada
-          : product.quantity,                  // Fallback: cantidad del archivo
-        data: product.data,
-      }));
+      const existingIds = new Set(existingProducts?.map(p => p.id) || []);
+      const updatedIds = new Set<string>();
 
-      const { error: insertError } = await supabase.from("dynamic_products").insert(productsToInsert);
+      // 3. UPSERT: Actualizar existentes e insertar nuevos
+      for (const product of products) {
+        if (product.code && existingByCode.has(product.code)) {
+          // ✅ UPDATE: Producto existe, actualizar campos excepto quantity
+          const existing = existingByCode.get(product.code)!;
+          updatedIds.add(existing.id);
 
-      if (insertError) throw insertError;
+          const { error: updateProductError } = await supabase
+            .from("dynamic_products")
+            .update({
+              name: product.name,
+              price: product.price,
+              data: product.data,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", existing.id);
+
+          if (updateProductError) throw updateProductError;
+
+        } else {
+          // ✅ INSERT: Producto nuevo
+          const { data: insertedProduct, error: insertProductError } = await supabase
+            .from("dynamic_products")
+            .insert({
+              user_id: userData.user.id,
+              list_id: listId,
+              code: product.code,
+              name: product.name,
+              price: product.price,
+              quantity: product.quantity,
+              data: product.data,
+            })
+            .select("id")
+            .single();
+
+          if (insertProductError) throw insertProductError;
+          if (insertedProduct) updatedIds.add(insertedProduct.id);
+        }
+      }
+
+      // 4. DELETE: Eliminar productos que ya no están en el archivo nuevo
+      const idsToDelete = Array.from(existingIds).filter(id => !updatedIds.has(id));
+      
+      if (idsToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("dynamic_products")
+          .delete()
+          .in("id", idsToDelete);
+
+        if (deleteError) throw deleteError;
+      }
+
+      console.log(`✅ UPSERT completado: ${updatedIds.size} productos actualizados/insertados, ${idsToDelete.length} eliminados`);
+
+      // 5. Regenerar índice (preserva cantidades automáticamente porque los IDs no cambiaron)
+      const { error: refreshError } = await supabase.rpc("refresh_list_index", {
+        p_list_id: listId,
+      });
+
+      if (refreshError) throw refreshError;
 
       // ✅ Limpiar productos viejos de IndexedDB
       await localDB.dynamic_products.where('list_id').equals(listId).delete();
