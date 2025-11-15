@@ -164,7 +164,7 @@ function ListProductsWrapper({
         products={allProducts}
         columnSchema={columnSchema}
         mappingConfig={mappingConfig}
-        onAddToRequest={(product) => onAddToRequest(product, mappingConfig)}
+        onAddToRequest={onAddToRequest}
         showStockActions
         onLoadMore={() => {
           void fetchNextPage();

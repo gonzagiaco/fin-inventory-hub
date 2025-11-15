@@ -14,7 +14,7 @@ interface ProductCardViewProps {
   products: DynamicProduct[] | any[];
   columnSchema: ColumnSchema[];
   mappingConfig?: ProductList["mapping_config"];
-  onAddToRequest?: (product: any) => void;
+  onAddToRequest?: (product: any, mappingConfig?: ProductList["mapping_config"]) => void;
   showActions?: boolean;
   onLoadMore?: () => void;
   hasMore?: boolean;
@@ -235,7 +235,12 @@ export function ProductCardView({
                 )}
 
                 {showActions && onAddToRequest && (
-                  <Button size="sm" variant="outline" onClick={() => onAddToRequest(product)} className="mt-auto">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => onAddToRequest(product, mappingConfig)}
+                    className="mt-auto"
+                  >
                     <ShoppingCart className="h-4 w-4 mr-2" />
                     Agregar al pedido
                   </Button>
