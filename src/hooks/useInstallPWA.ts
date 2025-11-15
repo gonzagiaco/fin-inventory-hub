@@ -9,7 +9,6 @@ export const useInstallPWA = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isInstallable, setIsInstallable] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
-  const [isDismissed, setIsDismissed] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
 
   useEffect(() => {
@@ -21,10 +20,6 @@ export const useInstallPWA = () => {
     const standalone = window.matchMedia('(display-mode: standalone)').matches;
     const installed = standalone || localStorage.getItem('pwa_installed') === 'true';
     setIsInstalled(installed);
-
-    // Verificar si fue descartado antes
-    const dismissed = localStorage.getItem('pwa_install_dismissed') === 'true';
-    setIsDismissed(dismissed);
 
     // Escuchar el evento beforeinstallprompt
     const handler = (e: Event) => {
@@ -67,22 +62,15 @@ export const useInstallPWA = () => {
     }
   };
 
-  const handleDismiss = () => {
-    localStorage.setItem('pwa_install_dismissed', 'true');
-    setIsDismissed(true);
-  };
-
   const shouldShowInstallPrompt = () => {
-    return !isInstalled && !isDismissed && (isInstallable || isIOS);
+    return true; // Siempre mostrar el cartel
   };
 
   return {
     isInstallable,
     isInstalled,
-    isDismissed,
     isIOS,
     handleInstall,
-    handleDismiss,
     shouldShowInstallPrompt,
   };
 };
