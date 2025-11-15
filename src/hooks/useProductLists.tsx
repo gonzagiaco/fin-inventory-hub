@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { ProductList, DynamicProduct, ColumnSchema } from "@/types/productList";
 import { fetchAllFromTable } from "@/utils/fetchAllProducts";
 import { useOnlineStatus } from './useOnlineStatus';
-import { getOfflineData, createProductListOffline, updateProductListOffline, deleteProductListOffline } from '@/lib/localDB';
+import { getOfflineData, createProductListOffline, updateProductListOffline, deleteProductListOffline, localDB } from '@/lib/localDB';
 
 // Helper function to extract name from product data when index is missing it
 function extractNameFromData(
@@ -263,6 +263,11 @@ export const useProductLists = (supplierId?: string) => {
       // ONLINE: Eliminar de Supabase
       const { error } = await supabase.from("product_lists").delete().eq("id", listId);
       if (error) throw error;
+
+      // ✅ Limpiar IndexedDB inmediatamente (solución híbrida)
+      await localDB.product_lists.delete(listId);
+      await localDB.dynamic_products.where('list_id').equals(listId).delete();
+      await localDB.dynamic_products_index.where('list_id').equals(listId).delete();
     },
     onSuccess: (_, listId) => {
       // Resetear queries específicas de esta lista (fuerza limpieza completa)
@@ -400,6 +405,20 @@ export const useProductLists = (supplierId?: string) => {
       const { error: insertError } = await supabase.from("dynamic_products").insert(productsToInsert);
 
       if (insertError) throw insertError;
+
+      // ✅ Limpiar productos viejos de IndexedDB
+      await localDB.dynamic_products.where('list_id').equals(listId).delete();
+      await localDB.dynamic_products_index.where('list_id').equals(listId).delete();
+
+      // ✅ Sincronizar productos nuevos desde Supabase a IndexedDB
+      const { data: indexData } = await supabase
+        .from("dynamic_products_index")
+        .select("*")
+        .eq("list_id", listId);
+
+      if (indexData) {
+        await localDB.dynamic_products_index.bulkAdd(indexData);
+      }
     },
     onSuccess: (_, variables) => {
       const { listId } = variables;
