@@ -47,6 +47,7 @@ type MappingConfig = {
   price_alt_keys: string[];
   extra_index_keys: string[];
   low_stock_threshold?: number;
+  cart_price_column?: string | null;
   price_modifiers?: {
     general: { percentage: number; add_vat: boolean; vat_rate?: number };
     overrides: Record<string, { percentage: number; add_vat: boolean; vat_rate?: number }>;
@@ -76,6 +77,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
     price_alt_keys: [],
     extra_index_keys: [],
     low_stock_threshold: 50,
+    cart_price_column: null,
     price_modifiers: {
       // Default: no percentage change, no agregar IVA y VAT rate por defecto 21%
       general: { percentage: 0, add_vat: false, vat_rate: 21 },
@@ -663,6 +665,36 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
         />
         <p className="text-xs text-muted-foreground">
           Los productos con cantidad menor a este valor se marcarán como "Bajo Stock" (por defecto: 50)
+        </p>
+      </div>
+
+      {/* Columna de precio para carrito */}
+      <div className="space-y-2">
+        <Label className="font-semibold text-foreground">
+          Columna de precio para carrito de pedidos
+        </Label>
+        <Select
+          value={map.cart_price_column || ""}
+          onValueChange={(value) => setMap({ ...map, cart_price_column: value || null })}
+        >
+          <SelectTrigger className="bg-muted/50 border-primary/20 text-foreground">
+            <SelectValue placeholder="Selecciona la columna de precio" />
+          </SelectTrigger>
+          <SelectContent>
+            {map.price_primary_key && (
+              <SelectItem value={map.price_primary_key}>
+                {map.price_primary_key} (Principal)
+              </SelectItem>
+            )}
+            {map.price_alt_keys.map((key) => (
+              <SelectItem key={key} value={key}>
+                {key} (Alternativo)
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          Esta columna se usará cuando agregues productos a la lista de pedidos
         </p>
       </div>
 
