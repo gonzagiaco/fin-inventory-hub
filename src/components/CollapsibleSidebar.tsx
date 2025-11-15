@@ -1,6 +1,17 @@
 import { Link, useLocation } from "react-router-dom";
-import { Package2, Users, Warehouse, Menu, X, LogOut, ChevronLeft, ChevronRight, FileText, CircleHelp } from "lucide-react";
-import { useState } from "react";
+import {
+  Package2,
+  Users,
+  Warehouse,
+  Menu,
+  X,
+  LogOut,
+  ChevronLeft,
+  ChevronRight,
+  FileText,
+  CircleHelp,
+} from "lucide-react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -9,12 +20,15 @@ const CollapsibleSidebar = () => {
   const location = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showLogout, setShowLogout] = useState(false);
   const { user, signOut } = useAuth();
 
   const getUserInitials = () => {
     if (user?.user_metadata?.full_name) {
       const names = user.user_metadata.full_name.split(" ");
-      return names.length > 1 ? `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase() : names[0][0].toUpperCase();
+      return names.length > 1
+        ? `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase()
+        : names[0][0].toUpperCase();
     }
     return user?.email?.[0].toUpperCase() || "U";
   };
@@ -23,10 +37,17 @@ const CollapsibleSidebar = () => {
     { name: "Stock", href: "/", icon: Package2 },
     { name: "Proveedores", href: "/proveedores", icon: Warehouse },
     // { name: "Remitos", href: "/remitos", icon: FileText },
-    {name: "Ayuda", href: "/ayuda", icon: CircleHelp}
+    { name: "Ayuda", href: "/ayuda", icon: CircleHelp },
   ];
 
   const isActive = (path: string) => location.pathname === path;
+
+  useEffect(() => {
+    // Si se expande el sidebar, cerramos el panel de logout flotante
+    if (!isCollapsed) {
+      setShowLogout(false);
+    }
+  }, [isCollapsed]);
 
   return (
     <>
@@ -39,12 +60,19 @@ const CollapsibleSidebar = () => {
           left: "1rem",
         }}
       >
-        {isMobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+        {isMobileOpen ? (
+          <X className="h-6 w-6" />
+        ) : (
+          <Menu className="h-6 w-6" />
+        )}
       </button>
 
       {/* Mobile Overlay */}
       {isMobileOpen && (
-        <div className="fixed inset-0 bg-black/50 z-20 lg:hidden" onClick={() => setIsMobileOpen(false)} />
+        <div
+          className="fixed inset-0 bg-black/50 z-20 lg:hidden"
+          onClick={() => setIsMobileOpen(false)}
+        />
       )}
 
       {/* Sidebar */}
@@ -52,8 +80,12 @@ const CollapsibleSidebar = () => {
         className={`
           fixed lg:sticky top-0 min-h-[100dvh] lg:h-screen bg-background/70 backdrop-blur-xl border-r border-primary/20 
           flex flex-col p-6 z-30 transition-all duration-300
-          ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
-          ${isCollapsed ? "lg:w-20" : "w-64"}
+          ${
+            isMobileOpen
+              ? "translate-x-0"
+              : "-translate-x-full lg:translate-x-0"
+          }
+          ${isCollapsed ? "lg:w-32" : "w-64"}
         `}
         style={{
           paddingTop: "max(env(safe-area-inset-top), 1.5rem)",
@@ -73,11 +105,19 @@ const CollapsibleSidebar = () => {
         </button>
 
         {/* Logo */}
-        <div className={`flex items-center mb-10 ${isCollapsed ? "justify-center" : "gap-3"}`}>
+        <div
+          className={`flex items-center mb-10 ${
+            isCollapsed ? "justify-center" : "gap-3"
+          }`}
+        >
           <div className="w-14 h-14 text-primary flex-shrink-0">
             <img src="LogoTransparente.png" alt="" />
           </div>
-          {!isCollapsed && <h1 className="text-xl font-bold text-foreground whitespace-nowrap">InspiraStock</h1>}
+          {!isCollapsed && (
+            <h1 className="text-xl font-bold text-foreground whitespace-nowrap">
+              InspiraStock
+            </h1>
+          )}
         </div>
 
         {/* Navigation */}
@@ -93,14 +133,24 @@ const CollapsibleSidebar = () => {
                 className={`
                   flex items-center rounded-xl transition-all duration-300
                   ${isCollapsed ? "justify-center p-3" : "gap-3 px-4 py-3"}
-                  ${active ? "glassmorphism shadow-lg text-foreground" : "hover:bg-primary/10 text-foreground"}
+                  ${
+                    active
+                      ? "glassmorphism shadow-lg text-foreground"
+                      : "hover:bg-primary/10 text-foreground"
+                  }
                 `}
                 title={isCollapsed ? item.name : undefined}
               >
-                <div className={`p-2 rounded-lg backdrop-blur-sm ${active ? "bg-primary/30" : "bg-primary/20"}`}>
+                <div
+                  className={`p-2 rounded-lg backdrop-blur-sm ${
+                    active ? "bg-primary/30" : "bg-primary/20"
+                  }`}
+                >
                   <Icon className="h-6 w-6 text-primary" />
                 </div>
-                {!isCollapsed && <span className="font-medium text-lg">{item.name}</span>}
+                {!isCollapsed && (
+                  <span className="font-medium text-lg">{item.name}</span>
+                )}
               </Link>
             );
           })}
@@ -108,32 +158,65 @@ const CollapsibleSidebar = () => {
 
         {/* User Profile */}
         <div className={`mt-auto ${isCollapsed ? "space-y-2" : "space-y-4"}`}>
-          <div className={`glassmorphism rounded-xl ${isCollapsed ? "p-2" : "p-4"}`}>
+          <div
+            className={`glassmorphism rounded-xl ${
+              isCollapsed ? "p-2" : "p-4"
+            }`}
+          >
             {isCollapsed ? (
-              <>
-                <div className="flex justify-center mb-2">
-                  <Avatar className="w-8 h-8">
-                    <AvatarFallback className="bg-primary/20 text-primary text-xs">{getUserInitials()}</AvatarFallback>
-                  </Avatar>
+              <div className="relative">
+                {/* Avatar centrado y clickeable */}
+                <div className="flex justify-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowLogout((prev) => !prev)}
+                    className="rounded-full focus:outline-none"
+                  >
+                    <Avatar className="w-12 h-12 cursor-pointer">
+                      <AvatarFallback className="bg-primary/20 text-primary text-xs">
+                        {getUserInitials()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </button>
                 </div>
-                <Button variant="outline" size="icon" className="w-full h-8" onClick={signOut} title="Cerrar Sesión">
-                  <LogOut className="h-4 w-4" />
-                </Button>
-              </>
+
+                {/* Panel flotante de logout arriba del Avatar */}
+                {showLogout && (
+                  <div className="absolute inset-x-16 -top-3 translate-y-[-100%] flex justify-center">
+                    <button
+                      type="button"
+                      onClick={signOut}
+                      className="glassmorphism rounded-xl px-4 py-4 flex items-center gap-2 text-xs shadow-lg min-w-[150px] justify-center"
+                    >
+                      <LogOut className="h-4 w-4" />
+                      <span>Cerrar sesión</span>
+                    </button>
+                  </div>
+                )}
+              </div>
             ) : (
               <>
                 <div className="flex items-center gap-3 mb-3">
                   <Avatar>
-                    <AvatarFallback className="bg-primary/20 text-primary">{getUserInitials()}</AvatarFallback>
+                    <AvatarFallback className="bg-primary/20 text-primary">
+                      {getUserInitials()}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 overflow-hidden">
                     <p className="text-sm font-medium text-foreground truncate">
                       {user?.user_metadata?.full_name || user?.email}
                     </p>
-                    <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {user?.email}
+                    </p>
                   </div>
                 </div>
-                <Button variant="outline" size="sm" className="w-full" onClick={signOut}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={signOut}
+                >
                   <LogOut className="h-4 w-4 mr-2" />
                   Cerrar Sesión
                 </Button>

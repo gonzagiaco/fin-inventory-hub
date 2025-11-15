@@ -18,7 +18,7 @@ export default defineConfig(({ mode }) => ({
       includeAssets: ["favicon.ico", "robots.txt"],
       manifest: {
         name: "InspiraStock - Gestión de Inventario",
-        short_name: "Financia",
+        short_name: "InspiraStock",
         description:
           "Sistema completo de gestión de inventario, proveedores y clientes deudores con funcionalidad offline",
         theme_color: "#0f1729",

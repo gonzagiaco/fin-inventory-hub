@@ -60,7 +60,7 @@ const Sidebar = () => {
               <path d="M4 4H17.3334V17.3334H30.6666V30.6666H44V44H4V4Z" />
             </svg>
           </div>
-          <h1 className="text-xl font-bold text-foreground">Financia</h1>
+          <h1 className="text-xl font-bold text-foreground">InspiraStock</h1>
         </div>
 
         <nav className="flex-1 space-y-4">
