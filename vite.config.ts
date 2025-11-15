@@ -27,7 +27,7 @@ export default defineConfig(({ mode }) => ({
         scope: "/",
         start_url: "/",
         orientation: "portrait-primary",
-        categories: ["business", "productivity", "finance"],
+        categories: ["business", "productivity", "stock", "control"],
         lang: "es",
         icons: [
           {
