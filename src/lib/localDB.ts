@@ -598,58 +598,109 @@ export async function updateProductListOffline(
   const existing = await localDB.product_lists.get(listId);
   if (!existing) throw new Error('Lista no encontrada');
 
-  // 🔹 PASO 0: Obtener cantidades actuales ANTES de borrar
-  const currentProducts = await localDB.dynamic_products_index
-    .where('list_id')
-    .equals(listId)
-    .toArray();
-
-  const quantitiesMap = new Map<string, number>();
-  currentProducts.forEach((p) => {
-    if (p.code) {
-      quantitiesMap.set(p.code, p.quantity || 0);
-    }
-  });
-
-  console.log('📦 [Offline] Cantidades preservadas:', Object.fromEntries(quantitiesMap));
-
   const now = new Date().toISOString();
+
+  // 1. Actualizar metadatos
   const updates = {
     file_name: data.fileName,
     product_count: data.products.length,
     column_schema: data.columnSchema,
     updated_at: now,
-    // ❌ NO incluir mapping_config (se preserva automáticamente)
   };
 
   await localDB.product_lists.update(listId, updates);
   await queueOperation('product_lists', 'UPDATE', listId, updates);
 
-  // Eliminar productos antiguos
-  await localDB.dynamic_products.where('list_id').equals(listId).delete();
+  // 2. Obtener productos existentes
+  const existingProducts = await localDB.dynamic_products
+    .where('list_id')
+    .equals(listId)
+    .toArray();
+
+  const existingByCode = new Map(
+    existingProducts.map(p => [p.code, { id: p.id, quantity: p.quantity }])
+  );
+
+  const existingIds = new Set(existingProducts.map(p => p.id));
+  const updatedIds = new Set<string>();
+
+  // 3. UPSERT: Actualizar existentes e insertar nuevos
+  for (const product of data.products) {
+    if (product.code && existingByCode.has(product.code)) {
+      // ✅ UPDATE: Producto existe
+      const existing = existingByCode.get(product.code)!;
+      updatedIds.add(existing.id);
+
+      await localDB.dynamic_products.update(existing.id, {
+        name: product.name,
+        price: product.price,
+        data: product.data,
+        updated_at: now,
+      });
+
+      await queueOperation('dynamic_products', 'UPDATE', existing.id, {
+        name: product.name,
+        price: product.price,
+        data: product.data,
+        updated_at: now,
+      });
+
+    } else {
+      // ✅ INSERT: Producto nuevo
+      const newId = crypto.randomUUID();
+      updatedIds.add(newId);
+
+      const newProduct = {
+        id: newId,
+        user_id: user.id,
+        list_id: listId,
+        code: product.code,
+        name: product.name,
+        price: product.price,
+        quantity: product.quantity,
+        data: product.data,
+        created_at: now,
+        updated_at: now,
+      };
+
+      await localDB.dynamic_products.add(newProduct);
+      await queueOperation('dynamic_products', 'INSERT', newId, newProduct);
+    }
+  }
+
+  // 4. DELETE: Eliminar productos obsoletos
+  const idsToDelete = Array.from(existingIds).filter(id => !updatedIds.has(id));
+
+  for (const id of idsToDelete) {
+    await localDB.dynamic_products.delete(id);
+    await queueOperation('dynamic_products', 'DELETE', id, {});
+  }
+
+  // 5. Limpiar y regenerar índice local
   await localDB.dynamic_products_index.where('list_id').equals(listId).delete();
-  
-  // Agregar productos nuevos CON cantidades preservadas
-  const productsToAdd = data.products.map(p => ({
+
+  const updatedProducts = await localDB.dynamic_products
+    .where('list_id')
+    .equals(listId)
+    .toArray();
+
+  // Mapear productos al formato de índice
+  const indexEntries = updatedProducts.map(p => ({
     id: crypto.randomUUID(),
-    user_id: user.id,
-    list_id: listId,
+    user_id: p.user_id,
+    list_id: p.list_id,
+    product_id: p.id,
     code: p.code,
     name: p.name,
     price: p.price,
-    quantity: p.code && quantitiesMap.has(p.code)
-      ? quantitiesMap.get(p.code)  // ✅ Usar cantidad preservada
-      : p.quantity,                  // Fallback: cantidad del archivo
-    data: p.data,
-    created_at: now,
-    updated_at: now,
+    quantity: p.quantity,
+    created_at: p.created_at,
+    updated_at: p.updated_at,
   }));
+
+  await localDB.dynamic_products_index.bulkAdd(indexEntries);
   
-  await localDB.dynamic_products.bulkAdd(productsToAdd);
-  
-  for (const product of productsToAdd) {
-    await queueOperation('dynamic_products', 'INSERT', product.id, product);
-  }
+  console.log(`✅ [Offline] UPSERT completado: ${updatedIds.size} productos actualizados/insertados, ${idsToDelete.length} eliminados`);
 }
 
 export async function deleteProductListOffline(listId: string): Promise<void> {
