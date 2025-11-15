@@ -254,20 +254,33 @@ export const useProductLists = (supplierId?: string) => {
 
   const deleteListMutation = useMutation({
     mutationFn: async (listId: string) => {
-      // OFFLINE: Eliminar de IndexedDB
-      if (isOnline === false) {
-        await deleteProductListOffline(listId);
-        return;
+      try {
+        // OFFLINE: Eliminar de IndexedDB
+        if (isOnline === false) {
+          await deleteProductListOffline(listId);
+          return;
+        }
+
+        // ONLINE: Eliminar de Supabase
+        const { error } = await supabase.from("product_lists").delete().eq("id", listId);
+        if (error) throw error;
+
+        console.log('🗑️ Lista eliminada de Supabase, limpiando IndexedDB...');
+
+        // ✅ Limpiar IndexedDB inmediatamente (solución híbrida)
+        await localDB.product_lists.delete(listId);
+        console.log('✅ product_lists limpiado');
+        
+        await localDB.dynamic_products.where('list_id').equals(listId).delete();
+        console.log('✅ dynamic_products limpiado');
+        
+        await localDB.dynamic_products_index.where('list_id').equals(listId).delete();
+        console.log('✅ dynamic_products_index limpiado');
+
+      } catch (error: any) {
+        console.error('❌ Error al eliminar lista:', error);
+        throw error;
       }
-
-      // ONLINE: Eliminar de Supabase
-      const { error } = await supabase.from("product_lists").delete().eq("id", listId);
-      if (error) throw error;
-
-      // ✅ Limpiar IndexedDB inmediatamente (solución híbrida)
-      await localDB.product_lists.delete(listId);
-      await localDB.dynamic_products.where('list_id').equals(listId).delete();
-      await localDB.dynamic_products_index.where('list_id').equals(listId).delete();
     },
     onSuccess: (_, listId) => {
       // Resetear queries específicas de esta lista (fuerza limpieza completa)
@@ -373,7 +386,22 @@ export const useProductLists = (supplierId?: string) => {
         throw new Error("Usuario no autenticado");
       }
 
-      // 1. Update list metadata
+      // 🔹 PASO 0: Obtener cantidades actuales ANTES de borrar
+      const { data: currentProducts } = await supabase
+        .from("dynamic_products_index")
+        .select("code, quantity")
+        .eq("list_id", listId);
+
+      const quantitiesMap = new Map<string, number>();
+      currentProducts?.forEach((p) => {
+        if (p.code) {
+          quantitiesMap.set(p.code, p.quantity || 0);
+        }
+      });
+
+      console.log('📦 Cantidades preservadas:', Object.fromEntries(quantitiesMap));
+
+      // 1. Update list metadata (SIN mapping_config para preservarlo)
       const { error: updateError } = await supabase
         .from("product_lists")
         .update({
@@ -381,6 +409,7 @@ export const useProductLists = (supplierId?: string) => {
           updated_at: new Date().toISOString(),
           product_count: products.length,
           column_schema: JSON.parse(JSON.stringify(columnSchema)),
+          // ❌ NO incluir mapping_config aquí (se preserva automáticamente)
         })
         .eq("id", listId);
 
@@ -391,14 +420,16 @@ export const useProductLists = (supplierId?: string) => {
 
       if (deleteError) throw deleteError;
 
-      // 3. Insert new products
+      // 3. Insert new products CON cantidades preservadas
       const productsToInsert = products.map((product) => ({
         user_id: userData.user.id,
         list_id: listId,
         code: product.code,
         name: product.name,
         price: product.price,
-        quantity: product.quantity,
+        quantity: product.code && quantitiesMap.has(product.code)
+          ? quantitiesMap.get(product.code)  // ✅ Usar cantidad preservada
+          : product.quantity,                  // Fallback: cantidad del archivo
         data: product.data,
       }));
 
