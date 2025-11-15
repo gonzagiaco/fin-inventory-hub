@@ -129,20 +129,30 @@ export default function Stock() {
     return lists.reduce((sum, list: any) => sum + (list.product_count || 0), 0);
   }, [lists]);
 
-  const handleAddToRequest = (product: any) => {
+  const handleAddToRequest = (product: any, mappingConfig?: any) => {
     const existingItem = requestList.find((r) => r.productId === product.id);
 
     if (existingItem) {
       setRequestList((prev) => prev.map((r) => (r.productId === product.id ? { ...r, quantity: r.quantity + 1 } : r)));
       toast.success("Cantidad actualizada en la lista de pedidos");
     } else {
+      // Determinar qué precio usar
+      let finalPrice = Number(product.price) || 0;
+
+      // Si hay una columna específica configurada para el carrito
+      const cartPriceColumn = mappingConfig?.cart_price_column;
+      if (cartPriceColumn && product.calculated_data?.[cartPriceColumn]) {
+        // Usar el precio de la columna configurada (con su override específico)
+        finalPrice = Number(product.calculated_data[cartPriceColumn]) || finalPrice;
+      }
+
       const newRequest: RequestItem = {
         id: Date.now().toString(),
         productId: product.id,
         code: product.code || "",
         name: product.name || "",
         supplierId: product.supplierId || "",
-        costPrice: Number(product.price) || 0,
+        costPrice: finalPrice,
         quantity: 1,
       };
       setRequestList((prev) => [...prev, newRequest]);

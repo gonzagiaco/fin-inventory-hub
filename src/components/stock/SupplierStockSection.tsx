@@ -23,7 +23,7 @@ interface SupplierStockSectionProps {
     productCount: number;
     columnSchema: any[];
   }>;
-  onAddToRequest: (product: any) => void;
+  onAddToRequest: (product: any, mappingConfig?: any) => void;
 }
 
 export function SupplierStockSection({ supplierName, supplierLogo, lists, onAddToRequest }: SupplierStockSectionProps) {

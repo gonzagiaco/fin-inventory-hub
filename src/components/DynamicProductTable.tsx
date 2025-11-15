@@ -28,7 +28,7 @@ interface DynamicProductTableProps {
   products: DynamicProduct[];
   columnSchema: ColumnSchema[];
   mappingConfig?: ProductList["mapping_config"];
-  onAddToRequest?: (product: DynamicProduct) => void;
+  onAddToRequest?: (product: DynamicProduct, mappingConfig?: ProductList["mapping_config"]) => void;
   showStockActions?: boolean;
   onLoadMore?: () => void;
   hasMore?: boolean;
@@ -184,7 +184,7 @@ export const DynamicProductTable = ({
         id: "actions",
         header: "Acciones",
         cell: ({ row }) => (
-          <Button size="sm" variant="outline" onClick={() => onAddToRequest(row.original)}>
+          <Button size="sm" variant="outline" onClick={() => onAddToRequest(row.original, mappingConfig)}>
             <Plus className="h-4 w-4 mr-1" />
             Agregar
           </Button>
@@ -194,7 +194,7 @@ export const DynamicProductTable = ({
     }
 
     return dataColumns;
-  }, [columnSchema, listId, currentOrder, visibilityState, showStockActions, onAddToRequest]);
+  }, [columnSchema, listId, currentOrder, visibilityState, showStockActions, onAddToRequest, mappingConfig]);
 
   const visibleColumns = useMemo(() => {
     return columns.filter((col) => {

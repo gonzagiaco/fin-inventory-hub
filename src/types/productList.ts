@@ -36,6 +36,7 @@ export interface ProductList {
     price_alt_keys: string[];
     extra_index_keys: string[];
     low_stock_threshold?: number;
+    cart_price_column?: string | null;
     price_modifiers?: {
       general: { percentage: number; add_vat: boolean; vat_rate?: number };
       overrides: Record<string, { percentage: number; add_vat: boolean; vat_rate?: number }>;
