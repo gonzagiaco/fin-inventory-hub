@@ -150,7 +150,7 @@ export const DynamicProductTable = ({
               maximumFractionDigits: 2,
             }).format(value);
 
-            return <div className="flex items-center gap-1.5">{formattedValue}</div>;
+            return <div className="flex items-center gap-1.5">${formattedValue}</div>;
           }
           return String(value);
         },
