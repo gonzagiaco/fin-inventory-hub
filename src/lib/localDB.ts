@@ -598,12 +598,28 @@ export async function updateProductListOffline(
   const existing = await localDB.product_lists.get(listId);
   if (!existing) throw new Error('Lista no encontrada');
 
+  // 🔹 PASO 0: Obtener cantidades actuales ANTES de borrar
+  const currentProducts = await localDB.dynamic_products_index
+    .where('list_id')
+    .equals(listId)
+    .toArray();
+
+  const quantitiesMap = new Map<string, number>();
+  currentProducts.forEach((p) => {
+    if (p.code) {
+      quantitiesMap.set(p.code, p.quantity || 0);
+    }
+  });
+
+  console.log('📦 [Offline] Cantidades preservadas:', Object.fromEntries(quantitiesMap));
+
   const now = new Date().toISOString();
   const updates = {
     file_name: data.fileName,
     product_count: data.products.length,
     column_schema: data.columnSchema,
     updated_at: now,
+    // ❌ NO incluir mapping_config (se preserva automáticamente)
   };
 
   await localDB.product_lists.update(listId, updates);
@@ -611,8 +627,9 @@ export async function updateProductListOffline(
 
   // Eliminar productos antiguos
   await localDB.dynamic_products.where('list_id').equals(listId).delete();
+  await localDB.dynamic_products_index.where('list_id').equals(listId).delete();
   
-  // Agregar productos nuevos
+  // Agregar productos nuevos CON cantidades preservadas
   const productsToAdd = data.products.map(p => ({
     id: crypto.randomUUID(),
     user_id: user.id,
@@ -620,7 +637,9 @@ export async function updateProductListOffline(
     code: p.code,
     name: p.name,
     price: p.price,
-    quantity: p.quantity,
+    quantity: p.code && quantitiesMap.has(p.code)
+      ? quantitiesMap.get(p.code)  // ✅ Usar cantidad preservada
+      : p.quantity,                  // Fallback: cantidad del archivo
     data: p.data,
     created_at: now,
     updated_at: now,
