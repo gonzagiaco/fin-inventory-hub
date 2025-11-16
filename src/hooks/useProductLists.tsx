@@ -399,8 +399,21 @@ export const useProductLists = (supplierId?: string) => {
 
       if (updateError) throw updateError;
 
-      // 2. ✅ UPSERT DUAL en ambas tablas (1 sola llamada batch)
-      console.log('🚀 Ejecutando UPSERT dual batch...');
+      // 2. ✅ VALIDAR Y FILTRAR productos antes del UPSERT
+      const validProducts = products.filter(p => {
+        const code = p.code?.trim();
+        if (!code || code === '') {
+          console.warn('⚠️ Producto sin código válido, omitiendo:', p);
+          return false;
+        }
+        return true;
+      });
+
+      if (validProducts.length === 0) {
+        throw new Error('No hay productos con código válido para actualizar');
+      }
+
+      console.log(`🚀 Ejecutando UPSERT dual batch con ${validProducts.length}/${products.length} productos válidos...`);
       const startTime = Date.now();
 
       const { data: result, error: upsertError } = await supabase.rpc(
@@ -408,8 +421,8 @@ export const useProductLists = (supplierId?: string) => {
         {
           p_list_id: listId,
           p_user_id: userData.user.id,
-          p_products: products.map(p => ({
-            code: p.code,
+          p_products: validProducts.map(p => ({
+            code: p.code.trim(),
             name: p.name,
             price: p.price,
             quantity: p.quantity,
@@ -419,11 +432,35 @@ export const useProductLists = (supplierId?: string) => {
       );
 
       const duration = Date.now() - startTime;
-      console.log(`✅ UPSERT dual completado en ${duration}ms:`, result);
 
       if (upsertError) throw upsertError;
 
-      // 3. Sincronizar IndexedDB: eliminar datos viejos
+      // ✅ VERIFICAR que el UPSERT insertó o actualizó productos
+      const totalOps = (result?.[0]?.inserted_count || 0) + (result?.[0]?.updated_count || 0);
+      console.log(`✅ UPSERT dual completado en ${duration}ms:`, {
+        insertados: result?.[0]?.inserted_count,
+        actualizados: result?.[0]?.updated_count,
+        eliminados: result?.[0]?.deleted_count,
+        enviados: validProducts.length,
+      });
+
+      if (totalOps === 0) {
+        console.error('⚠️ No se insertaron ni actualizaron productos');
+        throw new Error('No se pudieron guardar los productos. Verifica que los códigos sean válidos.');
+      }
+
+      // ✅ CONFIRMAR que hay datos en Supabase ANTES de borrar IndexedDB
+      const { count: productsCount, error: checkError } = await supabase
+        .from("dynamic_products")
+        .select("*", { count: 'exact', head: true })
+        .eq("list_id", listId);
+
+      if (checkError || !productsCount || productsCount === 0) {
+        console.error('⚠️ No hay productos en Supabase después del UPSERT');
+        throw new Error('Error al verificar productos guardados');
+      }
+
+      // 3. ✅ AHORA SÍ: Sincronizar IndexedDB (eliminar datos viejos)
       await localDB.dynamic_products.where('list_id').equals(listId).delete();
       await localDB.dynamic_products_index.where('list_id').equals(listId).delete();
 
