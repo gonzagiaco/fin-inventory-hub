@@ -339,6 +339,15 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
       // Refrescar índice para ver precios redondeados/modificados de inmediato
       await supabase.rpc("refresh_list_index", { p_list_id: listId });
 
+      console.log("📊 Actualización de lista:", {
+        listId,
+        productosTotales: pendingUpload.products.length,
+        productosMapeados: mappedProducts.length,
+        conCodigo: mappedProducts.filter((p) => p.code).length,
+        conNombre: mappedProducts.filter((p) => p.name).length,
+        conPrecio: mappedProducts.filter((p) => p.price !== null && p.price !== undefined).length,
+      });
+
       setPendingUpload(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
 
@@ -347,14 +356,6 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
       console.error("Error actualizando lista:", error);
       toast.error(error.message || "Error al actualizar lista");
     }
-    console.log("📊 Actualización de lista:", {
-      listId,
-      productosTotales: pendingUpload.products.length,
-      productosMapeados: mappedProducts.length,
-      conCodigo: mappedProducts.filter((p) => p.code).length,
-      conNombre: mappedProducts.filter((p) => p.name).length,
-      conPrecio: mappedProducts.filter((p) => p.price !== null && p.price !== undefined).length,
-    });
   };
 
   const handleCreateNew = async () => {
