@@ -10,6 +10,7 @@ import { DynamicProductTable } from "./DynamicProductTable";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ColumnSchema, DynamicProduct, ProductList } from "@/types/productList";
+import { mergeColumnSchemas, detectNewColumnsFromProducts, createSchemaFromKeys } from "@/utils/columnSchemaUtils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -269,11 +270,10 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
     }
   };
 
-  const handleUpdateExisting = async (listId: string, parsedProducts: DynamicProduct[], mappingConfigParam: any) => {
+  const handleUpdateExisting = async (listId: string) => {
     if (!pendingUpload) return;
 
     try {
-      // ✅ 1. Obtener la lista existente con su mapping_config
       const existingList = productLists.find((list) => list.id === listId);
 
       if (!existingList) {
@@ -281,17 +281,14 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
         return;
       }
 
-      // Ojo: si querés usar el mapping que viene por parámetro, usá mappingConfigParam.
-      // Acá mantengo tu lógica original:
       const mappingConfig = existingList.mapping_config;
 
-      // ✅ 2. Aplicar mapping para extraer code, name, price desde data
+      // Aplicar mapping para extraer code, name, price desde data
       const mappedProducts = pendingUpload.products.map((product) => {
         let extractedCode = product.code;
         let extractedName = product.name;
         let extractedPrice = product.price;
 
-        // Si code es undefined pero hay mapping_config, extraer desde data
         if (!extractedCode && mappingConfig?.code_keys) {
           for (const key of mappingConfig.code_keys) {
             if (product.data[key]) {
@@ -301,7 +298,6 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
           }
         }
 
-        // Si name es undefined pero hay mapping_config, extraer desde data
         if (!extractedName && mappingConfig?.name_keys) {
           for (const key of mappingConfig.name_keys) {
             if (product.data[key]) {
@@ -311,7 +307,6 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
           }
         }
 
-        // Si price es null/undefined pero hay mapping_config, extraer desde data
         if ((extractedPrice === null || extractedPrice === undefined) && mappingConfig?.price_primary_key) {
           const priceValue = product.data[mappingConfig.price_primary_key];
           if (priceValue !== null && priceValue !== undefined) {
@@ -328,38 +323,22 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
         };
       });
 
-      // ✅ 2.5 FUSIONAR COLUMNAS NUEVAS CON EL SCHEMA EXISTENTE
-      // ----------------------------------------------------------------
-      // existingList.columnSchema = esquema actual guardado en la DB
-      const existingSchema = existingList.columnSchema || [];
-      const existingKeys = new Set(existingSchema.map((col: any) => col.key));
+      // Detectar nuevas columnas y mergear schemas
+      const newColumnKeys = detectNewColumnsFromProducts(pendingUpload.products);
+      const newColumnsSchema = createSchemaFromKeys(
+        newColumnKeys,
+        Math.max(...existingList.columnSchema.map((c) => c.order), -1) + 1
+      );
 
-      // Recorremos TODOS los productos mapeados y juntamos keys de product.data
-      const newKeysSet = new Set<string>();
+      const mergedColumnSchema = mergeColumnSchemas(existingList.columnSchema, newColumnsSchema);
 
-      mappedProducts.forEach((product) => {
-        const data = product.data || {};
-        Object.keys(data).forEach((key) => {
-          // Si la key no existe en el schema actual, la marcamos como nueva
-          if (!existingKeys.has(key)) {
-            newKeysSet.add(key);
-          }
-        });
+      console.log("📊 Esquema de columnas:", {
+        columnasExistentes: existingList.columnSchema.length,
+        columnasNuevas: mergedColumnSchema.length - existingList.columnSchema.length,
+        columnasDetectadas: newColumnKeys,
       });
 
-      // Creamos columnas nuevas básicas (key + label)
-      const newColumns = Array.from(newKeysSet).map((key) => ({
-        key,
-        label: key,
-        // Si tu tipo ColumnSchema tiene más campos obligatorios, agregalos acá.
-      }));
-
-      const mergedColumnSchema = [...existingSchema, ...newColumns];
-      // ----------------------------------------------------------------
-
-      // ✅ 3. Actualizar con productos correctamente mapeados
-      // IMPORTANTE: ahora SÍ mandamos el schema fusionado,
-      // para que el frontend conozca las nuevas columnas.
+      // Actualizar con el schema mergeado
       await updateList({
         listId,
         fileName: pendingUpload.fileName,
@@ -377,7 +356,7 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
         conCodigo: mappedProducts.filter((p) => p.code).length,
         conNombre: mappedProducts.filter((p) => p.name).length,
         conPrecio: mappedProducts.filter((p) => p.price !== null && p.price !== undefined).length,
-        nuevasColumnas: newColumns.map((c) => c.key),
+        nuevasColumnas: newColumnKeys,
       });
 
       setPendingUpload(null);
@@ -393,22 +372,33 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
   const handleCreateNew = async () => {
     if (!pendingUpload) return;
 
-    const created = await createList({
-      supplierId,
-      name: `${pendingUpload.fileName} - ${new Date().toLocaleDateString()}`,
-      fileName: pendingUpload.fileName,
-      fileType: pendingUpload.fileName.split(".").pop() || "unknown",
-      columnSchema: pendingUpload.columnSchema,
-      products: pendingUpload.products,
-    });
+    try {
+      // Detectar columnas desde productos
+      const newColumnKeys = detectNewColumnsFromProducts(pendingUpload.products);
+      const detectedSchema = createSchemaFromKeys(newColumnKeys);
 
-    // ⚠️ Asegurate que createList devuelva { id: string }
-    if (created?.id) {
-      await supabase.rpc("refresh_list_index", { p_list_id: created.id });
+      // Mergear con el schema que vino del archivo
+      const mergedSchema = mergeColumnSchemas(pendingUpload.columnSchema, detectedSchema);
+
+      const created = await createList({
+        supplierId,
+        name: `${pendingUpload.fileName} - ${new Date().toLocaleDateString()}`,
+        fileName: pendingUpload.fileName,
+        fileType: pendingUpload.fileName.split(".").pop() || "unknown",
+        columnSchema: mergedSchema,
+        products: pendingUpload.products,
+      });
+
+      if (created?.id) {
+        await supabase.rpc("refresh_list_index", { p_list_id: created.id });
+      }
+
+      setPendingUpload(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch (error: any) {
+      console.error("Error creando lista:", error);
+      toast.error(error.message || "Error al crear lista");
     }
-
-    setPendingUpload(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   if (isLoading) {
