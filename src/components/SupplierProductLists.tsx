@@ -39,7 +39,7 @@ const SupplierListProducts = ({
 }: {
   listId: string;
   columnSchema: ColumnSchema[];
-  mappingConfig?: ProductList['mapping_config'];
+  mappingConfig?: ProductList["mapping_config"];
   onAddToRequest?: (product: DynamicProduct) => void;
 }) => {
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useListProducts(listId);
@@ -272,18 +272,89 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
   const handleUpdateExisting = async (listId: string) => {
     if (!pendingUpload) return;
 
-    await updateList({
+    try {
+      // ✅ 1. Obtener la lista existente con su mapping_config
+      const existingList = productLists.find((list) => list.id === listId);
+
+      if (!existingList) {
+        toast.error("Lista no encontrada");
+        return;
+      }
+
+      const mappingConfig = existingList.mapping_config;
+
+      // ✅ 2. Aplicar mapping para extraer code, name, price desde data
+      const mappedProducts = pendingUpload.products.map((product) => {
+        let extractedCode = product.code;
+        let extractedName = product.name;
+        let extractedPrice = product.price;
+
+        // Si code es undefined pero hay mapping_config, extraer desde data
+        if (!extractedCode && mappingConfig?.code_keys) {
+          for (const key of mappingConfig.code_keys) {
+            if (product.data[key]) {
+              extractedCode = String(product.data[key]).trim();
+              break;
+            }
+          }
+        }
+
+        // Si name es undefined pero hay mapping_config, extraer desde data
+        if (!extractedName && mappingConfig?.name_keys) {
+          for (const key of mappingConfig.name_keys) {
+            if (product.data[key]) {
+              extractedName = String(product.data[key]).trim();
+              break;
+            }
+          }
+        }
+
+        // Si price es null/undefined pero hay mapping_config, extraer desde data
+        if ((extractedPrice === null || extractedPrice === undefined) && mappingConfig?.price_primary_key) {
+          const priceValue = product.data[mappingConfig.price_primary_key];
+          if (priceValue !== null && priceValue !== undefined) {
+            const parsedPrice = typeof priceValue === "string" ? parseNumber(priceValue) : Number(priceValue);
+            extractedPrice = Number.isFinite(parsedPrice) ? parsedPrice : null;
+          }
+        }
+
+        return {
+          ...product,
+          code: extractedCode,
+          name: extractedName,
+          price: extractedPrice,
+        };
+      });
+
+      // ✅ 3. Actualizar con productos correctamente mapeados
+      // IMPORTANTE: NO enviar columnSchema ni mapping_config nuevamente
+      // ya que deben persistir los existentes
+      await updateList({
+        listId,
+        fileName: pendingUpload.fileName,
+        columnSchema: existingList.columnSchema, // ✅ Usar el esquema existente
+        products: mappedProducts, // ✅ Productos con mapping aplicado
+      });
+
+      // Refrescar índice para ver precios redondeados/modificados de inmediato
+      await supabase.rpc("refresh_list_index", { p_list_id: listId });
+
+      setPendingUpload(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+
+      toast.success("Lista actualizada correctamente");
+    } catch (error: any) {
+      console.error("Error actualizando lista:", error);
+      toast.error(error.message || "Error al actualizar lista");
+    }
+    console.log("📊 Actualización de lista:", {
       listId,
-      fileName: pendingUpload.fileName,
-      columnSchema: pendingUpload.columnSchema,
-      products: pendingUpload.products,
+      productosTotales: pendingUpload.products.length,
+      productosMapeados: mappedProducts.length,
+      conCodigo: mappedProducts.filter((p) => p.code).length,
+      conNombre: mappedProducts.filter((p) => p.name).length,
+      conPrecio: mappedProducts.filter((p) => p.price !== null && p.price !== undefined).length,
     });
-
-    // Refrescar índice para ver precios redondeados/modificados de inmediato
-    await supabase.rpc("refresh_list_index", { p_list_id: listId });
-
-    setPendingUpload(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
   const handleCreateNew = async () => {
@@ -414,7 +485,11 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
                 </CardHeader>
                 {!isCollapsed && (
                   <CardContent>
-                    <SupplierListProducts listId={list.id} columnSchema={list.columnSchema} mappingConfig={list.mapping_config} />
+                    <SupplierListProducts
+                      listId={list.id}
+                      columnSchema={list.columnSchema}
+                      mappingConfig={list.mapping_config}
+                    />
                   </CardContent>
                 )}
               </Card>
