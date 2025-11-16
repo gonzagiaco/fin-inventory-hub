@@ -269,7 +269,7 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
     }
   };
 
-  const handleUpdateExisting = async (listId: string) => {
+  const handleUpdateExisting = async (listId: string, parsedProducts: DynamicProduct[], mappingConfigParam: any) => {
     if (!pendingUpload) return;
 
     try {
@@ -281,6 +281,8 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
         return;
       }
 
+      // Ojo: si querés usar el mapping que viene por parámetro, usá mappingConfigParam.
+      // Acá mantengo tu lógica original:
       const mappingConfig = existingList.mapping_config;
 
       // ✅ 2. Aplicar mapping para extraer code, name, price desde data
@@ -326,14 +328,43 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
         };
       });
 
+      // ✅ 2.5 FUSIONAR COLUMNAS NUEVAS CON EL SCHEMA EXISTENTE
+      // ----------------------------------------------------------------
+      // existingList.columnSchema = esquema actual guardado en la DB
+      const existingSchema = existingList.columnSchema || [];
+      const existingKeys = new Set(existingSchema.map((col: any) => col.key));
+
+      // Recorremos TODOS los productos mapeados y juntamos keys de product.data
+      const newKeysSet = new Set<string>();
+
+      mappedProducts.forEach((product) => {
+        const data = product.data || {};
+        Object.keys(data).forEach((key) => {
+          // Si la key no existe en el schema actual, la marcamos como nueva
+          if (!existingKeys.has(key)) {
+            newKeysSet.add(key);
+          }
+        });
+      });
+
+      // Creamos columnas nuevas básicas (key + label)
+      const newColumns = Array.from(newKeysSet).map((key) => ({
+        key,
+        label: key,
+        // Si tu tipo ColumnSchema tiene más campos obligatorios, agregalos acá.
+      }));
+
+      const mergedColumnSchema = [...existingSchema, ...newColumns];
+      // ----------------------------------------------------------------
+
       // ✅ 3. Actualizar con productos correctamente mapeados
-      // IMPORTANTE: NO enviar columnSchema ni mapping_config nuevamente
-      // ya que deben persistir los existentes
+      // IMPORTANTE: ahora SÍ mandamos el schema fusionado,
+      // para que el frontend conozca las nuevas columnas.
       await updateList({
         listId,
         fileName: pendingUpload.fileName,
-        columnSchema: existingList.columnSchema, // ✅ Usar el esquema existente
-        products: mappedProducts, // ✅ Productos con mapping aplicado
+        columnSchema: mergedColumnSchema,
+        products: mappedProducts,
       });
 
       // Refrescar índice para ver precios redondeados/modificados de inmediato
@@ -346,6 +377,7 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
         conCodigo: mappedProducts.filter((p) => p.code).length,
         conNombre: mappedProducts.filter((p) => p.name).length,
         conPrecio: mappedProducts.filter((p) => p.price !== null && p.price !== undefined).length,
+        nuevasColumnas: newColumns.map((c) => c.key),
       });
 
       setPendingUpload(null);

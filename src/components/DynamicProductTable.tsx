@@ -60,7 +60,23 @@ export const DynamicProductTable = ({
   const currentViewMode = storeViewMode[listId] || defaultViewMode;
   const effectiveViewMode = currentViewMode;
 
-  const currentOrder = columnOrder[listId] || columnSchema.map((c) => c.key);
+  const schemaKeys = useMemo(() => columnSchema.map((c) => c.key), [columnSchema]);
+
+  // Orden efectivo: respeta lo guardado, pero agrega al final las nuevas keys
+  const currentOrder = useMemo(() => {
+    const saved = columnOrder[listId];
+
+    // Si no hay orden guardado, usar directamente el schema actual
+    if (!saved || saved.length === 0) {
+      return schemaKeys;
+    }
+
+    // Agregar cualquier columna nueva que no esté en el orden guardado
+    const extra = schemaKeys.filter((key) => !saved.includes(key));
+
+    return [...saved, ...extra];
+  }, [columnOrder, listId, schemaKeys]);
+
   const visibilityState = columnVisibility[listId] || {};
 
   const columns = useMemo<ColumnDef<DynamicProduct>[]>(() => {
@@ -250,10 +266,7 @@ export const DynamicProductTable = ({
               >
                 <LayoutGrid className="h-4 w-4" />
               </Button>
-              <CardPreviewSettings
-                listId={listId}
-                columnSchema={columnSchema}
-              />
+              <CardPreviewSettings listId={listId} columnSchema={columnSchema} />
             </>
           )}
           <ColumnSettingsDrawer listId={listId} columnSchema={columnSchema} />
@@ -275,84 +288,73 @@ export const DynamicProductTable = ({
         />
       ) : (
         <div className="w-full border rounded-lg overflow-hidden">
-    {/* Contenedor scrolleable: acá vive el sticky */}
-    <div className="max-h-[600px] overflow-auto">
-      <Table className="min-w-full">
-        <TableHeader className="sticky top-0 z-20 bg-background shadow-sm">
-          <TableRow>
-            {table.getHeaderGroups()[0]?.headers.map((header) => (
-              <TableHead
-                key={header.id}
-                className="cursor-pointer select-none bg-background"
-                onClick={header.column.getToggleSortingHandler()}
-              >
-                <div className="flex items-center gap-2">
-                  {flexRender(header.column.columnDef.header, header.getContext())}
-                  {{
-                    asc: <ChevronUp className="w-4 h-4" />,
-                    desc: <ChevronDown className="w-4 h-4" />,
-                  }[header.column.getIsSorted() as string] ?? null}
-                </div>
-              </TableHead>
-            ))}
-          </TableRow>
-        </TableHeader>
-
-        <TableBody>
-          {table.getRowModel().rows.length === 0 ? (
-            <TableRow>
-              <TableCell
-                colSpan={visibleColumns.length}
-                className="text-center text-muted-foreground py-8"
-              >
-                No se encontraron productos
-              </TableCell>
-            </TableRow>
-          ) : (
-            table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
-                {row.getVisibleCells().map((cell) => {
-                  const column = cell.column;
-                  const meta = column.columnDef.meta as any;
-                  const isHiddenButVisible = meta?.visible === false;
-
-                  return (
-                    <TableCell
-                      key={cell.id}
-                      className={cn(
-                        isHiddenButVisible && "opacity-30 bg-stripes"
-                      )}
+          {/* Contenedor scrolleable: acá vive el sticky */}
+          <div className="max-h-[600px] overflow-auto">
+            <Table className="min-w-full">
+              <TableHeader className="sticky top-0 z-20 bg-background shadow-sm">
+                <TableRow>
+                  {table.getHeaderGroups()[0]?.headers.map((header) => (
+                    <TableHead
+                      key={header.id}
+                      className="cursor-pointer select-none bg-background"
+                      onClick={header.column.getToggleSortingHandler()}
                     >
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext()
-                      )}
-                    </TableCell>
-                  );
-                })}
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+                      <div className="flex items-center gap-2">
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {{
+                          asc: <ChevronUp className="w-4 h-4" />,
+                          desc: <ChevronDown className="w-4 h-4" />,
+                        }[header.column.getIsSorted() as string] ?? null}
+                      </div>
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
 
-      {effectiveViewMode === "table" && hasMore && (
-        <div className="text-center my-4">
-          <Button variant="outline" onClick={onLoadMore} disabled={isLoadingMore}>
-            {isLoadingMore ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Cargando más...
-              </>
-            ) : (
-              "Ver más productos"
+              <TableBody>
+                {table.getRowModel().rows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={visibleColumns.length} className="text-center text-muted-foreground py-8">
+                      No se encontraron productos
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  table.getRowModel().rows.map((row) => (
+                    <TableRow key={row.id}>
+                      {row.getVisibleCells().map((cell) => {
+                        const column = cell.column;
+                        const meta = column.columnDef.meta as any;
+                        const isHiddenButVisible = meta?.visible === false;
+
+                        return (
+                          <TableCell key={cell.id} className={cn(isHiddenButVisible && "opacity-30 bg-stripes")}>
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+
+            {effectiveViewMode === "table" && hasMore && (
+              <div className="text-center my-4">
+                <Button variant="outline" onClick={onLoadMore} disabled={isLoadingMore}>
+                  {isLoadingMore ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Cargando más...
+                    </>
+                  ) : (
+                    "Ver más productos"
+                  )}
+                </Button>
+              </div>
             )}
-          </Button>
+          </div>
         </div>
       )}
     </div>
-  </div>
-  )}
-</div>
   );
 };
