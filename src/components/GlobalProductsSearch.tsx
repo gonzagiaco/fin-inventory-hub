@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
 import { List, LayoutGrid, Plus } from "lucide-react";
-import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,14 +33,13 @@ export function GlobalProductSearch({
   defaultViewMode = "card",
 }: GlobalProductSearchProps) {
   const [viewMode, setViewMode] = useState(() => defaultViewMode);
-  const isMobile = useIsMobile();
   const { setCardPreviewFields, cardPreviewFields } = useProductListStore();
 
   useEffect(() => {
     const globalSearchId = "global-search-results";
 
     if (!cardPreviewFields[globalSearchId]) {
-      setCardPreviewFields(globalSearchId, ["code", "name", "price", "quantity", "supplier_name", "list_name"]);
+      setCardPreviewFields(globalSearchId, ["code", "name", "price", "quantity", "supplier_name" /*, "list_name"*/]);
     }
   }, []);
 
@@ -183,16 +181,14 @@ export function GlobalProductSearch({
 
           {/* Botones de toggle vista */}
           <div className="flex gap-1.5">
-            {!isMobile && (
-              <Button
-                variant={viewMode === "table" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode("table")}
-                className="flex-shrink-0"
-              >
-                <List className="h-4 w-4" />
-              </Button>
-            )}
+            <Button
+              variant={viewMode === "table" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setViewMode("table")}
+              className="flex-shrink-0"
+            >
+              <List className="h-4 w-4" />
+            </Button>
             <Button
               variant={viewMode === "card" ? "default" : "outline"}
               size="sm"
