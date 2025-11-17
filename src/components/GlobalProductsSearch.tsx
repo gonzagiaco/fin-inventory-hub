@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { List, LayoutGrid, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { QuantityCell } from "@/components/stock/QuantityCell";
 import { ProductCardView } from "@/components/ProductCardView";
