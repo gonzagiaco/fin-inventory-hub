@@ -112,6 +112,8 @@ export function GlobalProductSearch({
         price: Number(item.price) || 0,
         quantity: item.quantity || 0,
         supplierId: supplierInfo?.id || "",
+        supplierName: supplierInfo?.name || "-",
+        listName: listInfo.name,
         mappingConfig: listInfo?.mapping_config,
         data: item.dynamic_products?.data || {},
         calculated_data: item.calculated_data || {},
@@ -214,7 +216,7 @@ export function GlobalProductSearch({
               <ProductCardView
                 listId={listGroup.listId}
                 products={listGroup.products}
-                columnSchema={listGroup.columnSchema}
+                columnSchema={globalSearchSchema}
                 mappingConfig={listGroup.mappingConfig}
                 onAddToRequest={(product) =>
                   onAddToRequest({
@@ -271,12 +273,27 @@ export function GlobalProductSearch({
                     </TableCell>
 
                     <TableCell>
-                      <QuantityCell
-                        productId={item.product_id}
-                        listId={item.list_id}
-                        value={item.quantity}
-                        visibleSpan={false}
-                      />
+                      {(() => {
+                        const listInfo = lists.find((l: any) => l.id === item.list_id);
+                        const lowStockThreshold = listInfo?.mapping_config?.low_stock_threshold || 50;
+                        const isLowStock = (item.quantity || 0) < lowStockThreshold;
+
+                        return (
+                          <div className="flex items-center gap-2">
+                            {isLowStock && (
+                              <Badge variant="destructive" className="text-xs">
+                                Bajo Stock
+                              </Badge>
+                            )}
+                            <QuantityCell
+                              productId={item.product_id}
+                              listId={item.list_id}
+                              value={item.quantity}
+                              visibleSpan={false}
+                            />
+                          </div>
+                        );
+                      })()}
                     </TableCell>
 
                     <TableCell>{item.code || "-"}</TableCell>

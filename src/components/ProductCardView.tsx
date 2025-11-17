@@ -71,6 +71,8 @@ export function ProductCardView({
     if (key === "name") return product.name;
     if (key === "price") return product.price;
     if (key === "quantity") return product.quantity;
+    if (key === "supplier_name") return product.supplierName;
+    if (key === "list_name") return product.listName;
 
     // CUARTO: Leer de data original
     return product.data?.[key];
