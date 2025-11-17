@@ -80,6 +80,12 @@ export function GlobalProductSearch({
     [],
   );
 
+  // Schema para vista de tarjetas (sin campo "Lista")
+  const globalSearchSchemaForCards: ColumnSchema[] = useMemo(
+    () => globalSearchSchema.filter((col) => col.key !== "list_name"),
+    [globalSearchSchema],
+  );
+
   // Agrupar resultados por lista para renderizar con configuraciones específicas
   const resultsByList = useMemo(() => {
     const grouped = new Map<
@@ -227,7 +233,7 @@ export function GlobalProductSearch({
               <ProductCardView
                 listId="global-search-results"
                 products={listGroup.products}
-                columnSchema={globalSearchSchema}
+                columnSchema={globalSearchSchemaForCards}
                 mappingConfig={listGroup.mappingConfig}
                 onAddToRequest={(product) =>
                   onAddToRequest({
