@@ -149,7 +149,7 @@ export function ProductCardView({
                     
                     const quantity = product.quantity || 0;
                     const effectiveMappingConfig = product.mappingConfig || mappingConfig;
-                    const lowStockThreshold = effectiveMappingConfig?.low_stock_threshold || 50;
+                    const lowStockThreshold = effectiveMappingConfig?.low_stock_threshold || 0;
                     const isLowStock = quantity < lowStockThreshold;
               
                     return (

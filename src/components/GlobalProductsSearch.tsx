@@ -8,6 +8,7 @@ import { QuantityCell } from "@/components/stock/QuantityCell";
 import { ProductCardView } from "@/components/ProductCardView";
 import { ColumnSchema, DynamicProduct } from "@/types/productList";
 import { useProductListStore } from "@/stores/productListStore";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface GlobalProductSearchProps {
   searchTerm: string;
@@ -34,6 +35,8 @@ export function GlobalProductSearch({
 }: GlobalProductSearchProps) {
   const [viewMode, setViewMode] = useState(() => defaultViewMode);
   const { setCardPreviewFields, cardPreviewFields } = useProductListStore();
+
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     const globalSearchId = "global-search-results";
@@ -82,7 +85,7 @@ export function GlobalProductSearch({
 
   // Schema para vista de tarjetas (sin campo "Lista")
   const globalSearchSchemaForCards: ColumnSchema[] = useMemo(
-    () => globalSearchSchema.filter((col) => col.key !== "list_name"),
+    () => globalSearchSchema.filter((col) => col.key !== "list_name" && col.key !== "supplier_name"),
     [globalSearchSchema],
   );
 
@@ -187,14 +190,16 @@ export function GlobalProductSearch({
 
           {/* Botones de toggle vista */}
           <div className="flex gap-1.5">
-            <Button
-              variant={viewMode === "table" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setViewMode("table")}
-              className="flex-shrink-0"
-            >
-              <List className="h-4 w-4" />
-            </Button>
+            { !isMobile && 
+              <Button
+                variant={viewMode === "table" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setViewMode("table")}
+                className="flex-shrink-0"
+              >
+                <List className="h-4 w-4" />
+              </Button>
+            }
             <Button
               variant={viewMode === "card" ? "default" : "outline"}
               size="sm"
@@ -218,12 +223,12 @@ export function GlobalProductSearch({
                   <img
                     src={listGroup.supplierLogo}
                     alt={listGroup.supplierName}
-                    className="h-8 w-8 object-contain rounded"
+                    className="h-8 w-8 flex-shrink-0 object-contain rounded"
                   />
                 )}
-                <div>
-                  <h3 className="font-semibold">{listGroup.listName}</h3>
-                  <p className="text-sm text-muted-foreground">
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-semibold break-words">{listGroup.listName}</h3>
+                  <p className="text-sm text-muted-foreground break-words">
                     {listGroup.supplierName} • {listGroup.products.length} productos
                   </p>
                 </div>

@@ -117,7 +117,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
     price_primary_key: null,
     price_alt_keys: [],
     extra_index_keys: [],
-    low_stock_threshold: 50,
+    low_stock_threshold: 0,
     cart_price_column: null,
     price_modifiers: {
       // Default: no percentage change, no agregar IVA y VAT rate por defecto 21%

@@ -17,14 +17,39 @@ export const useInstallPWA = () => {
     const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
     setIsIOS(ios);
 
+    // Detectar si ya se está ejecutando como PWA (standalone mode)
     const standalone = window.matchMedia("(display-mode: standalone)").matches;
     setIsPWA(standalone);
 
-    // Detectar si la app YA FUE instalada (flag persistente)
-    const installed = localStorage.getItem("pwa_installed") === "true";
-    setIsInstalled(installed);
+    // Método 1: Verificar si la app está instalada mediante localStorage
+    const isInstalledFromStorage = localStorage.getItem("pwa_installed") === "true";
+    
+    // Método 2: Verificar si hay un manifest instalado (Chrome, Edge, Android)
+    const isInstalledFromManifest = window.navigator.getInstalledRelatedApps ? 
+      async () => {
+        try {
+          const relatedApps = await (navigator as any).getInstalledRelatedApps?.();
+          return relatedApps && relatedApps.length > 0;
+        } catch {
+          return false;
+        }
+      } 
+      : null;
 
-    // Escuchar el evento beforeinstallprompt
+    // Método 3: Verificar shortcut en iOS
+    const isInstalledIOS = ios && localStorage.getItem("pwa_installed_ios") === "true";
+
+    setIsInstalled(isInstalledFromStorage || isInstalledIOS);
+
+    if (isInstalledFromManifest) {
+      isInstalledFromManifest().then(installed => {
+        if (installed) {
+          setIsInstalled(true);
+        }
+      });
+    }
+
+    // Escuchar el evento beforeinstallprompt (Chrome, Edge, Android)
     const handler = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
@@ -56,6 +81,9 @@ export const useInstallPWA = () => {
       if (result.outcome === "accepted") {
         localStorage.setItem("pwa_installed", "true");
         setIsInstalled(true);
+        setTimeout(() => {
+          window.location.href = "/";
+        }, 500);
       }
 
       setDeferredPrompt(null);
@@ -65,8 +93,15 @@ export const useInstallPWA = () => {
     }
   };
 
-  const shouldShowInstallPrompt = () => {
-    return true; // Siempre mostrar el cartel
+  const openApp = () => {
+    // Abrir la PWA en la raíz
+    window.location.href = "/";
+  };
+
+  const markAsInstalledIOS = () => {
+    localStorage.setItem("pwa_installed", "true");
+    localStorage.setItem("pwa_installed_ios", "true");
+    setIsInstalled(true);
   };
 
   return {
@@ -75,6 +110,7 @@ export const useInstallPWA = () => {
     isPWA,
     isIOS,
     handleInstall,
-    shouldShowInstallPrompt,
+    openApp,
+    markAsInstalledIOS,
   };
 };

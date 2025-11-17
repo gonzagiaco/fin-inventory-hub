@@ -95,7 +95,7 @@ export const DynamicProductTable = ({
           header: schema.label,
           cell: ({ row }) => {
             const quantity = row.original.quantity || 0;
-            const lowStockThreshold = mappingConfig?.low_stock_threshold || 50;
+            const lowStockThreshold = mappingConfig?.low_stock_threshold || 0;
             const isLowStock = quantity < lowStockThreshold;
 
             return (
