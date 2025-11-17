@@ -14,6 +14,9 @@ export interface DynamicProduct {
   name?: string;
   price?: number;
   quantity?: number;
+  supplierId?: string;
+  supplierName?: string;
+  listName?: string;
   data: Record<string, any>; // All extra fields
   calculated_data?: Record<string, number>; // Calculated prices with overrides
 }
