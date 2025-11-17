@@ -69,7 +69,7 @@ export const QuantityCell: React.FC<Props> = ({
     <>
     <input
       type="number"
-      className="h-8 w-24 bg-black border rounded px-2"
+      className="h-8 w-20 lg-1160:w-16  bg-black border rounded px-2"
       defaultValue={current}
       onBlur={(e) => { void handleCommit(e.target.value); }}
       onKeyDown={onKeyDown}

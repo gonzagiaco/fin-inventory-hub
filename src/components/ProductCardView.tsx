@@ -149,22 +149,26 @@ export function ProductCardView({
                     // Campo especial para Stock con QuantityCell, igual que en /stock
                     if (field.key === "quantity") {
                       return (
-                        <div key={field.key} className="text-sm border-b pb-1 flex items-center gap-2">
+                        <div key={field.key} className="text-sm border-b pb-1 flex flex-col gap-2">
                           {isLowStock && (
-                            <Badge variant="destructive" className="text-xs">
-                              Bajo Stock
-                            </Badge>
+                            <div className="w-22 from-1440:w-4/12">
+                              <Badge variant="destructive" className="text-xs">
+                                Bajo Stock
+                              </Badge>
+                            </div>
                           )}
-                          <span className="text-muted-foreground">{field.label}:</span>{" "}
-                          <QuantityCell
-                            productId={product.id}
-                            listId={product.listId ?? listId}
-                            value={product.quantity}
-                            onLocalUpdate={(newQty) => {
-                              product.quantity = newQty;
-                            }}
-                            visibleSpan={true}
-                          />
+                          <div className="flex items-center justify-between w-full from-1440:justify-normal from-1440:gap-2">
+                            <span className="text-muted-foreground">{field.label}:</span>{" "}
+                            <QuantityCell
+                              productId={product.id}
+                              listId={product.listId ?? listId}
+                              value={product.quantity}
+                              onLocalUpdate={(newQty) => {
+                                product.quantity = newQty;
+                              }}
+                              visibleSpan={true}
+                            />
+                          </div>
                         </div>
                       );
                     }

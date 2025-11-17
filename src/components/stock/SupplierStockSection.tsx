@@ -35,14 +35,24 @@ export function SupplierStockSection({ supplierName, supplierLogo, lists, onAddT
 
   return (
     <Card className="mb-6 w-full max-w-full overflow-hidden">
-      <CardHeader className="cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
+      <CardHeader
+        className="cursor-pointer"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {supplierLogo && <img src={supplierLogo} alt={supplierName} className="h-10 w-10 object-contain rounded" />}
+            {supplierLogo && (
+              <img
+                src={supplierLogo}
+                alt={supplierName}
+                className="h-10 w-10 object-contain rounded"
+              />
+            )}
             <div>
               <h2 className="text-xl font-semibold">{supplierName}</h2>
               <p className="text-sm text-muted-foreground">
-                {lists.length} {lists.length === 1 ? "lista" : "listas"} • {totalProducts} productos
+                {lists.length} {lists.length === 1 ? "lista" : "listas"} •{" "}
+                {totalProducts} productos
               </p>
             </div>
           </div>
@@ -70,7 +80,9 @@ export function SupplierStockSection({ supplierName, supplierLogo, lists, onAddT
                             </Badge>
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground">{list.productCount} productos</p>
+                        <p className="text-sm text-muted-foreground">
+                          {list.productCount} productos
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -86,7 +98,9 @@ export function SupplierStockSection({ supplierName, supplierLogo, lists, onAddT
                     />
                   ) : (
                     <div className="p-6 text-center border-t">
-                      <p className="text-muted-foreground mb-4">Esta lista no tiene configuración de mapeo</p>
+                      <p className="text-muted-foreground mb-4">
+                        Esta lista no tiene configuración de mapeo
+                      </p>
                       <Dialog>
                         <DialogTrigger asChild>
                           <Button onClick={() => setListToMap(list.id)}>
@@ -94,16 +108,22 @@ export function SupplierStockSection({ supplierName, supplierLogo, lists, onAddT
                             Configurar Mapeo
                           </Button>
                         </DialogTrigger>
-                        <DialogContent className="max-w-4xl">
+                        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                           <DialogHeader>
-                            <DialogTitle>Configurar Mapeo de Columnas</DialogTitle>
+                            <DialogTitle>
+                              Configurar Mapeo de Columnas
+                            </DialogTitle>
                           </DialogHeader>
                           <ColumnMappingWizard
                             listId={list.id}
                             onSaved={() => {
                               setListToMap(null);
-                              queryClient.invalidateQueries({ queryKey: ["product-lists-index"] });
-                              toast.success("Mapeo guardado e índice actualizado");
+                              queryClient.invalidateQueries({
+                                queryKey: ["product-lists-index"],
+                              });
+                              toast.success(
+                                "Mapeo guardado e índice actualizado"
+                              );
                             }}
                           />
                         </DialogContent>

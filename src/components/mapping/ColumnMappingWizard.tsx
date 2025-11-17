@@ -11,6 +11,25 @@ import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Input } from "../ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
+// Helper para convertir a zona horaria de Argentina
+function formatArgentinaTime(dateString: string): string {
+  try {
+    const date = new Date(dateString);
+    // Convertir a hora de Argentina (UTC-3)
+    const argentinaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
+    const hours = String(argentinaDate.getHours()).padStart(2, '0');
+    const minutes = String(argentinaDate.getMinutes()).padStart(2, '0');
+    const seconds = String(argentinaDate.getSeconds()).padStart(2, '0');
+    const day = String(argentinaDate.getDate()).padStart(2, '0');
+    const month = String(argentinaDate.getMonth() + 1).padStart(2, '0');
+    const year = argentinaDate.getFullYear();
+    
+    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+  } catch {
+    return "No disponible";
+  }
+}
+
 // Hook personalizado para obtener dólar oficial
 function useOfficialDollar() {
   return useQuery({
@@ -34,7 +53,7 @@ function useOfficialDollar() {
         updatedAt: data.updated_at,
       };
     },
-    staleTime: 5 * 60 * 1000, // 5 minutos
+    staleTime: 0, // No cachear, siempre traer fresco
     refetchInterval: 10 * 60 * 1000, // Refetch cada 10 minutos
   });
 }
@@ -64,7 +83,29 @@ type Props = {
 };
 
 export function ColumnMappingWizard({ listId, onSaved }: Props) {
-  const { data: officialDollar, isLoading: loadingDollar, refetch: refetchDollar } = useOfficialDollar();
+  const queryClient = useQueryClient();
+  const { data: officialDollar, isLoading: loadingDollar } = useOfficialDollar();
+
+  const handleRefetchDollar = async () => {
+    try {
+      // Llamar a la función Supabase para actualizar el dólar desde la API
+      const { data, error } = await supabase.functions.invoke('update-dollar-rate');
+      
+      if (error) {
+        console.error("Error al actualizar dólar:", error);
+        toast.error("Error al actualizar el dólar");
+        return;
+      }
+      
+      // Invalidar la query para que React Query traiga el dato actualizado
+      await queryClient.invalidateQueries({ queryKey: ["dollar-official"] });
+      toast.success("Dólar actualizado correctamente");
+      
+    } catch (error) {
+      console.error("Error al actualizar dólar:", error);
+      toast.error("Error al actualizar el dólar");
+    }
+  };
   const [sample, setSample] = useState<any[]>([]);
   const [keys, setKeys] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -109,8 +150,6 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
 
     return numericCount > 0 && numericCount >= sample.length * 0.5;
   };
-
-  const queryClient = useQueryClient();
 
   // Cargar 20 filas de ejemplo para listar claves
   useEffect(() => {
@@ -543,7 +582,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
                   <>
                     <p className="text-2xl font-bold text-primary">${officialDollar.rate.toFixed(2)}</p>
                     <p className="text-xs text-muted-foreground">
-                      Actualizado: {new Date(officialDollar.updatedAt).toLocaleString("es-AR")}
+                      Actualizado: {formatArgentinaTime(officialDollar.updatedAt)}
                     </p>
                   </>
                 ) : (
@@ -551,7 +590,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
                 )}
               </div>
             </div>
-            <Button type="button" variant="ghost" size="sm" onClick={() => refetchDollar()} disabled={loadingDollar}>
+            <Button type="button" variant="ghost" size="sm" onClick={() => handleRefetchDollar()} disabled={loadingDollar}>
               <RefreshCw className={`h-4 w-4 ${loadingDollar ? "animate-spin" : ""}`} />
             </Button>
           </div>

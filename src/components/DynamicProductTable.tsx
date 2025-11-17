@@ -250,14 +250,16 @@ export const DynamicProductTable = ({
         <div className="flex gap-1.5 flex-wrap justify-end">
           {shouldUseCardView && (
             <>
-              <Button
-                variant={effectiveViewMode === "table" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode(listId, "table")}
-                className="flex-shrink-0"
-              >
-                <List className="h-4 w-4" />
-              </Button>
+              { !isMobile && 
+                <Button
+                  variant={effectiveViewMode === "table" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setViewMode(listId, "table")}
+                  className="flex-shrink-0"
+                >
+                  <List className="h-4 w-4" />
+                </Button>
+              }
               <Button
                 variant={effectiveViewMode === "cards" ? "default" : "outline"}
                 size="sm"

@@ -93,6 +93,10 @@ export default {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
       },
+      screens: {
+        'lg-1160': { 'raw': '(min-width: 1024px) and (max-width: 1160px)' },
+        'from-1440': '1440px'
+      },
     },
   },
   plugins: [require("tailwindcss-animate")],
