@@ -31,7 +31,7 @@ const App = () => (
               path="/"
               element={
                 <ProtectedRoute>
-                  <div className="flex min-h-screen w-full">
+                  <div className="flex min-h-screen w-full safe-top">
                     <CollapsibleSidebar />
                     <Stock />
                   </div>
@@ -42,7 +42,7 @@ const App = () => (
               path="/remitos"
               element={
                 <ProtectedRoute>
-                  <div className="flex min-h-screen w-full">
+                  <div className="flex min-h-screen w-full safe-top">
                     <CollapsibleSidebar />
                     <Remitos />
                   </div>
@@ -53,7 +53,7 @@ const App = () => (
               path="/proveedores"
               element={
                 <ProtectedRoute>
-                  <div className="flex min-h-screen w-full">
+                  <div className="flex min-h-screen w-full safe-top">
                     <CollapsibleSidebar />
                     <Proveedores />
                   </div>
@@ -64,7 +64,7 @@ const App = () => (
               path="/ayuda"
               element={
                 <ProtectedRoute>
-                  <div className="flex min-h-screen w-full">
+                  <div className="flex min-h-screen w-full safe-top">
                     <CollapsibleSidebar />
                     <Ayuda />
                   </div>

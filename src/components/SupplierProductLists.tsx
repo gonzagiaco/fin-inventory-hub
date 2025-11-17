@@ -26,6 +26,7 @@ import { ListUpdateDialog } from "./ListUpdateDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ColumnMappingWizard } from "./mapping/ColumnMappingWizard";
 import { parseNumber } from "@/utils/numberParser";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface SupplierProductListsProps {
   supplierId: string;
@@ -85,6 +86,7 @@ const SupplierListProducts = ({
 
 export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProductListsProps) => {
   const [isUploading, setIsUploading] = useState(false);
+    const isMobile = useIsMobile();
   const [listToDelete, setListToDelete] = useState<string | null>(null);
   const [listToMap, setListToMap] = useState<string | null>(null);
   const [similarWarning, setSimilarWarning] = useState<string | null>(null);
@@ -456,18 +458,20 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
 
             return (
               <Card key={list.id} className="glassmorphism border-primary/20">
-                <CardHeader className="cursor-pointer" onClick={() => toggleListCollapse(list.id)}>
-                  <div className="flex items-center justify-between">
+                <CardHeader
+                  className="cursor-pointer"
+                  onClick={() => toggleListCollapse(list.id)}
+                >
+                  <div className="flex gap-6 items-center justify-between">
                     <div className="flex items-center gap-3">
-                      {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                      {isCollapsed ? (
+                        <ChevronRight className="w-5 h-5" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5" />
+                      )}
                       <div>
                         <div className="flex items-center gap-2">
                           <CardTitle className="text-lg">{list.name}</CardTitle>
-                          {(list as any).mapping_config && (
-                            <Badge variant="default" className="text-xs">
-                              ✓ Mapeado
-                            </Badge>
-                          )}
                         </div>
                         <div className="flex items-center gap-2 mt-1">
                           <Badge variant="outline" className="text-xs">
@@ -476,11 +480,13 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
                           <span className="text-xs text-muted-foreground">
                             {new Date(list.createdAt).toLocaleDateString()}
                           </span>
-                          <span className="text-xs text-muted-foreground">{list.productCount} productos</span>
+                          <span className="text-xs text-muted-foreground">
+                            {list.productCount} productos
+                          </span>
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col md:flex-row items-center gap-2">
                       <Button
                         variant="outline"
                         size="sm"
@@ -490,7 +496,7 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
                         }}
                       >
                         <Settings className="w-4 h-4 mr-1" />
-                        Mapeo
+                        {!isMobile ? "Mapeo" : ""}
                       </Button>
                       <Button
                         variant="ghost"

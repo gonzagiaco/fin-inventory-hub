@@ -154,5 +154,24 @@ All colors MUST be HSL.
     .safe-bottom {
       padding-bottom: max(env(safe-area-inset-bottom), 1rem);
     }
+    
+    /* Apply safe area to fixed top elements (to not hide under notch) */
+    .toaster {
+      top: max(env(safe-area-inset-top), 1rem) !important;
+    }
+
+    /* Helper for sticky/fixed elements that must be offset from the top */
+    .safe-top-fixed {
+      top: max(env(safe-area-inset-top), 1rem) !important;
+    }
+
+    /* Ensure toast viewports float above the bottom safe area */
+    .toast-viewport {
+      bottom: max(env(safe-area-inset-bottom), 1rem) !important;
+    }
+
+    .safe-bottom-fixed {
+      bottom: max(env(safe-area-inset-bottom), 1rem) !important;
+    }
   }
 }

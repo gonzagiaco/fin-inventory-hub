@@ -78,7 +78,7 @@ const CollapsibleSidebar = () => {
       {/* Sidebar */}
       <aside
         className={`
-          fixed lg:sticky top-0 min-h-[100dvh] lg:h-screen bg-background/70 backdrop-blur-xl border-r border-primary/20 
+          fixed lg:sticky top-0 lg:safe-top-fixed min-h-[100dvh] lg:h-screen bg-background/70 backdrop-blur-xl border-r border-primary/20 
           flex flex-col p-6 z-30 transition-all duration-300
           ${
             isMobileOpen
@@ -106,7 +106,7 @@ const CollapsibleSidebar = () => {
 
         {/* Logo */}
         <div
-          className={`flex items-center mb-10 ${
+          className={`flex items-center my-10 md:mt-0 ${
             isCollapsed ? "justify-center" : "gap-3"
           }`}
         >

@@ -49,7 +49,7 @@ const Sidebar = () => {
       {/* Sidebar */}
       <aside
         className={`
-          fixed lg:sticky top-0 h-screen w-64 bg-background/70 backdrop-blur-xl border-r border-primary/20 
+          fixed lg:sticky top-0 lg:safe-top-fixed h-screen w-64 bg-background/70 backdrop-blur-xl border-r border-primary/20 
           flex flex-col p-6 z-30 transition-transform duration-300
           ${isMobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
         `}
