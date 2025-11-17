@@ -112,7 +112,7 @@ export function ProductCardView({
   // Campos que se muestran arriba (según configuración del usuario)
   const keyFields = previewFieldKeys
     .map((key) => columnSchema.find((col) => col.key === key))
-    .filter((col): col is ColumnSchema => col !== undefined);
+    .filter((col): col is ColumnSchema => col !== undefined)
     .filter((col) => col.key !== "quantity");
 
   const otherFields = columnSchema.filter((col) => !previewFieldKeys.includes(col.key));
