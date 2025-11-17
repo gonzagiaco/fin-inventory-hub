@@ -3,7 +3,11 @@ import { ChevronDown, ChevronUp, ShoppingCart } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { DynamicProduct, ColumnSchema, ProductList } from "@/types/productList";
 import { Loader2 } from "lucide-react";
 import { useProductListStore } from "@/stores/productListStore";
@@ -14,7 +18,10 @@ interface ProductCardViewProps {
   products: DynamicProduct[] | any[];
   columnSchema: ColumnSchema[];
   mappingConfig?: ProductList["mapping_config"];
-  onAddToRequest?: (product: any, mappingConfig?: ProductList["mapping_config"]) => void;
+  onAddToRequest?: (
+    product: any,
+    mappingConfig?: ProductList["mapping_config"]
+  ) => void;
   showActions?: boolean;
   onLoadMore?: () => void;
   hasMore?: boolean;
@@ -36,9 +43,10 @@ export function ProductCardView({
   const [displayCount, setDisplayCount] = useState(10);
   const { cardPreviewFields } = useProductListStore();
 
-  const previewFieldKeys = cardPreviewFields[listId] || columnSchema.slice(0, 4).map((c) => c.key);
+  const previewFieldKeys =
+    cardPreviewFields[listId] || columnSchema.slice(0, 4).map((c) => c.key);
 
-  // Reset display count when products change
+  // Resetear la paginación local cuando cambian los productos
   useEffect(() => {
     setDisplayCount(10);
   }, [products.length]);
@@ -56,17 +64,20 @@ export function ProductCardView({
   const getFieldValue = (product: any, key: string) => {
     const effectiveMappingConfig = product.mappingConfig || mappingConfig;
 
-    // PRIMERO: Si esta columna es la columna de precio principal configurada
-    if (effectiveMappingConfig?.price_primary_key && key === effectiveMappingConfig.price_primary_key) {
-      return product.price; // Precio calculado del índice
+    // 1) Columna de precio principal configurada
+    if (
+      effectiveMappingConfig?.price_primary_key &&
+      key === effectiveMappingConfig.price_primary_key
+    ) {
+      return product.price;
     }
 
-    // SEGUNDO: Si hay override específico para esta columna
+    // 2) Override específico para esta columna
     if (product.calculated_data && key in product.calculated_data) {
       return product.calculated_data[key];
     }
 
-    // TERCERO: Mapeos estándar
+    // 3) Campos normalizados
     if (key === "code") return product.code;
     if (key === "name") return product.name;
     if (key === "price") return product.price;
@@ -74,7 +85,7 @@ export function ProductCardView({
     if (key === "supplier_name") return product.supplierName;
     if (key === "list_name") return product.listName;
 
-    // CUARTO: Leer de data original
+    // 4) Datos originales
     return product.data?.[key];
   };
 
@@ -83,24 +94,30 @@ export function ProductCardView({
     type: ColumnSchema["type"],
     key: string,
     product: any,
-    mappingConfig?: ProductList["mapping_config"],
+    mappingConfig?: ProductList["mapping_config"]
   ) => {
     if (value == null) return "-";
     const effectiveMappingConfig = product.mappingConfig || mappingConfig;
     const isPriceColumn =
       key === "price" ||
       key === effectiveMappingConfig?.price_primary_key ||
-      (effectiveMappingConfig?.price_alt_keys && effectiveMappingConfig.price_alt_keys.includes(key));
+      (effectiveMappingConfig?.price_alt_keys &&
+        effectiveMappingConfig.price_alt_keys.includes(key));
 
     const isNumericField = type === "number" || isPriceColumn;
 
-    // Verificar si tiene modificación aplicada
-    const hasGeneralModifier = isPriceColumn && effectiveMappingConfig?.price_primary_key === key;
-    const hasOverride = product.calculated_data && key in product.calculated_data;
+    // (La lógica de “modificación aplicada” queda por si la usás más adelante)
+    const hasGeneralModifier =
+      isPriceColumn && effectiveMappingConfig?.price_primary_key === key;
+    const hasOverride =
+      product.calculated_data && key in product.calculated_data;
     const hasModification = hasGeneralModifier || hasOverride;
+    void hasModification;
 
     if (isNumericField && typeof value === "number") {
-      return <span className="flex items-center gap-1.5">${value.toFixed(2)}</span>;
+      return (
+        <span className="flex items-center gap-1.5">${value.toFixed(2)}</span>
+      );
     }
     if (type === "date" && value instanceof Date) {
       return value.toLocaleDateString("es-AR");
@@ -108,24 +125,23 @@ export function ProductCardView({
     return String(value);
   };
 
-  // Separate key fields based on user configuration and other fields
-  // Sort keyFields based on the order in previewFieldKeys
+  // Campos que se muestran arriba (según configuración del usuario)
   const keyFields = previewFieldKeys
     .map((key) => columnSchema.find((col) => col.key === key))
     .filter((col): col is ColumnSchema => col !== undefined);
 
-  const otherFields = columnSchema.filter((col) => !previewFieldKeys.includes(col.key));
+  const otherFields = columnSchema.filter(
+    (col) => !previewFieldKeys.includes(col.key)
+  );
 
-  // Slice products for local pagination
+  // Paginación local de tarjetas
   const visibleProducts = products.slice(0, displayCount);
   const hasLocalMore = displayCount < products.length;
 
   const handleLoadMore = () => {
     if (hasLocalMore) {
-      // Load 10 more locally
       setDisplayCount((prev) => prev + 10);
     } else if (onLoadMore && hasMore) {
-      // Load from server if no more local products
       onLoadMore();
     }
   };
@@ -137,7 +153,8 @@ export function ProductCardView({
           const isExpanded = expandedCards.has(product.id);
           const quantity = product.quantity || 0;
           const effectiveMappingConfig = product.mappingConfig || mappingConfig;
-          const lowStockThreshold = effectiveMappingConfig?.low_stock_threshold || 50;
+          const lowStockThreshold =
+            effectiveMappingConfig?.low_stock_threshold || 50;
           const isLowStock = quantity < lowStockThreshold;
 
           return (
@@ -146,38 +163,29 @@ export function ProductCardView({
                 <div className="space-y-2">
                   {keyFields.map((field) => {
                     const value = getFieldValue(product, field.key);
-                    const displayValue = formatValue(value, field.type, field.key, product, mappingConfig);
+                    const displayValue = formatValue(
+                      value,
+                      field.type,
+                      field.key,
+                      product,
+                      mappingConfig
+                    );
 
-                    // Special styling for common fields
-                    if (field.key === "code") {
-                      return (
-                        <div key={field.key} className="font-mono text-sm text-muted-foreground">
-                          {displayValue}
-                        </div>
-                      );
-                    }
-                    if (field.key === "name") {
-                      return (
-                        <h4 key={field.key} className="font-semibold text-base leading-tight">
-                          {displayValue}
-                        </h4>
-                      );
-                    }
-                    if (field.key === "price") {
-                      return (
-                        <Badge key={field.key} variant="secondary" className="w-fit">
-                          ${displayValue}
-                        </Badge>
-                      );
-                    }
+                    // Campo especial para Stock con QuantityCell, igual que en /stock
                     if (field.key === "quantity") {
                       return (
-                        <div key={field.key} className="flex items-center gap-2">
+                        <div
+                          key={field.key}
+                          className="text-sm border-b pb-1 flex items-center gap-2"
+                        >
                           {isLowStock && (
                             <Badge variant="destructive" className="text-xs">
                               Bajo Stock
                             </Badge>
                           )}
+                          <span className="text-muted-foreground">
+                            {field.label}:
+                          </span>{" "}
                           <QuantityCell
                             productId={product.id}
                             listId={product.listId ?? listId}
@@ -189,30 +197,14 @@ export function ProductCardView({
                           />
                         </div>
                       );
-
-                      if (field.key === "supplier_name") {
-                        return (
-                          <div key={field.key} className="flex items-center gap-2 text-sm">
-                            <Badge variant="outline" className="font-normal">
-                              {displayValue}
-                            </Badge>
-                          </div>
-                        );
-                      }
-
-                      if (field.key === "list_name") {
-                        return (
-                          <div key={field.key} className="text-xs text-muted-foreground italic">
-                            📋 {displayValue}
-                          </div>
-                        );
-                      }
                     }
 
-                    // Default display for other configured fields
+                    // Resto de campos: mismo diseño genérico que en /stock
                     return (
                       <div key={field.key} className="text-sm border-b pb-1">
-                        <span className="text-muted-foreground">{field.label}:</span>{" "}
+                        <span className="text-muted-foreground">
+                          {field.label}:
+                        </span>{" "}
                         <span className="font-medium">{displayValue}</span>
                       </div>
                     );
@@ -222,7 +214,10 @@ export function ProductCardView({
 
               <CardContent className="pt-0 flex-1 flex flex-col">
                 {otherFields.length > 0 && (
-                  <Collapsible open={isExpanded} onOpenChange={() => toggleCard(product.id)}>
+                  <Collapsible
+                    open={isExpanded}
+                    onOpenChange={() => toggleCard(product.id)}
+                  >
                     <CollapsibleTrigger asChild>
                       <Button variant="ghost" size="sm" className="w-full mb-2">
                         {isExpanded ? (
@@ -241,11 +236,22 @@ export function ProductCardView({
                     <CollapsibleContent className="space-y-2 mb-3">
                       {otherFields.map((field) => {
                         const value = getFieldValue(product, field.key);
-                        const displayValue = formatValue(value, field.type, field.key, product, mappingConfig);
+                        const displayValue = formatValue(
+                          value,
+                          field.type,
+                          field.key,
+                          product,
+                          mappingConfig
+                        );
 
                         return (
-                          <div key={field.key} className="text-sm border-b pb-1">
-                            <span className="text-muted-foreground">{field.label}:</span>{" "}
+                          <div
+                            key={field.key}
+                            className="text-sm border-b pb-1"
+                          >
+                            <span className="text-muted-foreground">
+                              {field.label}:
+                            </span>{" "}
                             <span className="font-medium">{displayValue}</span>
                           </div>
                         );
@@ -273,7 +279,11 @@ export function ProductCardView({
 
       {(hasLocalMore || hasMore) && (
         <div className="text-center mt-6">
-          <Button variant="outline" onClick={handleLoadMore} disabled={isLoadingMore}>
+          <Button
+            variant="outline"
+            onClick={handleLoadMore}
+            disabled={isLoadingMore}
+          >
             {isLoadingMore ? (
               <>
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -282,7 +292,8 @@ export function ProductCardView({
             ) : (
               <>
                 Ver más productos
-                {hasLocalMore && ` (${products.length - displayCount} más disponibles)`}
+                {hasLocalMore &&
+                  ` (${products.length - displayCount} más disponibles)`}
               </>
             )}
           </Button>

@@ -67,7 +67,6 @@ export const QuantityCell: React.FC<Props> = ({
 
   return (
     <>
-      {visibleSpan && <span className="ml-2">Stock:</span>}
     <input
       type="number"
       className="h-8 w-24 bg-black border rounded px-2"
