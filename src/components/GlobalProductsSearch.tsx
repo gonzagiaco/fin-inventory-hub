@@ -7,6 +7,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@
 import { QuantityCell } from "@/components/stock/QuantityCell";
 import { ProductCardView } from "@/components/ProductCardView";
 import { ColumnSchema, DynamicProduct } from "@/types/productList";
+import { useProductListStore } from "@/stores/productListStore";
 
 interface GlobalProductSearchProps {
   searchTerm: string;
@@ -32,6 +33,15 @@ export function GlobalProductSearch({
   defaultViewMode = "card",
 }: GlobalProductSearchProps) {
   const [viewMode, setViewMode] = useState(() => defaultViewMode);
+  const { setCardPreviewFields, cardPreviewFields } = useProductListStore();
+
+  useEffect(() => {
+    const globalSearchId = "global-search-results";
+
+    if (!cardPreviewFields[globalSearchId]) {
+      setCardPreviewFields(globalSearchId, ["code", "name", "price", "quantity", "supplier_name", "list_name"]);
+    }
+  }, []);
 
   // Schema genérico para resultados de búsqueda global
   const globalSearchSchema: ColumnSchema[] = useMemo(
@@ -215,7 +225,7 @@ export function GlobalProductSearch({
 
               {/* Tarjetas de productos - 100% idénticas a Stock */}
               <ProductCardView
-                listId={listGroup.listId}
+                listId="global-search-results"
                 products={listGroup.products}
                 columnSchema={globalSearchSchema}
                 mappingConfig={listGroup.mappingConfig}

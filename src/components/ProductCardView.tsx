@@ -189,6 +189,24 @@ export function ProductCardView({
                           />
                         </div>
                       );
+
+                      if (field.key === "supplier_name") {
+                        return (
+                          <div key={field.key} className="flex items-center gap-2 text-sm">
+                            <Badge variant="outline" className="font-normal">
+                              {displayValue}
+                            </Badge>
+                          </div>
+                        );
+                      }
+
+                      if (field.key === "list_name") {
+                        return (
+                          <div key={field.key} className="text-xs text-muted-foreground italic">
+                            📋 {displayValue}
+                          </div>
+                        );
+                      }
                     }
 
                     // Default display for other configured fields
