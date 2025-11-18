@@ -17,7 +17,8 @@ export const InstallPWAButton = () => {
   } = useInstallPWA();
 
   // Si estamos dentro de la PWA (standalone mode), NO mostrar el cartel
-  if (isPWA) {
+  // Si estamos dentro de la PWA (standalone mode) o la app ya está instalada, NO mostrar el cartel
+  if (isPWA || isInstalled) {
     return null;
   }
 
@@ -34,21 +35,7 @@ export const InstallPWAButton = () => {
   };
 
   const getInstallContent = () => {
-    // Si está instalada, mostrar "Abrir App"
-    if (isInstalled) {
-      return {
-        title: "Abrir App",
-        description: "Abre tu aplicación instalada",
-        buttonText: "Abrir",
-        buttonIcon: ExternalLink,
-        buttonAction: openApp,
-        buttonDisabled: false,
-        showSparkles: false,
-        variant: "default" as const,
-      };
-    }
-
-    // Si NO está instalada, mostrar "Instalar app"
+    // Mostrar siempre la opción de instalar si no está instalada (para iOS muestra instrucciones)
     return {
       title: "Instalar app",
       description: null,
@@ -104,10 +91,12 @@ export const InstallPWAButton = () => {
         </div>
       </Card>
 
-      <IOSInstallInstructions 
-        open={showIOSInstructions} 
-        onOpenChange={handleIOSInstructionsClose}
-      />
+      {isIOS && (
+        <IOSInstallInstructions 
+          open={showIOSInstructions} 
+          onOpenChange={handleIOSInstructionsClose}
+        />
+      )}
     </>
   );
 };
