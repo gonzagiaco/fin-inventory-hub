@@ -498,9 +498,30 @@ async function executeOperation(op: PendingOperation): Promise<void> {
   switch (operation_type) {
     case 'INSERT':
       // Para INSERT, no enviamos el ID temporal
-      const insertData = { ...data };
+      let insertData = { ...data };
       if (isTemp) {
         delete insertData.id;
+        
+        // Buscar operaciones UPDATE pendientes para este ID temporal y mergear
+        const pendingUpdates = await localDB.pending_operations
+          .where('record_id')
+          .equals(record_id)
+          .and(item => item.operation_type === 'UPDATE')
+          .toArray();
+        
+        if (pendingUpdates.length > 0) {
+          console.log(`🔄 Mergeando ${pendingUpdates.length} actualizaciones pendientes para ID temporal ${record_id}`);
+          
+          // Aplicar cada update al insertData
+          for (const updateOp of pendingUpdates) {
+            insertData = { ...insertData, ...updateOp.data };
+          }
+          
+          // Eliminar las operaciones UPDATE mergeadas de la cola
+          for (const updateOp of pendingUpdates) {
+            await localDB.pending_operations.delete(updateOp.id!);
+          }
+        }
       }
       
       const { error: insertError } = await (supabase as any)
