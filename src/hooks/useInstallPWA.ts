@@ -25,7 +25,7 @@ export const useInstallPWA = () => {
     const isInstalledFromStorage = localStorage.getItem("pwa_installed") === "true";
     
     // Método 2: Verificar si hay un manifest instalado (Chrome, Edge, Android)
-    const isInstalledFromManifest = window.navigator.getInstalledRelatedApps ? 
+    const isInstalledFromManifest = (window.navigator as any).getInstalledRelatedApps ?
       async () => {
         try {
           const relatedApps = await (navigator as any).getInstalledRelatedApps?.();
