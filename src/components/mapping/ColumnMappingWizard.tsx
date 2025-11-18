@@ -699,7 +699,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
           }}
         />
         <p className="text-xs text-muted-foreground">
-          Los productos con cantidad menor a este valor se marcarán como "Bajo Stock" (por defecto: 50)
+          Los productos con cantidad menor a este valor se marcarán como "Bajo Stock" (por defecto: 0)
         </p>
       </div>
 
