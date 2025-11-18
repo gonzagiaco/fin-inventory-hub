@@ -80,7 +80,7 @@ const SupplierListProducts = ({
           <DialogTrigger asChild>
             <Button onClick={() => setListToMap(listId)}>
               <Settings className="w-4 h-4 mr-2" />
-              Configurar Mapeo
+              Configurar lista
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
