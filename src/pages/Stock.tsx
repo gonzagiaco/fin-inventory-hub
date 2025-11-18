@@ -320,17 +320,17 @@ export default function Stock() {
           <h1 className="text-3xl font-bold mb-6">Stock de Productos</h1>
 
           <div className="flex flex-col md:flex-row gap-4 mb-4">
-            <div className="flex w-full flex-1 gap-2">
+            <div className="flex flex-1 gap-2">
               <Input
                 placeholder="Buscar en todos los productos..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="md:w-96 w-full"
+                className="w-full"
               />
             </div>
-            <div className="flex gap-2 ml-auto">
+            <div className="flex gap-2 w-[250px] md:w-1/3">
               <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-                <SelectTrigger className="w-[200px]">
+                <SelectTrigger className="gap-1">
                   <Filter className="mr-2 h-4 w-4" />
                   <SelectValue placeholder="Proveedor" />
                 </SelectTrigger>
@@ -343,18 +343,16 @@ export default function Stock() {
                   ))}
                 </SelectContent>
               </Select>
-
-              <Button variant="outline" onClick={handleExportToExcel} disabled={requestList.length === 0}>
-                <FileDown className="mr-2 h-4 w-4" />
-                Exportar Pedido
-              </Button>
             </div>
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
             <div className="text-sm text-muted-foreground">
               {totalProducts} productos en total{" • "}
-              {visibleSupplierSections.length} {visibleSupplierSections.length === 1 ? "proveedor" : "proveedores"}
+              {visibleSupplierSections.length}{" "}
+              {visibleSupplierSections.length === 1
+                ? "proveedor"
+                : "proveedores"}
             </div>
           </div>
         </div>
@@ -380,24 +378,25 @@ export default function Stock() {
               </div>
               <p className="text-muted-foreground">Cargando listas...</p>
             </div>
-          ) : searchTerm.trim().length >= 3 || (searchTerm === "" && supplierFilter !== "all") ? (
-            hasSearchTerm && (
-              <GlobalProductSearch
-                searchTerm={searchTerm}
-                globalResults={globalResults}
-                loadingSearch={loadingSearch}
-                isSupplierSelectedNoTerm={isSupplierSelectedNoTerm}
-                isOnline={isOnline}
-                lists={lists}
-                suppliers={suppliers}
-                onAddToRequest={handleAddToRequest}
-                defaultViewMode={isMobile ? "card" : "table"}
-              />
-            )
+          ) : searchTerm.trim().length >= 3 ||
+            (searchTerm === "" && supplierFilter !== "all") ? (
+            <GlobalProductSearch
+              searchTerm={searchTerm}
+              globalResults={globalResults}
+              loadingSearch={loadingSearch}
+              isSupplierSelectedNoTerm={isSupplierSelectedNoTerm}
+              isOnline={isOnline}
+              lists={lists}
+              suppliers={suppliers}
+              onAddToRequest={handleAddToRequest}
+              defaultViewMode={isMobile ? "card" : "table"}
+            />
           ) : visibleSupplierSections.length === 0 ? (
             // ------- Sin proveedores -------
             <Card className="p-12 text-center">
-              <p className="text-muted-foreground">No se encontraron proveedores</p>
+              <p className="text-muted-foreground">
+                No se encontraron proveedores
+              </p>
             </Card>
           ) : (
             // ------- Secciones de proveedores (como antes) -------

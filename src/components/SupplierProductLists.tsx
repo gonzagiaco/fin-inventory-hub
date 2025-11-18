@@ -23,10 +23,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ListUpdateDialog } from "./ListUpdateDialog";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ColumnMappingWizard } from "./mapping/ColumnMappingWizard";
 import { parseNumber } from "@/utils/numberParser";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface SupplierProductListsProps {
   supplierId: string;
@@ -44,6 +45,9 @@ const SupplierListProducts = ({
   mappingConfig?: ProductList["mapping_config"];
   onAddToRequest?: (product: DynamicProduct) => void;
 }) => {
+  const [listToMap, setListToMap] = useState<string | null>(null);
+  const [showDialog, setShowDialog] = useState(false);
+  const queryClient = useQueryClient();
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useListProducts(listId);
 
   const allProducts: DynamicProduct[] = useMemo(() => {
@@ -67,6 +71,58 @@ const SupplierListProducts = ({
     return <div className="p-6 text-center">Cargando productos...</div>;
   }
 
+  // Show mapping configuration warning if not mapped
+  if (!mappingConfig) {
+    return (
+      <div className="p-6 text-center border-t">
+        <p className="text-muted-foreground mb-4">
+          Esta lista no tiene configuración de mapeo
+        </p>
+        <Dialog open={showDialog} onOpenChange={setShowDialog}>
+          <DialogTrigger asChild>
+            <Button onClick={() => setListToMap(listId)}>
+              <Settings className="w-4 h-4 mr-2" />
+              Configurar Mapeo
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                Configurar Mapeo de Columnas
+              </DialogTitle>
+            </DialogHeader>
+            <ColumnMappingWizard
+              listId={listId}
+              onSaved={() => {
+                setListToMap(null);
+                setShowDialog(false);
+                // Refrescar datos inmediatamente:
+                // 1) Resetear todas las queries de la lista (cubre online/offline/q)
+                queryClient.resetQueries({
+                  queryKey: ["list-products", listId],
+                  exact: false,
+                });
+                // 2) Invalidar las listas para que el padre reciba el mapping_config actualizado
+                queryClient.invalidateQueries({
+                  queryKey: ["product-lists"],
+                  refetchType: "all",
+                });
+                // 3) Mantener invalidación del índice por compatibilidad con otras vistas
+                queryClient.invalidateQueries({
+                  queryKey: ["product-lists-index"],
+                  refetchType: "all",
+                });
+                toast.success(
+                  "Mapeo guardado e índice actualizado"
+                );
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
   return (
     <DynamicProductTable
       listId={listId}
@@ -86,7 +142,7 @@ const SupplierListProducts = ({
 
 export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProductListsProps) => {
   const [isUploading, setIsUploading] = useState(false);
-    const isMobile = useIsMobile();
+  const isMobile = useIsMobile();
   const [listToDelete, setListToDelete] = useState<string | null>(null);
   const [listToMap, setListToMap] = useState<string | null>(null);
   const [similarWarning, setSimilarWarning] = useState<string | null>(null);
@@ -96,6 +152,7 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
     products: DynamicProduct[];
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
 
   const { productLists, isLoading, createList, deleteList, updateList, findSimilarList } = useProductLists(supplierId);
   const { collapsedLists, toggleListCollapse } = useProductListStore();
@@ -462,18 +519,18 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
                   className="cursor-pointer"
                   onClick={() => toggleListCollapse(list.id)}
                 >
-                  <div className="flex gap-6 items-center justify-between">
-                    <div className="flex items-center gap-3">
+                  <div className="flex gap-6 items-center justify-between overflow-hidden">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
                       {isCollapsed ? (
-                        <ChevronRight className="w-5 h-5" />
+                        <ChevronRight className="w-5 h-5 shrink-0" />
                       ) : (
-                        <ChevronDown className="w-5 h-5" />
+                        <ChevronDown className="w-5 h-5 shrink-0" />
                       )}
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <CardTitle className="text-lg">{list.name}</CardTitle>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <CardTitle className="text-lg truncate" title={list.name}>{list.name}</CardTitle>
                         </div>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <Badge variant="outline" className="text-xs">
                             {list.fileType.toUpperCase()}
                           </Badge>
@@ -486,7 +543,7 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
                         </div>
                       </div>
                     </div>
-                    <div className="flex flex-col md:flex-row items-center gap-2">
+                    <div className="flex flex-col md:flex-row items-center gap-2 shrink-0">
                       <Button
                         variant="outline"
                         size="sm"
@@ -548,6 +605,16 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
               listId={listToMap}
               onSaved={() => {
                 setListToMap(null);
+                // Refrescar datos en esta vista inmediatamente
+                queryClient.invalidateQueries({
+                  queryKey: ["product-lists"],
+                  refetchType: "all",
+                });
+                // Resetear queries de productos de esa lista (online/offline/q)
+                queryClient.resetQueries({
+                  queryKey: ["list-products", listToMap],
+                  exact: false,
+                });
                 toast.success("Mapeo guardado e índice actualizado");
               }}
             />

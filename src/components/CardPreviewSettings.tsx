@@ -44,9 +44,10 @@ interface SortablePreviewItemProps {
   column: ColumnSchema;
   isSelected: boolean;
   onToggle: (key: string, selected: boolean) => void;
+  disableToggle?: boolean;
 }
 
-function SortablePreviewItem({ id, column, isSelected, onToggle }: SortablePreviewItemProps) {
+function SortablePreviewItem({ id, column, isSelected, onToggle, disableToggle }: SortablePreviewItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
   });
@@ -69,6 +70,7 @@ function SortablePreviewItem({ id, column, isSelected, onToggle }: SortablePrevi
       <Checkbox
         id={`preview-${column.key}`}
         checked={isSelected}
+        disabled={disableToggle}
         onCheckedChange={(checked) => onToggle(column.key, checked as boolean)}
       />
       <Label htmlFor={`preview-${column.key}`} className="flex-1 cursor-pointer text-sm">
@@ -82,9 +84,18 @@ function SortablePreviewItem({ id, column, isSelected, onToggle }: SortablePrevi
 export function CardPreviewSettings({ listId, columnSchema }: CardPreviewSettingsProps) {
   const { cardPreviewFields, setCardPreviewFields } = useProductListStore();
   const [open, setOpen] = useState(false);
+  const STOCK_KEY = "quantity"; // "Stock Disponible"
   
-  const currentPreviewFields = cardPreviewFields[listId] || 
-    columnSchema.slice(0, 4).map(c => c.key);
+  const ensureIncludes = (arr: string[], key: string) =>
+    arr.includes(key) ? arr : [key, ...arr];
+
+  const defaultFields = ensureIncludes(
+    columnSchema.slice(0, 4).map(c => c.key),
+    STOCK_KEY
+  );
+
+  const stored = cardPreviewFields[listId];
+  const currentPreviewFields = stored && stored.length ? ensureIncludes(stored, STOCK_KEY) : defaultFields;
   
   const [localPreviewFields, setLocalPreviewFields] = useState<string[]>(currentPreviewFields);
 
@@ -118,12 +129,18 @@ export function CardPreviewSettings({ listId, columnSchema }: CardPreviewSetting
   };
 
   const handleToggle = (key: string, selected: boolean) => {
+    if (key === STOCK_KEY && !selected) {
+      // Mantener siempre seleccionado "Stock Disponible"
+      return;
+    }
     if (selected) {
       if (localPreviewFields.length >= 6) {
         toast.error("Máximo 6 campos en vista previa");
         return;
       }
-      setLocalPreviewFields([...localPreviewFields, key]);
+      if (!localPreviewFields.includes(key)) {
+        setLocalPreviewFields([...localPreviewFields, key]);
+      }
     } else {
       setLocalPreviewFields(localPreviewFields.filter(k => k !== key));
     }
@@ -136,8 +153,8 @@ export function CardPreviewSettings({ listId, columnSchema }: CardPreviewSetting
   };
 
   const handleReset = () => {
-    const defaultFields = columnSchema.slice(0, 4).map(c => c.key);
-    setLocalPreviewFields(defaultFields);
+    const resetFields = ensureIncludes(columnSchema.slice(0, 4).map(c => c.key), STOCK_KEY);
+    setLocalPreviewFields(resetFields);
     toast.success("Configuración restablecida");
   };
 
@@ -175,12 +192,14 @@ export function CardPreviewSettings({ listId, columnSchema }: CardPreviewSetting
                 <div className="space-y-2">
                   {allOrderedColumns.map((column) => {
                     const isSelected = localPreviewFields.includes(column.key);
+                    const disableToggle = column.key === STOCK_KEY;
                     return (
                       <SortablePreviewItem
                         key={column.key}
                         id={column.key}
                         column={column}
                         isSelected={isSelected}
+                        disableToggle={disableToggle}
                         onToggle={handleToggle}
                       />
                     );

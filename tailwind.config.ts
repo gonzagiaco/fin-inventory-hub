@@ -95,7 +95,8 @@ export default {
       },
       screens: {
         'lg-1160': { 'raw': '(min-width: 1024px) and (max-width: 1160px)' },
-        'from-1440': '1440px'
+        'from-1440': '1440px',
+        'from-1024': '1024px'
       },
     },
   },

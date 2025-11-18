@@ -68,12 +68,12 @@ export function SupplierStockSection({ supplierName, supplierLogo, lists, onAddT
             <Collapsible key={list.id}>
               <div className="border rounded-lg">
                 <CollapsibleTrigger className="w-full">
-                  <div className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <ChevronDown className="h-4 w-4" />
-                      <div className="text-left">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-medium">{list.name}</h4>
+                  <div className="flex items-center justify-between p-4 hover:bg-muted/50 transition-colors overflow-hidden">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <ChevronDown className="h-4 w-4 shrink-0" />
+                      <div className="text-left flex-1 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <h4 className="font-medium flex-1 truncate" title={list.name}>{list.name}</h4>
                           {!list.mappingConfig && (
                             <Badge variant="destructive" className="text-xs">
                               Sin mapear

@@ -149,7 +149,7 @@ export function GlobalProductSearch({
       <Card className="p-4">
         <h2 className="text-lg font-semibold mb-2">Búsqueda por proveedor</h2>
         <p className="text-center text-muted-foreground">
-          Seleccionaste un proveedor. Escribe al menos 3 caracteres para buscar productos.
+          Seleccionaste un proveedor. Ahora comienza tu búsqueda por código, descripción o nombre de producto.
         </p>
       </Card>
     );
@@ -160,6 +160,18 @@ export function GlobalProductSearch({
     return (
       <Card className="p-4">
         <p className="text-center text-muted-foreground">Buscando productos...</p>
+      </Card>
+    );
+  }
+
+  // Estado: Instrucción cuando no hay resultados y el término es corto
+  if (!loadingSearch && globalResults.length === 0 && searchTerm.trim().length < 3) {
+    return (
+      <Card className="p-4">
+        <h2 className="text-lg font-semibold mb-2">Búsqueda</h2>
+        <p className="text-center text-muted-foreground">
+          Escribe al menos 3 caracteres para ver resultados.
+        </p>
       </Card>
     );
   }

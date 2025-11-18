@@ -112,8 +112,7 @@ export function ProductCardView({
   // Campos que se muestran arriba (según configuración del usuario)
   const keyFields = previewFieldKeys
     .map((key) => columnSchema.find((col) => col.key === key))
-    .filter((col): col is ColumnSchema => col !== undefined)
-    .filter((col) => col.key !== "quantity");
+    .filter((col): col is ColumnSchema => col !== undefined);
 
   const otherFields = columnSchema.filter((col) => !previewFieldKeys.includes(col.key));
 
@@ -143,66 +142,42 @@ export function ProductCardView({
             <Card key={product.id} className="flex flex-col">
               <CardHeader className="pb-3">
                 <div className="space-y-2">
-                  {(() => {
-                    const quantityField = columnSchema.find((col) => col.key === "quantity");
-                    if (!quantityField) return null;
-                    
-                    const quantity = product.quantity || 0;
-                    const effectiveMappingConfig = product.mappingConfig || mappingConfig;
-                    const lowStockThreshold = effectiveMappingConfig?.low_stock_threshold || 0;
-                    const isLowStock = quantity < lowStockThreshold;
-              
-                    return (
-                      <div key="quantity" className="text-sm border-b pb-1 flex flex-col gap-2">
-                        {isLowStock && (
-                          <div className="w-22 from-1440:w-4/12">
-                            <Badge variant="destructive" className="text-xs">
-                              Bajo Stock
-                            </Badge>
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between w-full from-1440:justify-normal from-1440:gap-2">
-                          <span className="text-muted-foreground">{quantityField.label}:</span>{" "}
-                          <QuantityCell
-                            productId={product.id}
-                            listId={product.listId ?? listId}
-                            value={product.quantity}
-                            onLocalUpdate={(newQty) => {
-                              product.quantity = newQty;
-                            }}
-                            visibleSpan={true}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })()}
-                  
                   {keyFields.map((field) => {
                     const value = getFieldValue(product, field.key);
                     const displayValue = formatValue(value, field.type, field.key, product, mappingConfig);
 
                     // Campo especial para Stock con QuantityCell, igual que en /stock
-                    /*if (field.key === "quantity") {
+                    if (field.key === "quantity") {
+                      const quantityField = field;
+                      const q = product.quantity || 0;
+                      const effectiveMappingConfig = product.mappingConfig || mappingConfig;
+                      const lowStockThresholdField = effectiveMappingConfig?.low_stock_threshold || 0;
+                      const isLowStockField = q < lowStockThresholdField;
+
                       return (
-                        <div key={field.key} className="text-sm border-b pb-1 flex items-center gap-2">
-                          {isLowStock && (
-                            <Badge variant="destructive" className="text-xs">
-                              Bajo Stock
-                            </Badge>
+                        <div key={field.key} className="text-sm border-b pb-1 flex flex-col gap-2">
+                          {isLowStockField && (
+                            <div className="w-22 from-1440:w-4/12">
+                              <Badge variant="destructive" className="text-xs">
+                                Bajo Stock
+                              </Badge>
+                            </div>
                           )}
-                          <span className="text-muted-foreground">{field.label}:</span>{" "}
-                          <QuantityCell
-                            productId={product.id}
-                            listId={product.listId ?? listId}
-                            value={product.quantity}
-                            onLocalUpdate={(newQty) => {
-                              product.quantity = newQty;
-                            }}
-                            visibleSpan={true}
-                          />
+                          <div className="flex items-center justify-between w-full from-1440:justify-normal from-1440:gap-2">
+                            <span className="text-muted-foreground">{quantityField.label}:</span>{" "}
+                            <QuantityCell
+                              productId={product.id}
+                              listId={product.listId ?? listId}
+                              value={product.quantity}
+                              onLocalUpdate={(newQty) => {
+                                product.quantity = newQty;
+                              }}
+                              visibleSpan={true}
+                            />
+                          </div>
                         </div>
                       );
-                    }*/
+                    }
 
                     // Resto de campos: mismo diseño genérico que en /stock
                     return (

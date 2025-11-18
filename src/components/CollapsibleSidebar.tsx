@@ -57,7 +57,7 @@ const CollapsibleSidebar = () => {
         className="lg:hidden fixed z-50 p-2 rounded-lg glassmorphism"
         style={{
           top: "max(env(safe-area-inset-top), 1rem)",
-          left: "1rem",
+          right: "1rem",
         }}
       >
         {isMobileOpen ? (
@@ -78,12 +78,12 @@ const CollapsibleSidebar = () => {
       {/* Sidebar */}
       <aside
         className={`
-          fixed lg:sticky top-0 lg:safe-top-fixed min-h-[100dvh] lg:h-screen bg-background/70 backdrop-blur-xl border-r border-primary/20 
+          fixed lg:sticky top-0 lg:safe-top-fixed right-0 lg:left-0 lg:right-auto min-h-[100dvh] lg:h-screen bg-background/70 backdrop-blur-xl border-l lg:border-r border-primary/20 
           flex flex-col p-6 z-30 transition-all duration-300
           ${
             isMobileOpen
               ? "translate-x-0"
-              : "-translate-x-full lg:translate-x-0"
+              : "translate-x-full lg:translate-x-0"
           }
           ${isCollapsed ? "lg:w-32" : "w-64"}
         `}
@@ -106,7 +106,7 @@ const CollapsibleSidebar = () => {
 
         {/* Logo */}
         <div
-          className={`flex items-center my-10 md:mt-0 ${
+          className={`flex items-center my-10 from-1024:mt-0 ${
             isCollapsed ? "justify-center" : "gap-3"
           }`}
         >
