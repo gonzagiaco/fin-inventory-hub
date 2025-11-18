@@ -589,7 +589,7 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
       <Dialog open={!!listToMap} onOpenChange={(open) => !open && setListToMap(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Configurar lista</DialogTitle>
+            <DialogTitle>Configuración de lista</DialogTitle>
           </DialogHeader>
           {listToMap && (
             <ColumnMappingWizard
