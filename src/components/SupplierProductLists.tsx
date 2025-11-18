@@ -85,7 +85,7 @@ const SupplierListProducts = ({
           </DialogTrigger>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Configurar Mapeo de Columnas</DialogTitle>
+              <DialogTitle>Configuración de lista</DialogTitle>
             </DialogHeader>
             <ColumnMappingWizard
               listId={listId}
