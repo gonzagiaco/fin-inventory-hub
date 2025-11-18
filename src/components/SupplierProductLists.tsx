@@ -75,7 +75,7 @@ const SupplierListProducts = ({
   if (!mappingConfig) {
     return (
       <div className="p-6 text-center border-t">
-        <p className="text-muted-foreground mb-4">Esta lista no tiene configuración de mapeo</p>
+        <p className="text-muted-foreground mb-4">Esta lista no tiene configuración de lista</p>
         <Dialog open={showDialog} onOpenChange={setShowDialog}>
           <DialogTrigger asChild>
             <Button onClick={() => setListToMap(listId)}>
