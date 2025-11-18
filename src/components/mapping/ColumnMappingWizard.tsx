@@ -604,8 +604,9 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
             <Info className="h-4 w-4" />
             <AlertTitle>Conversión Automática</AlertTitle>
             <AlertDescription>
-              El valor del dólar se actualiza automáticamente todos los días a las 9:00 AM. Este valor se aplicará a
-              todas las columnas seleccionadas abajo.
+              El valor del dólar se actualiza automáticamente todos los días a las 6:00 AM. Puedes actualizarlo
+              manualmente pulsando el ícono situado a la derecha del contenedor. Este valor se aplicará a todas las
+              columnas seleccionadas abajo.
             </AlertDescription>
           </Alert>
         </div>
