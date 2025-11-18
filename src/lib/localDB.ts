@@ -8,7 +8,7 @@ import { fetchAllFromTable } from '@/utils/fetchAllProducts';
 export interface PendingOperation {
   id?: number;
   table_name: string;
-  operation_type: 'INSERT' | 'UPDATE' | 'DELETE';
+  operation_type: 'INSERT' | 'UPDATE' | 'DELETE' | 'BATCH_UPDATE';
   record_id: string;
   data: any;
   timestamp: number;
@@ -222,102 +222,118 @@ export async function syncFromSupabase(): Promise<void> {
       throw new Error('Usuario no autenticado');
     }
 
-    console.log('🔄 Iniciando sincronización desde Supabase...');
+    console.log('🔄 Iniciando sincronización REEMPLAZANTE desde Supabase...');
 
-    // Sincronizar suppliers
+    // ✅ ESTRATEGIA REEMPLAZANTE: clear() + bulkAdd()
+    
+    // 1. Sincronizar suppliers
     const { data: suppliers, error: suppliersError } = await supabase
       .from('suppliers')
       .select('*')
       .eq('user_id', user.id);
     if (suppliersError) throw suppliersError;
+    
+    await localDB.suppliers.clear();
     if (suppliers && suppliers.length > 0) {
-      await localDB.suppliers.bulkPut(suppliers as SupplierDB[]);
-      console.log(`✅ ${suppliers.length} proveedores sincronizados`);
+      await localDB.suppliers.bulkAdd(suppliers as SupplierDB[]);
+      console.log(`✅ ${suppliers.length} proveedores sincronizados (REEMPLAZADO)`);
     }
 
-    // Sincronizar product_lists
+    // 2. Sincronizar product_lists
     const { data: productLists, error: listsError } = await supabase
       .from('product_lists')
       .select('*')
       .eq('user_id', user.id);
     if (listsError) throw listsError;
+    
+    await localDB.product_lists.clear();
     if (productLists && productLists.length > 0) {
-      await localDB.product_lists.bulkPut(productLists as ProductListDB[]);
-      console.log(`✅ ${productLists.length} listas de productos sincronizadas`);
+      await localDB.product_lists.bulkAdd(productLists as ProductListDB[]);
+      console.log(`✅ ${productLists.length} listas de productos sincronizadas (REEMPLAZADO)`);
     }
 
-    // Sincronizar dynamic_products_index (CON PAGINACIÓN)
+    // 3. Sincronizar dynamic_products_index (CON PAGINACIÓN)
     let productsIndex: any[] = [];
     try {
       productsIndex = await fetchAllFromTable('dynamic_products_index', undefined, user.id);
       
+      await localDB.dynamic_products_index.clear();
       if (productsIndex.length > 0) {
-        await localDB.dynamic_products_index.bulkPut(productsIndex as DynamicProductIndexDB[]);
-        console.log(`✅ ${productsIndex.length} productos (index) sincronizados`);
+        await localDB.dynamic_products_index.bulkAdd(productsIndex as DynamicProductIndexDB[]);
+        console.log(`✅ ${productsIndex.length} productos (index) sincronizados (REEMPLAZADO)`);
       }
     } catch (indexError) {
       console.error('Error sincronizando products_index:', indexError);
       throw indexError;
     }
 
-    // Sincronizar dynamic_products (CON PAGINACIÓN)
+    // 4. Sincronizar dynamic_products (CON PAGINACIÓN)
     let products: any[] = [];
     try {
       products = await fetchAllFromTable('dynamic_products', undefined, user.id);
       
+      await localDB.dynamic_products.clear();
       if (products.length > 0) {
-        await localDB.dynamic_products.bulkPut(products as DynamicProductDB[]);
-        console.log(`✅ ${products.length} productos completos sincronizados`);
+        await localDB.dynamic_products.bulkAdd(products as DynamicProductDB[]);
+        console.log(`✅ ${products.length} productos completos sincronizados (REEMPLAZADO)`);
       }
     } catch (productsError) {
       console.error('Error sincronizando dynamic_products:', productsError);
       throw productsError;
     }
 
-    // Sincronizar delivery_notes
+    // 5. Sincronizar delivery_notes
     const { data: deliveryNotes, error: notesError } = await supabase
       .from('delivery_notes')
       .select('*')
       .eq('user_id', user.id);
     if (notesError) throw notesError;
+    
+    await localDB.delivery_notes.clear();
     if (deliveryNotes && deliveryNotes.length > 0) {
-      await localDB.delivery_notes.bulkPut(deliveryNotes as DeliveryNoteDB[]);
-      console.log(`✅ ${deliveryNotes.length} remitos sincronizados`);
+      await localDB.delivery_notes.bulkAdd(deliveryNotes as DeliveryNoteDB[]);
+      console.log(`✅ ${deliveryNotes.length} remitos sincronizados (REEMPLAZADO)`);
     }
 
-    // Sincronizar delivery_note_items
+    // 6. Sincronizar delivery_note_items
     const { data: noteItems, error: itemsError } = await supabase
       .from('delivery_note_items')
       .select('*');
     if (itemsError) throw itemsError;
+    
+    await localDB.delivery_note_items.clear();
     if (noteItems && noteItems.length > 0) {
-      await localDB.delivery_note_items.bulkPut(noteItems as DeliveryNoteItemDB[]);
-      console.log(`✅ ${noteItems.length} items de remitos sincronizados`);
+      await localDB.delivery_note_items.bulkAdd(noteItems as DeliveryNoteItemDB[]);
+      console.log(`✅ ${noteItems.length} items de remitos sincronizados (REEMPLAZADO)`);
     }
 
-    // Sincronizar request_items
+    // 7. Sincronizar request_items
     const { data: requestItems, error: requestError } = await supabase
       .from('request_items')
       .select('*')
       .eq('user_id', user.id);
     if (requestError) throw requestError;
+    
+    await localDB.request_items.clear();
     if (requestItems && requestItems.length > 0) {
-      await localDB.request_items.bulkPut(requestItems as RequestItemDB[]);
-      console.log(`✅ ${requestItems.length} items del carrito sincronizados`);
+      await localDB.request_items.bulkAdd(requestItems as RequestItemDB[]);
+      console.log(`✅ ${requestItems.length} items del carrito sincronizados (REEMPLAZADO)`);
     }
 
-    // Sincronizar stock_items
+    // 8. Sincronizar stock_items
     const { data: stockItems, error: stockError } = await supabase
       .from('stock_items')
       .select('*')
       .eq('user_id', user.id);
     if (stockError) throw stockError;
+    
+    await localDB.stock_items.clear();
     if (stockItems && stockItems.length > 0) {
-      await localDB.stock_items.bulkPut(stockItems as StockItemDB[]);
-      console.log(`✅ ${stockItems.length} productos de stock sincronizados`);
+      await localDB.stock_items.bulkAdd(stockItems as StockItemDB[]);
+      console.log(`✅ ${stockItems.length} productos de stock sincronizados (REEMPLAZADO)`);
     }
 
-    // Sincronizar settings (dólar oficial, etc.)
+    // 9. Sincronizar settings (dólar oficial, etc.)
     console.log('📥 Sincronizando settings...');
     const { data: settingsData, error: settingsError } = await supabase
       .from('settings')
@@ -325,8 +341,9 @@ export async function syncFromSupabase(): Promise<void> {
 
     if (settingsError) throw settingsError;
 
+    await localDB.settings.clear();
     if (settingsData && settingsData.length > 0) {
-      await localDB.settings.bulkPut(
+      await localDB.settings.bulkAdd(
         settingsData.map((s: any) => ({
           key: s.key,
           value: s.value,
@@ -334,10 +351,10 @@ export async function syncFromSupabase(): Promise<void> {
           created_at: s.created_at,
         }))
       );
-      console.log(`✅ ${settingsData.length} setting(s) sincronizado(s)`);
+      console.log(`✅ ${settingsData.length} setting(s) sincronizado(s) (REEMPLAZADO)`);
     }
 
-    console.log('✅ Sincronización completa desde Supabase');
+    console.log('✅ Sincronización REEMPLAZANTE completa desde Supabase');
     const totalItems = 
       (suppliers?.length || 0) + 
       (productLists?.length || 0) + 
@@ -356,7 +373,7 @@ export async function syncFromSupabase(): Promise<void> {
 
 export async function queueOperation(
   tableName: string,
-  operationType: 'INSERT' | 'UPDATE' | 'DELETE',
+  operationType: 'INSERT' | 'UPDATE' | 'DELETE' | 'BATCH_UPDATE',
   recordId: string,
   data: any
 ): Promise<void> {
@@ -373,7 +390,7 @@ export async function queueOperation(
   console.log(`📝 Operación encolada: ${operationType} en ${tableName}`);
 }
 
-export async function syncPendingOperations(): Promise<void> {
+export async function syncPendingOperations(queryClient?: any): Promise<void> {
   if (!isOnline()) {
     console.warn('⚠️ No hay conexión. No se pueden sincronizar operaciones pendientes');
     return;
@@ -425,8 +442,46 @@ export async function syncPendingOperations(): Promise<void> {
   
   if (successCount > 0) {
     toast.success(`${successCount} operaciones sincronizadas`);
+    
     // Re-sincronizar desde Supabase para obtener IDs reales
     await syncFromSupabase();
+    
+    // ✅ NUEVO: Invalidar queries de React Query si se proporciona queryClient
+    if (queryClient) {
+      console.log('🔄 Invalidando queries de React Query...');
+      
+      queryClient.invalidateQueries({ 
+        queryKey: ["product-lists"],
+        refetchType: 'all' 
+      });
+      
+      queryClient.invalidateQueries({ 
+        queryKey: ["dynamic-products"],
+        refetchType: 'all' 
+      });
+      
+      queryClient.invalidateQueries({ 
+        queryKey: ["product-lists-index"],
+        refetchType: 'all' 
+      });
+      
+      queryClient.invalidateQueries({ 
+        queryKey: ["suppliers"],
+        refetchType: 'all' 
+      });
+      
+      queryClient.invalidateQueries({ 
+        queryKey: ["stock-items"],
+        refetchType: 'all' 
+      });
+      
+      queryClient.invalidateQueries({ 
+        queryKey: ["delivery-notes"],
+        refetchType: 'all' 
+      });
+      
+      console.log('✅ Queries invalidadas - vistas se refrescarán automáticamente');
+    }
   }
   
   if (errorCount > 0) {
@@ -467,7 +522,7 @@ async function executeOperation(op: PendingOperation): Promise<void> {
         const { error: updateIndexError } = await (supabase as any)
           .from(table_name)
           .update(data)
-          .eq('product_id', record_id);  // Buscar por product_id
+          .eq('product_id', record_id);
         
         if (updateIndexError) throw updateIndexError;
       } else if (table_name === 'dynamic_products') {
@@ -501,6 +556,28 @@ async function executeOperation(op: PendingOperation): Promise<void> {
         .eq('id', record_id);
       
       if (deleteError) throw deleteError;
+      break;
+    
+    case 'BATCH_UPDATE':
+      // ✅ OPTIMIZACIÓN: Ejecutar batch update usando RPC
+      console.log(`🚀 Ejecutando BATCH_UPDATE para lista ${record_id}...`);
+      
+      const { data: batchResult, error: batchError } = await supabase.rpc(
+        "upsert_products_batch",
+        {
+          p_list_id: data.list_id,
+          p_user_id: data.user_id,
+          p_products: data.products,
+        }
+      );
+
+      if (batchError) throw batchError;
+      
+      console.log(`✅ BATCH_UPDATE completado:`, {
+        insertados: batchResult?.[0]?.inserted_count,
+        actualizados: batchResult?.[0]?.updated_count,
+        eliminados: batchResult?.[0]?.deleted_count,
+      });
       break;
   }
 }
@@ -624,10 +701,10 @@ export async function updateProductListOffline(
   const existingIds = new Set(existingProducts.map(p => p.id));
   const updatedIds = new Set<string>();
 
-  // 3. UPSERT: Actualizar existentes e insertar nuevos
+  // 3. UPSERT LOCAL: Actualizar existentes e insertar nuevos en IndexedDB
   for (const product of data.products) {
     if (product.code && existingByCode.has(product.code)) {
-      // ✅ UPDATE: Producto existe
+      // UPDATE: Producto existe
       const existing = existingByCode.get(product.code)!;
       updatedIds.add(existing.id);
 
@@ -637,16 +714,8 @@ export async function updateProductListOffline(
         data: product.data,
         updated_at: now,
       });
-
-      await queueOperation('dynamic_products', 'UPDATE', existing.id, {
-        name: product.name,
-        price: product.price,
-        data: product.data,
-        updated_at: now,
-      });
-
     } else {
-      // ✅ INSERT: Producto nuevo
+      // INSERT: Producto nuevo
       const newId = crypto.randomUUID();
       updatedIds.add(newId);
 
@@ -664,19 +733,16 @@ export async function updateProductListOffline(
       };
 
       await localDB.dynamic_products.add(newProduct);
-      await queueOperation('dynamic_products', 'INSERT', newId, newProduct);
     }
   }
 
-  // 4. DELETE: Eliminar productos obsoletos
+  // 4. DELETE LOCAL: Eliminar productos obsoletos
   const idsToDelete = Array.from(existingIds).filter(id => !updatedIds.has(id));
-
   for (const id of idsToDelete) {
     await localDB.dynamic_products.delete(id);
-    await queueOperation('dynamic_products', 'DELETE', id, {});
   }
 
-  // 5. Limpiar y regenerar índice local
+  // 5. Regenerar índice local
   await localDB.dynamic_products_index.where('list_id').equals(listId).delete();
 
   const updatedProducts = await localDB.dynamic_products
@@ -684,7 +750,6 @@ export async function updateProductListOffline(
     .equals(listId)
     .toArray();
 
-  // Mapear productos al formato de índice
   const indexEntries = updatedProducts.map(p => ({
     id: crypto.randomUUID(),
     user_id: p.user_id,
@@ -699,6 +764,19 @@ export async function updateProductListOffline(
   }));
 
   await localDB.dynamic_products_index.bulkAdd(indexEntries);
+  
+  // ✅ OPTIMIZACIÓN: Encolar operación BATCH en lugar de operaciones individuales
+  await queueOperation('dynamic_products', 'BATCH_UPDATE', listId, {
+    list_id: listId,
+    user_id: user.id,
+    products: data.products.map(p => ({
+      code: p.code,
+      name: p.name,
+      price: p.price,
+      quantity: p.quantity,
+      data: p.data,
+    })),
+  });
   
   console.log(`✅ [Offline] UPSERT completado: ${updatedIds.size} productos actualizados/insertados, ${idsToDelete.length} eliminados`);
 }

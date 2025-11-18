@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { ProductList, DynamicProduct, ColumnSchema } from "@/types/productList";
 import { fetchAllFromTable } from "@/utils/fetchAllProducts";
 import { useOnlineStatus } from './useOnlineStatus';
-import { getOfflineData, createProductListOffline, updateProductListOffline, deleteProductListOffline, localDB } from '@/lib/localDB';
+import { getOfflineData, createProductListOffline, updateProductListOffline, deleteProductListOffline, localDB, syncFromSupabase } from '@/lib/localDB';
 
 // Helper function to extract name from product data when index is missing it
 function extractNameFromData(
@@ -107,11 +107,22 @@ export const useProductLists = (supplierId?: string) => {
         const indexedProducts = await getOfflineData('dynamic_products_index') as any[];
         const fullProducts = await getOfflineData('dynamic_products') as any[];
 
+        // ✅ NUEVO: Validar integridad - solo productos con lista válida
+        const validListIds = new Set(listIds);
+        const validIndexedProducts = indexedProducts.filter((p: any) => 
+          validListIds.has(p.list_id)
+        );
+
+        console.log(`🔍 Productos validados: ${validIndexedProducts.length}/${indexedProducts.length}`);
+        if (indexedProducts.length !== validIndexedProducts.length) {
+          console.warn(`⚠️ Se encontraron ${indexedProducts.length - validIndexedProducts.length} productos huérfanos`);
+        }
+
         // Crear mapa de productos completos por ID para acceso rápido
         const fullProductsMap = new Map(fullProducts.map((p: any) => [p.id, p]));
 
-        // Filtrar por listIds
-        const filtered = indexedProducts.filter((p: any) => listIds.includes(p.list_id));
+        // Filtrar por listIds válidos
+        const filtered = validIndexedProducts;
 
         const grouped: Record<string, DynamicProduct[]> = {};
         filtered.forEach((indexProduct: any) => {
@@ -255,41 +266,38 @@ export const useProductLists = (supplierId?: string) => {
   const deleteListMutation = useMutation({
     mutationFn: async (listId: string) => {
       try {
-        // OFFLINE: Eliminar de IndexedDB
+        // OFFLINE: Eliminar de IndexedDB y encolar
         if (isOnline === false) {
           await deleteProductListOffline(listId);
           return;
         }
 
-        // ONLINE: Eliminar de Supabase
+        // ONLINE: Eliminar SOLO de Supabase
         const { error } = await supabase.from("product_lists").delete().eq("id", listId);
         if (error) throw error;
 
-        console.log('🗑️ Lista eliminada de Supabase, limpiando IndexedDB...');
-
-        // ✅ Limpiar IndexedDB inmediatamente (solución híbrida)
-        await localDB.product_lists.delete(listId);
-        console.log('✅ product_lists limpiado');
+        console.log('✅ Lista eliminada de Supabase');
         
-        await localDB.dynamic_products.where('list_id').equals(listId).delete();
-        console.log('✅ dynamic_products limpiado');
-        
-        await localDB.dynamic_products_index.where('list_id').equals(listId).delete();
-        console.log('✅ dynamic_products_index limpiado');
+        // ✅ NUEVO: Confiar en syncFromSupabase() para limpiar IndexedDB
+        // NO hacer limpieza manual que puede causar condiciones de carrera
 
       } catch (error: any) {
         console.error('❌ Error al eliminar lista:', error);
         throw error;
       }
     },
-    onSuccess: (_, listId) => {
-      // Resetear queries específicas de esta lista (fuerza limpieza completa)
+    onSuccess: async (_, listId) => {
+      // ✅ NUEVO: Sincronizar desde Supabase ANTES de invalidar queries
+      console.log('🔄 Sincronizando IndexedDB después de eliminar lista...');
+      await syncFromSupabase();
+      
+      // Resetear queries específicas de esta lista
       queryClient.resetQueries({
         queryKey: ["list-products", listId],
         exact: false,
       });
       
-      // Invalidar queries generales con refetchType: 'all' para incluir queries inactivas
+      // Invalidar queries generales
       queryClient.invalidateQueries({ 
         queryKey: ["product-lists"],
         refetchType: 'all' 
@@ -300,7 +308,6 @@ export const useProductLists = (supplierId?: string) => {
         refetchType: 'all' 
       });
       
-      // Invalidar índices globales
       queryClient.invalidateQueries({ 
         queryKey: ["product-lists-index"],
         refetchType: 'all' 
@@ -399,7 +406,7 @@ export const useProductLists = (supplierId?: string) => {
 
       if (updateError) throw updateError;
 
-      // 2. ✅ VALIDAR Y FILTRAR productos antes del UPSERT
+      // 2. Validar y filtrar productos
       const validProducts = products.filter(p => {
         const code = p.code?.trim();
         if (!code || code === '') {
@@ -413,9 +420,8 @@ export const useProductLists = (supplierId?: string) => {
         throw new Error('No hay productos con código válido para actualizar');
       }
 
-      console.log(`🚀 Ejecutando UPSERT dual batch con ${validProducts.length}/${products.length} productos válidos...`);
-      const startTime = Date.now();
-
+      // 3. Ejecutar UPSERT en Supabase
+      console.log(`🚀 Ejecutando UPSERT con ${validProducts.length} productos...`);
       const { data: result, error: upsertError } = await supabase.rpc(
         "upsert_products_batch",
         {
@@ -431,38 +437,26 @@ export const useProductLists = (supplierId?: string) => {
         }
       );
 
-      const duration = Date.now() - startTime;
-
       if (upsertError) throw upsertError;
 
-      // ✅ VERIFICAR que el UPSERT insertó o actualizó productos
-      const totalOps = (result?.[0]?.inserted_count || 0) + (result?.[0]?.updated_count || 0);
-      console.log(`✅ UPSERT dual completado en ${duration}ms:`, {
+      console.log(`✅ UPSERT completado:`, {
         insertados: result?.[0]?.inserted_count,
         actualizados: result?.[0]?.updated_count,
         eliminados: result?.[0]?.deleted_count,
-        enviados: validProducts.length,
       });
 
-      if (totalOps === 0) {
-        console.error('⚠️ No se insertaron ni actualizaron productos');
-        throw new Error('No se pudieron guardar los productos. Verifica que los códigos sean válidos.');
-      }
-
-      // ✅ CONFIRMAR que hay datos en Supabase ANTES de borrar IndexedDB
+      // 4. Verificar que hay datos en Supabase
       const { count: productsCount, error: checkError } = await supabase
         .from("dynamic_products")
         .select("*", { count: 'exact', head: true })
         .eq("list_id", listId);
 
       if (checkError || !productsCount || productsCount === 0) {
-        console.error('⚠️ No hay productos en Supabase después del UPSERT');
         throw new Error('Error al verificar productos guardados');
       }
 
-      // 3. ✅ AHORA SÍ: Sincronizar IndexedDB (eliminar datos viejos)
-      await localDB.dynamic_products.where('list_id').equals(listId).delete();
-      await localDB.dynamic_products_index.where('list_id').equals(listId).delete();
+      // ✅ NUEVO: NO limpiar IndexedDB manualmente
+      // syncFromSupabase() lo hará de forma consistente
 
       // 4. Sincronizar IndexedDB: recargar desde Supabase
       const { data: productsData } = await supabase
@@ -483,8 +477,12 @@ export const useProductLists = (supplierId?: string) => {
         await localDB.dynamic_products_index.bulkAdd(indexData);
       }
     },
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
       const { listId } = variables;
+      
+      // ✅ NUEVO: Sincronizar ANTES de invalidar queries
+      console.log('🔄 Sincronizando IndexedDB después de actualizar lista...');
+      await syncFromSupabase();
       
       // Resetear queries específicas de esta lista
       queryClient.resetQueries({
