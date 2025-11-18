@@ -453,7 +453,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
       </div>
 
       <div className="space-y-2">
-        <Label>Overrides por columna:</Label>
+        <Label>Descuento/adición extra por columna:</Label>
         {keys
           .filter((k) => k !== map.price_primary_key)
           .map((columnKey) => (
