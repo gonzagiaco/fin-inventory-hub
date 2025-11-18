@@ -16,14 +16,14 @@ function formatArgentinaTime(dateString: string): string {
   try {
     const date = new Date(dateString);
     // Convertir a hora de Argentina (UTC-3)
-    const argentinaDate = new Date(date.toLocaleString('en-US', { timeZone: 'America/Argentina/Buenos_Aires' }));
-    const hours = String(argentinaDate.getHours()).padStart(2, '0');
-    const minutes = String(argentinaDate.getMinutes()).padStart(2, '0');
-    const seconds = String(argentinaDate.getSeconds()).padStart(2, '0');
-    const day = String(argentinaDate.getDate()).padStart(2, '0');
-    const month = String(argentinaDate.getMonth() + 1).padStart(2, '0');
+    const argentinaDate = new Date(date.toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }));
+    const hours = String(argentinaDate.getHours()).padStart(2, "0");
+    const minutes = String(argentinaDate.getMinutes()).padStart(2, "0");
+    const seconds = String(argentinaDate.getSeconds()).padStart(2, "0");
+    const day = String(argentinaDate.getDate()).padStart(2, "0");
+    const month = String(argentinaDate.getMonth() + 1).padStart(2, "0");
     const year = argentinaDate.getFullYear();
-    
+
     return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
   } catch {
     return "No disponible";
@@ -89,18 +89,17 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
   const handleRefetchDollar = async () => {
     try {
       // Llamar a la función Supabase para actualizar el dólar desde la API
-      const { data, error } = await supabase.functions.invoke('update-dollar-rate');
-      
+      const { data, error } = await supabase.functions.invoke("update-dollar-rate");
+
       if (error) {
         console.error("Error al actualizar dólar:", error);
         toast.error("Error al actualizar el dólar");
         return;
       }
-      
+
       // Invalidar la query para que React Query traiga el dato actualizado
       await queryClient.invalidateQueries({ queryKey: ["dollar-official"] });
       toast.success("Dólar actualizado correctamente");
-      
     } catch (error) {
       console.error("Error al actualizar dólar:", error);
       toast.error("Error al actualizar el dólar");
@@ -261,11 +260,11 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
         exact: false,
       });
 
-      toast.success("Mapeo guardado e índice actualizado correctamente");
+      toast.success("Configuración guardada e índice actualizado correctamente");
       onSaved?.();
     } catch (error: any) {
       console.error("Error en handleSave:", error);
-      toast.error(error.message || "Error al guardar el mapeo");
+      toast.error(error.message || "Error al guardar configuración");
     } finally {
       setIsSaving(false);
     }
@@ -590,7 +589,13 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
                 )}
               </div>
             </div>
-            <Button type="button" variant="ghost" size="sm" onClick={() => handleRefetchDollar()} disabled={loadingDollar}>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => handleRefetchDollar()}
+              disabled={loadingDollar}
+            >
               <RefreshCw className={`h-4 w-4 ${loadingDollar ? "animate-spin" : ""}`} />
             </Button>
           </div>
@@ -742,7 +747,7 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
               Guardando...
             </>
           ) : (
-            "Guardar mapeo y refrescar índice"
+            "Guardar configuración y refrescar índice"
           )}
         </Button>
       </div>
