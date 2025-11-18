@@ -75,7 +75,7 @@ const SupplierListProducts = ({
   if (!mappingConfig) {
     return (
       <div className="p-6 text-center border-t">
-        <p className="text-muted-foreground mb-4">Esta lista no tiene configuración de lista</p>
+        <p className="text-muted-foreground mb-4">Esta lista no ha sido configurada aún</p>
         <Dialog open={showDialog} onOpenChange={setShowDialog}>
           <DialogTrigger asChild>
             <Button onClick={() => setListToMap(listId)}>
@@ -108,7 +108,7 @@ const SupplierListProducts = ({
                   queryKey: ["product-lists-index"],
                   refetchType: "all",
                 });
-                toast.success("Mapeo guardado e índice actualizado");
+                toast.success("Configuración guardada e índice actualizado");
               }}
             />
           </DialogContent>
@@ -589,7 +589,7 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
       <Dialog open={!!listToMap} onOpenChange={(open) => !open && setListToMap(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Configurar Mapeo de Columnas</DialogTitle>
+            <DialogTitle>Configurar lista</DialogTitle>
           </DialogHeader>
           {listToMap && (
             <ColumnMappingWizard
@@ -606,7 +606,7 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
                   queryKey: ["list-products", listToMap],
                   exact: false,
                 });
-                toast.success("Mapeo guardado e índice actualizado");
+                toast.success("Configuración guardada e índice actualizado");
               }}
             />
           )}

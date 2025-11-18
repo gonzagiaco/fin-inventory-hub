@@ -35,24 +35,14 @@ export function SupplierStockSection({ supplierName, supplierLogo, lists, onAddT
 
   return (
     <Card className="mb-6 w-full max-w-full overflow-hidden">
-      <CardHeader
-        className="cursor-pointer"
-        onClick={() => setIsExpanded(!isExpanded)}
-      >
+      <CardHeader className="cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            {supplierLogo && (
-              <img
-                src={supplierLogo}
-                alt={supplierName}
-                className="h-10 w-10 object-contain rounded"
-              />
-            )}
+            {supplierLogo && <img src={supplierLogo} alt={supplierName} className="h-10 w-10 object-contain rounded" />}
             <div>
               <h2 className="text-xl font-semibold">{supplierName}</h2>
               <p className="text-sm text-muted-foreground">
-                {lists.length} {lists.length === 1 ? "lista" : "listas"} •{" "}
-                {totalProducts} productos
+                {lists.length} {lists.length === 1 ? "lista" : "listas"} • {totalProducts} productos
               </p>
             </div>
           </div>
@@ -73,16 +63,16 @@ export function SupplierStockSection({ supplierName, supplierLogo, lists, onAddT
                       <ChevronDown className="h-4 w-4 shrink-0" />
                       <div className="text-left flex-1 min-w-0">
                         <div className="flex items-center gap-2 min-w-0">
-                          <h4 className="font-medium flex-1 truncate" title={list.name}>{list.name}</h4>
+                          <h4 className="font-medium flex-1 truncate" title={list.name}>
+                            {list.name}
+                          </h4>
                           {!list.mappingConfig && (
                             <Badge variant="destructive" className="text-xs">
-                              Sin mapear
+                              Sin configurar
                             </Badge>
                           )}
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          {list.productCount} productos
-                        </p>
+                        <p className="text-sm text-muted-foreground">{list.productCount} productos</p>
                       </div>
                     </div>
                   </div>
@@ -98,21 +88,17 @@ export function SupplierStockSection({ supplierName, supplierLogo, lists, onAddT
                     />
                   ) : (
                     <div className="p-6 text-center border-t">
-                      <p className="text-muted-foreground mb-4">
-                        Esta lista no tiene configuración de mapeo
-                      </p>
+                      <p className="text-muted-foreground mb-4">Esta lista no ha sido configurada aún</p>
                       <Dialog>
                         <DialogTrigger asChild>
                           <Button onClick={() => setListToMap(list.id)}>
                             <Settings className="w-4 h-4 mr-2" />
-                            Configurar Mapeo
+                            Configurar lista
                           </Button>
                         </DialogTrigger>
                         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                           <DialogHeader>
-                            <DialogTitle>
-                              Configurar Mapeo de Columnas
-                            </DialogTitle>
+                            <DialogTitle>Configuración de lista</DialogTitle>
                           </DialogHeader>
                           <ColumnMappingWizard
                             listId={list.id}
@@ -121,9 +107,7 @@ export function SupplierStockSection({ supplierName, supplierLogo, lists, onAddT
                               queryClient.invalidateQueries({
                                 queryKey: ["product-lists-index"],
                               });
-                              toast.success(
-                                "Mapeo guardado e índice actualizado"
-                              );
+                              toast.success("Mapeo guardado e índice actualizado");
                             }}
                           />
                         </DialogContent>
