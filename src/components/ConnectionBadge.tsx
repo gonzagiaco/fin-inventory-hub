@@ -5,19 +5,17 @@ import { syncPendingOperations } from '@/lib/localDB';
 import { Badge } from '@/components/ui/badge';
 import { WifiOff, Database, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
-import { useQueryClient } from '@tanstack/react-query';
 
 export function ConnectionBadge() {
   const isOnline = useOnlineStatus();
   const { count: pendingCount } = usePendingOperations();
-  const queryClient = useQueryClient();
   const [isSyncing, setIsSyncing] = useState(false);
 
   // Auto-sync cuando cambia el estado de pendientes
   useEffect(() => {
     if (isOnline && pendingCount > 0 && !isSyncing) {
       setIsSyncing(true);
-      syncPendingOperations(queryClient)
+      syncPendingOperations()
         .then(() => {
           toast.success('Sincronización completada');
         })
@@ -28,7 +26,7 @@ export function ConnectionBadge() {
           setIsSyncing(false);
         });
     }
-  }, [isOnline, pendingCount, queryClient]);
+  }, [isOnline, pendingCount]);
 
   // Sincronizando
   if (isSyncing) {

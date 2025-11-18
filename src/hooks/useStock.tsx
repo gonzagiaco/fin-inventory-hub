@@ -7,8 +7,7 @@ import {
   createStockItemOffline,
   updateStockItemOffline,
   deleteStockItemOffline,
-  getOfflineData,
-  localDB
+  getOfflineData
 } from '@/lib/localDB';
 
 export const useStock = () => {
@@ -95,10 +94,6 @@ export const useStock = () => {
 
       if (error) throw error;
       if (!data) throw new Error("No se pudo crear el producto");
-      
-      // Escribir inmediatamente en IndexedDB
-      await localDB.stock_items.add(data);
-      
       return data;
     },
     onSuccess: () => {
@@ -141,10 +136,6 @@ export const useStock = () => {
 
       if (error) throw error;
       if (!data) throw new Error("No se pudo actualizar el producto");
-      
-      // Escribir inmediatamente en IndexedDB
-      await localDB.stock_items.put(data);
-      
       return data;
     },
     onSuccess: () => {
@@ -169,9 +160,6 @@ export const useStock = () => {
 
       const { error } = await supabase.from("stock_items").delete().eq("id", id);
       if (error) throw error;
-      
-      // Escribir inmediatamente en IndexedDB
-      await localDB.stock_items.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stock-items"] });

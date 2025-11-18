@@ -7,8 +7,7 @@ import {
   createSupplierOffline,
   updateSupplierOffline,
   deleteSupplierOffline,
-  getOfflineData,
-  localDB
+  getOfflineData
 } from '@/lib/localDB';
 
 export function useSuppliers() {
@@ -66,17 +65,6 @@ export function useSuppliers() {
         .single();
 
       if (error) throw error;
-      
-      // Escribir inmediatamente en IndexedDB
-      await localDB.suppliers.add({
-        id: data.id,
-        user_id: data.user_id,
-        name: data.name,
-        logo_url: data.logo_url,
-        created_at: data.created_at,
-        updated_at: data.updated_at
-      });
-      
       return data;
     },
     onSuccess: () => {
@@ -102,27 +90,15 @@ export function useSuppliers() {
         return;
       }
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("suppliers")
         .update({
           name: updates.name,
           logo_url: updates.logo,
         })
-        .eq("id", id)
-        .select()
-        .single();
+        .eq("id", id);
 
       if (error) throw error;
-      
-      // Escribir inmediatamente en IndexedDB
-      await localDB.suppliers.put({
-        id: data.id,
-        user_id: data.user_id,
-        name: data.name,
-        logo_url: data.logo_url,
-        created_at: data.created_at,
-        updated_at: data.updated_at
-      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
@@ -146,9 +122,6 @@ export function useSuppliers() {
 
       const { error } = await supabase.from("suppliers").delete().eq("id", id);
       if (error) throw error;
-      
-      // Escribir inmediatamente en IndexedDB
-      await localDB.suppliers.delete(id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });

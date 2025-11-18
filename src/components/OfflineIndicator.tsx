@@ -6,12 +6,10 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { WifiOff, Wifi, RefreshCw, Database } from 'lucide-react';
 import { toast } from 'sonner';
-import { useQueryClient } from '@tanstack/react-query';
 
 export function OfflineIndicator() {
   const isOnline = useOnlineStatus();
   const { count: pendingCount } = usePendingOperations();
-  const queryClient = useQueryClient();
   const [isSyncing, setIsSyncing] = useState(false);
 
   const handleManualSync = async () => {
@@ -22,7 +20,7 @@ export function OfflineIndicator() {
 
     setIsSyncing(true);
     try {
-      await syncPendingOperations(queryClient);
+      await syncPendingOperations();
       toast.success('Sincronización completada');
     } catch (error: any) {
       toast.error(`Error al sincronizar: ${error.message}`);
