@@ -75,9 +75,7 @@ const SupplierListProducts = ({
   if (!mappingConfig) {
     return (
       <div className="p-6 text-center border-t">
-        <p className="text-muted-foreground mb-4">
-          Esta lista no tiene configuración de mapeo
-        </p>
+        <p className="text-muted-foreground mb-4">Esta lista no tiene configuración de mapeo</p>
         <Dialog open={showDialog} onOpenChange={setShowDialog}>
           <DialogTrigger asChild>
             <Button onClick={() => setListToMap(listId)}>
@@ -87,9 +85,7 @@ const SupplierListProducts = ({
           </DialogTrigger>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>
-                Configurar Mapeo de Columnas
-              </DialogTitle>
+              <DialogTitle>Configurar Mapeo de Columnas</DialogTitle>
             </DialogHeader>
             <ColumnMappingWizard
               listId={listId}
@@ -112,9 +108,7 @@ const SupplierListProducts = ({
                   queryKey: ["product-lists-index"],
                   refetchType: "all",
                 });
-                toast.success(
-                  "Mapeo guardado e índice actualizado"
-                );
+                toast.success("Mapeo guardado e índice actualizado");
               }}
             />
           </DialogContent>
@@ -386,7 +380,7 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
       const newColumnKeys = detectNewColumnsFromProducts(pendingUpload.products);
       const newColumnsSchema = createSchemaFromKeys(
         newColumnKeys,
-        Math.max(...existingList.columnSchema.map((c) => c.order), -1) + 1
+        Math.max(...existingList.columnSchema.map((c) => c.order), -1) + 1,
       );
 
       const mergedColumnSchema = mergeColumnSchemas(existingList.columnSchema, newColumnsSchema);
@@ -515,10 +509,7 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
 
             return (
               <Card key={list.id} className="glassmorphism border-primary/20">
-                <CardHeader
-                  className="cursor-pointer"
-                  onClick={() => toggleListCollapse(list.id)}
-                >
+                <CardHeader className="cursor-pointer" onClick={() => toggleListCollapse(list.id)}>
                   <div className="flex gap-6 items-center justify-between overflow-hidden">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       {isCollapsed ? (
@@ -528,7 +519,9 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 min-w-0">
-                          <CardTitle className="text-lg truncate" title={list.name}>{list.name}</CardTitle>
+                          <CardTitle className="text-lg truncate" title={list.name}>
+                            {list.name}
+                          </CardTitle>
                         </div>
                         <div className="flex items-center gap-2 mt-1 flex-wrap">
                           <Badge variant="outline" className="text-xs">
@@ -537,9 +530,7 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
                           <span className="text-xs text-muted-foreground">
                             {new Date(list.createdAt).toLocaleDateString()}
                           </span>
-                          <span className="text-xs text-muted-foreground">
-                            {list.productCount} productos
-                          </span>
+                          <span className="text-xs text-muted-foreground">{list.productCount} productos</span>
                         </div>
                       </div>
                     </div>
@@ -553,7 +544,7 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
                         }}
                       >
                         <Settings className="w-4 h-4 mr-1" />
-                        {!isMobile ? "Mapeo" : ""}
+                        {!isMobile ? "Configurar lista" : ""}
                       </Button>
                       <Button
                         variant="ghost"
