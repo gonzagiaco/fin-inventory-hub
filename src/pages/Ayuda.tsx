@@ -1,8 +1,12 @@
 import Header from "@/components/Header";
 import { FileSpreadsheet, Info, Database, Search, FileDown, Settings } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const Ayuda = () => {
+
+  const isMobile = useIsMobile()
+
   return (
     <div className="flex-1 p-6 lg:p-10">
       <Header title="Ayuda" subtitle="¿Necesitas asistencia?" showSearch={false} />
@@ -24,12 +28,12 @@ const Ayuda = () => {
               Mapeo de Columnas
             </h3>
             <p className="text-muted-foreground text-sm">
-              Configura cómo se interpretan las columnas de tus archivos Excel/CSV:
+              Configura cómo se interpretan las columnas de tus archivos Excel, CSV, PDF y Word:
             </p>
             <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
               <li>Ve a <strong>Proveedores</strong> y selecciona un proveedor</li>
               <li>Haz clic en la lista de productos que quieres configurar</li>
-              <li>Presiona el botón <strong>"Configurar Mapeo"</strong></li>
+              <li>Presiona el botón <strong>"Configurar lista"</strong></li>
               <li>Selecciona las columnas para código, nombre y precio</li>
               <li>Guarda los cambios - el sistema actualizará el índice automáticamente</li>
             </ol>
@@ -52,8 +56,8 @@ const Ayuda = () => {
             <h3 className="text-lg font-semibold">Cómo configurar múltiples variantes:</h3>
             <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
               <li>En <strong>Stock</strong>, abre la lista del proveedor</li>
-              <li>Haz clic en <strong>"Configurar Mapeo"</strong></li>
-              <li>En <strong>"Campos de Código"</strong> y <strong>"Campos de Nombre"</strong>, selecciona todas las variantes de columnas que existan:
+              <li>Haz clic en <strong>"Configurar lista"</strong></li>
+              <li>En <strong>"Campos de Código"</strong> y <strong>"Campos de Nombre/Descripción"</strong>, selecciona todas las variantes de columnas que existan:
                 <ul className="list-disc list-inside ml-6 mt-1 space-y-1">
                   <li>Marca cada checkbox para incluir esa columna</li>
                   <li>Puedes seleccionar múltiples columnas simultáneamente</li>
@@ -79,24 +83,6 @@ const Ayuda = () => {
               Esto asegura que todos los productos tengan datos completos incluso si vienen de diferentes tablas dentro del mismo Excel.
             </AlertDescription>
           </Alert>
-
-          <div className="bg-muted/50 p-4 rounded-lg">
-            <h4 className="font-semibold text-sm mb-2">Ejemplo práctico:</h4>
-            <div className="text-xs text-muted-foreground space-y-1">
-              <p><strong>Archivo Excel "Cedife.xlsx"</strong> contiene:</p>
-              <ul className="list-disc list-inside ml-4 space-y-1">
-                <li>Tabla 1: Columnas ["Codigo", "Descripcion", "USD x Caja"]</li>
-                <li>Tabla 2: Columnas ["SKU", "Medida descripcion", "USD x Bobina"]</li>
-              </ul>
-              <p className="mt-2"><strong>Configuración recomendada:</strong></p>
-              <ul className="list-disc list-inside ml-4 space-y-1">
-                <li><strong>Campos de Código:</strong> ✓ "Codigo" y ✓ "SKU"</li>
-                <li><strong>Campos de Nombre:</strong> ✓ "Descripcion" y ✓ "Medida descripcion"</li>
-                <li><strong>Campos de Precio:</strong> ✓ "USD x Caja" y ✓ "USD x Bobina"</li>
-              </ul>
-              <p className="mt-2"><strong>Resultado:</strong> Todos los productos tendrán código, nombre y precio correctos sin importar de qué tabla provengan.</p>
-            </div>
-          </div>
         </div>
 
         {/* Búsqueda */}
@@ -142,9 +128,9 @@ const Ayuda = () => {
           </p>
         </div>
 
-        <a href="https://www.inspirawebstudio.com" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+        <a href="https://www.inspirawebstudio.com" target="_blank" rel="noopener noreferrer" className="flex flex-col md:flex-row items-center gap-1">
           <img src="LogoTransparente.png" width={35} alt="" />
-          <p>Inspira Web Studio | Todos los derechos reservados.</p>
+          <p className="text-xs md:text-lg">Inspira Web Studio | Todos los derechos reservados.</p>
         </a>
       </div>
     </div>
