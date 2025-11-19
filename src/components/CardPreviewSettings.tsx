@@ -30,6 +30,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Settings, GripVertical, Eye } from "lucide-react";
+// NUEVO:
+import { Edit2, Check, X } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { useProductLists } from "@/hooks/useProductLists";
 import { ColumnSchema } from "@/types/productList";
 import { useProductListStore } from "@/stores/productListStore";
 import { toast } from "sonner";
@@ -45,12 +49,17 @@ interface SortablePreviewItemProps {
   isSelected: boolean;
   onToggle: (key: string, selected: boolean) => void;
   disableToggle?: boolean;
+  // NUEVO:
+  onLabelChange: (key: string, newLabel: string) => void;
 }
 
-function SortablePreviewItem({ id, column, isSelected, onToggle, disableToggle }: SortablePreviewItemProps) {
+function SortablePreviewItem({ id, column, isSelected, onToggle, disableToggle, onLabelChange }: SortablePreviewItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
   });
+  // NUEVO estado para edición
+  const [isEditing, setIsEditing] = useState(false);
+  const [editLabel, setEditLabel] = useState(column.label);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -58,13 +67,26 @@ function SortablePreviewItem({ id, column, isSelected, onToggle, disableToggle }
     opacity: isDragging ? 0.5 : 1,
   };
 
+  const handleSaveLabel = () => {
+    const trimmed = editLabel.trim();
+    if (trimmed && trimmed !== column.label) {
+      onLabelChange(column.key, trimmed);
+    }
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditLabel(column.label);
+    setIsEditing(false);
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-2 p-2 rounded-md bg-card border border-border hover:bg-accent/50 transition-colors"
+      className={`flex items-center gap-2 p-2 rounded-md bg-card border border-border hover:bg-accent/50 transition-colors ${!isEditing ? "select-none" : ""}`}
     >
-      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing select-none">
         <GripVertical className="w-4 h-4 text-muted-foreground" />
       </div>
       <Checkbox
@@ -73,16 +95,52 @@ function SortablePreviewItem({ id, column, isSelected, onToggle, disableToggle }
         disabled={disableToggle}
         onCheckedChange={(checked) => onToggle(column.key, checked as boolean)}
       />
-      <Label htmlFor={`preview-${column.key}`} className="flex-1 cursor-pointer text-sm">
-        {column.label}
-      </Label>
+
+      {isEditing ? (
+        <div className="flex-1 flex items-center gap-1">
+          <Input
+            value={editLabel}
+            onChange={(e) => setEditLabel(e.target.value)}
+            className="h-7 text-sm"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleSaveLabel();
+              if (e.key === "Escape") handleCancelEdit();
+            }}
+          />
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleSaveLabel}>
+            <Check className="h-3 w-3" />
+          </Button>
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleCancelEdit}>
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      ) : (
+        <Label htmlFor={`preview-${column.key}`} className="flex-1 cursor-pointer text-sm truncate select-none">
+          {column.label}
+        </Label>
+      )}
+
+      {!isEditing && (
+        <Button
+          size="icon"
+          variant="ghost"
+            className="h-7 w-7"
+            onClick={() => setIsEditing(true)}
+        >
+          <Edit2 className="h-3 w-3" />
+        </Button>
+      )}
+
       {isSelected && <Eye className="w-4 h-4 text-primary" />}
     </div>
   );
 }
 
 export function CardPreviewSettings({ listId, columnSchema }: CardPreviewSettingsProps) {
-  const { cardPreviewFields, setCardPreviewFields } = useProductListStore();
+  const { cardPreviewFields, setCardPreviewFields, updateColumnLabel } = useProductListStore();
+  // NUEVO hook para persistir
+  const { updateColumnSchema } = useProductLists();
   const [open, setOpen] = useState(false);
   const STOCK_KEY = "quantity"; // "Stock Disponible"
   
@@ -158,6 +216,18 @@ export function CardPreviewSettings({ listId, columnSchema }: CardPreviewSetting
     toast.success("Configuración restablecida");
   };
 
+  const handleLabelPersist = async (columnKey: string, newLabel: string) => {
+    const updatedSchema = columnSchema.map(col => col.key === columnKey ? { ...col, label: newLabel } : col);
+    try {
+      await updateColumnSchema({ listId, columnSchema: updatedSchema });
+      updateColumnLabel(listId, columnKey, newLabel);
+      toast.success("Etiqueta actualizada");
+    } catch (e) {
+      console.error("Error al actualizar etiqueta:", e);
+      toast.error("Error al guardar etiqueta");
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -166,7 +236,7 @@ export function CardPreviewSettings({ listId, columnSchema }: CardPreviewSetting
           Vista Tarjeta
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md select-none">
         <DialogHeader>
           <DialogTitle>Configurar Vista de Tarjetas</DialogTitle>
           <DialogDescription>
@@ -201,6 +271,8 @@ export function CardPreviewSettings({ listId, columnSchema }: CardPreviewSetting
                         isSelected={isSelected}
                         disableToggle={disableToggle}
                         onToggle={handleToggle}
+                        // NUEVO prop
+                        onLabelChange={handleLabelPersist}
                       />
                     );
                   })}

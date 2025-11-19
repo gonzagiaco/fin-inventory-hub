@@ -37,6 +37,7 @@ import { ColumnSchema } from "@/types/productList";
 import { useProductListStore } from "@/stores/productListStore";
 import { useProductLists } from "@/hooks/useProductLists";
 import { toast } from "sonner";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ColumnSettingsDrawerProps {
   listId: string;
@@ -93,9 +94,9 @@ function SortableItem({
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-center gap-2 p-2 rounded-md bg-card border border-border hover:bg-accent/50 transition-colors"
+      className={`flex items-center gap-2 p-2 rounded-md bg-card border border-border hover:bg-accent/50 transition-colors ${!isEditing ? "select-none" : ""}`}
     >
-      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing">
+      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing select-none">
         <GripVertical className="w-4 h-4 text-muted-foreground" />
       </div>
       <Checkbox
@@ -103,6 +104,7 @@ function SortableItem({
         checked={isVisible}
         onCheckedChange={(checked) => onToggle(column.key, checked as boolean)}
         disabled={isDisabled}
+        className="select-none"
       />
 
       {isEditing ? (
@@ -112,6 +114,7 @@ function SortableItem({
             onChange={(e) => setEditLabel(e.target.value)}
             className="h-7 text-sm"
             autoFocus
+            // (input permite selección de texto)
             onKeyDown={(e) => {
               if (e.key === "Enter") handleSaveLabel();
               if (e.key === "Escape") handleCancelEdit();
@@ -126,7 +129,7 @@ function SortableItem({
         </div>
       ) : (
         <>
-          <Label htmlFor={`col-${column.key}`} className="flex-1 cursor-pointer text-sm">
+          <Label htmlFor={`col-${column.key}`} className="flex-1 cursor-pointer text-sm select-none">
             {column.label}
             {column.isStandard && <span className="text-xs text-muted-foreground ml-1">(fija)</span>}
           </Label>
@@ -136,19 +139,8 @@ function SortableItem({
         </>
       )}
 
-      <div className="flex items-center gap-1">
-        {isVisible ? (
-          <Eye className="w-4 h-4 text-muted-foreground" />
-        ) : (
-          <EyeOff className="w-4 h-4 text-muted-foreground" />
-        )}
-        <Checkbox
-          id={`search-${column.key}`}
-          checked={isSearchable}
-          onCheckedChange={(checked) => onSearchableToggle(column.key, checked as boolean)}
-          title="Incluir en búsqueda"
-        />
-        <Search className={`w-3 h-3 ${isSearchable ? "text-primary" : "text-muted-foreground"}`} />
+      <div className="flex items-center gap-1 select-none">
+        {isVisible ? <Eye className="w-4 h-4 text-muted-foreground" /> : <EyeOff className="w-4 h-4 text-muted-foreground" />}
       </div>
     </div>
   );
@@ -178,6 +170,8 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDra
   const [newViewName, setNewViewName] = useState("");
   const [editingViewId, setEditingViewId] = useState<string | null>(null);
   const [editingViewName, setEditingViewName] = useState("");
+
+  const isMobile = useIsMobile()
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -297,13 +291,16 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDra
   return (
     <Drawer open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2">
-          <Settings2 className="w-4 h-4" />
-          Columnas
-          {activeViewName && <span className="text-xs text-muted-foreground">({activeViewName})</span>}
-        </Button>
+        {!isMobile && (
+          <Button variant="outline" size="sm" className="gap-2">
+            <Settings2 className="w-4 h-4" />
+            Columnas
+            {activeViewName && <span className="text-xs text-muted-foreground">({activeViewName})</span>}
+          </Button>
+        )}
       </DrawerTrigger>
-      <DrawerContent className="max-h-[90vh]">
+      <DrawerContent className="max-h-[90vh] select-none">
+        {/* permitir selección en inputs internos */}
         <DrawerHeader>
           <DrawerTitle>Configuración de Columnas</DrawerTitle>
           <DrawerDescription>
