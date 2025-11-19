@@ -88,7 +88,7 @@ const Auth = () => {
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <div className="p-3 bg-primary/10 rounded-full">
-              <img src="LogoTransparente150.png" width={80} alt="" />
+              <img src="LogoTransparente300.png" width={80} alt="" />
             </div>
           </div>
           <CardTitle className="text-2xl">InspiraStock</CardTitle>
