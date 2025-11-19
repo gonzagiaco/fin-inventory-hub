@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import { DeliveryNote } from "@/types";
+import { formatARS } from "@/utils/numberParser";
 
 export const generateDeliveryNotePDF = (note: DeliveryNote): string => {
   const doc = new jsPDF();
@@ -47,8 +48,8 @@ export const generateDeliveryNotePDF = (note: DeliveryNote): string => {
     doc.text(item.productCode, 20, currentY);
     doc.text(item.productName.substring(0, 25), 50, currentY);
     doc.text(item.quantity.toString(), 130, currentY);
-    doc.text(`$${item.unitPrice.toFixed(2)}`, 155, currentY);
-    doc.text(`$${item.subtotal.toFixed(2)}`, 180, currentY);
+    doc.text(formatARS(item.unitPrice), 155, currentY);
+    doc.text(formatARS(item.subtotal), 180, currentY);
     currentY += 7;
   });
   
@@ -58,16 +59,16 @@ export const generateDeliveryNotePDF = (note: DeliveryNote): string => {
   
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
-  doc.text(`Total: $${note.totalAmount.toFixed(2)}`, 180, currentY, { align: "right" });
+  doc.text(`Total: ${formatARS(note.totalAmount)}`, 180, currentY, { align: "right" });
   
   if (note.paidAmount > 0) {
     currentY += 8;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
-    doc.text(`Monto Pagado: $${note.paidAmount.toFixed(2)}`, 180, currentY, { align: "right" });
+    doc.text(`Monto Pagado: ${formatARS(note.paidAmount)}`, 180, currentY, { align: "right" });
     currentY += 6;
     doc.setFont("helvetica", "bold");
-    doc.text(`Restante: $${note.remainingBalance.toFixed(2)}`, 180, currentY, { align: "right" });
+    doc.text(`Restante: ${formatARS(note.remainingBalance)}`, 180, currentY, { align: "right" });
   }
   
   currentY += 10;

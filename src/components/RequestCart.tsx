@@ -1,4 +1,5 @@
 import { X, Minus, Plus, ShoppingCart, FileDown } from "lucide-react";
+import { formatARS } from "@/utils/numberParser";
 import { RequestItem, Supplier } from "@/types";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -69,7 +70,7 @@ const RequestCart = ({
                     Código: {item.code} | Proveedor: {getSupplierName(item.supplierId)}
                   </div>
                   <div className="text-sm font-medium text-foreground mt-1">
-                    Subtotal: ${(item.costPrice * item.quantity).toFixed(2)}
+                    Subtotal: {formatARS(item.costPrice * item.quantity)}
                   </div>
                 </div>
                 <div className="flex items-center space-x-3">
@@ -111,7 +112,7 @@ const RequestCart = ({
             </Button>
             <div className="flex justify-between items-center">
               <span className="text-lg font-bold text-foreground">Total:</span>
-              <span className="text-2xl font-bold text-primary">${total.toFixed(2)}</span>
+              <span className="text-2xl font-bold text-primary">{formatARS(total)}</span>
             </div>
           </div>
         </>

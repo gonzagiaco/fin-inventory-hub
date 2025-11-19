@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { CardPreviewSettings } from "./CardPreviewSettings";
 import { List, LayoutGrid, Loader2 } from "lucide-react";
 import { QuantityCell } from "./stock/QuantityCell";
+import { normalizeRawPrice, formatARS } from "@/utils/numberParser";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface DynamicProductTableProps {
@@ -152,35 +153,20 @@ export const DynamicProductTable = ({
           if (value === null || value === undefined) return "-";
 
           const key = schema.key.toLowerCase();
-
-          const isNumericField =
-            schema.type === "number" ||
-            key === "price" ||
-            key === "precio" ||
-            key.includes("precio") ||
-            key.includes("price");
+          const priceKeys = [
+            "price",
+            "precio",
+            mappingConfig?.price_primary_key?.toLowerCase(),
+            ...(mappingConfig?.price_alt_keys?.map((k) => k.toLowerCase()) || []),
+            mappingConfig?.cart_price_column?.toLowerCase(),
+          ].filter(Boolean);
+          const isPriceField = priceKeys.includes(key) || key.includes("precio") || key.includes("price");
+          const isNumericField = schema.type === "number" || isPriceField;
 
           if (isNumericField) {
-            // si viene como número, lo usamos directo
-            // si viene como string numérico, lo convertimos
-            const numericValue =
-              typeof value === "number"
-                ? value
-                : typeof value === "string" &&
-                    value.trim() !== "" &&
-                    !isNaN(Number(value.replace(/\./g, "").replace(",", ".")))
-                  ? Number(value.replace(/\./g, "").replace(",", "."))
-                  : null;
-
+            const numericValue = normalizeRawPrice(value);
             if (numericValue !== null) {
-              const formattedValue = new Intl.NumberFormat("es-AR", {
-                style: "currency",
-                currency: "ARS",
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              }).format(numericValue);
-
-              return <div className="flex items-center gap-1.5">{formattedValue}</div>;
+              return <div className="flex items-center gap-1.5">{formatARS(numericValue)}</div>;
             }
           }
 

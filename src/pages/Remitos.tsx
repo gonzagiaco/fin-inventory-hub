@@ -9,6 +9,7 @@ import DeliveryNoteDialog from "@/components/DeliveryNoteDialog";
 import { generateDeliveryNotePDF } from "@/utils/deliveryNotePdfGenerator";
 import { Plus, Download, MessageCircle, Trash2, CheckCircle, Edit } from "lucide-react";
 import { format } from "date-fns";
+import { formatARS } from "@/utils/numberParser";
 import { DeliveryNote } from "@/types";
 import Header from "@/components/Header";
 
@@ -45,9 +46,9 @@ const Remitos = () => {
     const pdfUrl = generateDeliveryNotePDF(note);
     const message = encodeURIComponent(
       `Hola ${note.customerName}, te envío tu remito #${note.id.substring(0, 8)}.\n\n` +
-        `Total: $${note.totalAmount.toFixed(2)}\n` +
-        `Pagado: $${note.paidAmount.toFixed(2)}\n` +
-        `Restante: $${note.remainingBalance.toFixed(2)}\n\n` +
+        `Total: ${formatARS(note.totalAmount)}\n` +
+        `Pagado: ${formatARS(note.paidAmount)}\n` +
+        `Restante: ${formatARS(note.remainingBalance)}\n\n` +
         `Link al PDF: ${pdfUrl}`,
     );
 
@@ -140,13 +141,13 @@ const Remitos = () => {
                       {note.customerPhone && <p className="text-sm">Tel: {note.customerPhone}</p>}
                       <div className="flex gap-4 text-sm mt-2">
                         <span>
-                          Total: <strong>${note.totalAmount.toFixed(2)}</strong>
+                          Total: <strong>{formatARS(note.totalAmount)}</strong>
                         </span>
                         <span>
-                          Pagado: <strong>${note.paidAmount.toFixed(2)}</strong>
+                          Pagado: <strong>{formatARS(note.paidAmount)}</strong>
                         </span>
                         <span>
-                          Restante: <strong>${note.remainingBalance.toFixed(2)}</strong>
+                          Restante: <strong>{formatARS(note.remainingBalance)}</strong>
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground">{note.items?.length || 0} producto(s)</p>

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { formatARS, normalizeRawPrice } from "@/utils/numberParser";
 import { List, LayoutGrid, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -335,12 +336,10 @@ export function GlobalProductSearch({
                     <TableCell>{supplierInfo ? supplierInfo.name : "-"}</TableCell>
                     <TableCell>{listInfo ? listInfo.name : "-"}</TableCell>
                     <TableCell>
-                      {item.price && !isNaN(item.price)
-                        ? new Intl.NumberFormat("es-AR", {
-                            style: "currency",
-                            currency: "ARS",
-                          }).format(item.price)
-                        : "-"}
+                      {(() => {
+                        const parsed = normalizeRawPrice(item.price);
+                        return parsed != null ? formatARS(parsed) : "-";
+                      })()}
                     </TableCell>
                   </TableRow>
                 );

@@ -116,12 +116,24 @@ BEGIN
       COALESCE(dp.code, '') || ' ' ||
       COALESCE(dp.name, '')
     ) AS search_vector,
-    -- Calculated data: TODAS las columnas en target_columns (tengan override o no)
+    -- Calculated data: columnas que estén en target_columns O tengan override
     (
+      WITH override_keys AS (
+        SELECT jsonb_object_keys(coalesce(v_mapping->'price_modifiers'->'overrides','{}'::jsonb)) AS col_key
+      ),
+      target_keys AS (
+        SELECT jsonb_array_elements_text(v_dollar_columns) AS col_key
+      ),
+      all_keys AS (
+        SELECT DISTINCT col_key FROM (
+          SELECT col_key FROM override_keys
+          UNION ALL
+          SELECT col_key FROM target_keys
+        ) u
+      )
       SELECT jsonb_object_agg(
         col_key,
-        CASE 
-          -- Si la columna tiene override configurado, aplicar modificadores + conversión
+        CASE
           WHEN v_mapping->'price_modifiers'->'overrides' ? col_key THEN
             apply_dollar_conversion(
               calculate_price_with_modifiers(
@@ -134,17 +146,18 @@ BEGIN
                   21
                 )
               ),
-              CASE WHEN v_dollar_rate > 0 THEN v_dollar_rate ELSE 0 END
+              CASE WHEN v_dollar_rate > 0 AND (v_dollar_columns ? col_key) THEN v_dollar_rate ELSE 0 END
             )
-          -- Si NO tiene override pero está en target_columns, solo conversión
-          ELSE
+          WHEN v_dollar_columns ? col_key THEN
             apply_dollar_conversion(
               parse_price_string(dp.data->>col_key),
               CASE WHEN v_dollar_rate > 0 THEN v_dollar_rate ELSE 0 END
             )
+          ELSE
+            parse_price_string(dp.data->>col_key)
         END
       )
-      FROM jsonb_array_elements_text(v_dollar_columns) AS col_key
+      FROM all_keys
       WHERE dp.data ? col_key
     ) AS calculated_data
   FROM dynamic_products dp

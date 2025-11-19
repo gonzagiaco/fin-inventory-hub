@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import { Client } from "@/types";
+import { formatARS } from "@/utils/numberParser";
 
 export const generateInvoicePDF = (client: Client): void => {
   const doc = new jsPDF();
@@ -56,9 +57,9 @@ export const generateInvoicePDF = (client: Client): void => {
   client.products.forEach((product) => {
     doc.text(product.code, 20, currentY);
     doc.text(product.name.substring(0, 30), 50, currentY);
-    doc.text(`$${product.salePrice.toFixed(2)}`, 120, currentY);
+    doc.text(formatARS(product.salePrice), 120, currentY);
     doc.text(product.quantity.toString(), 155, currentY);
-    doc.text(`$${product.subtotal.toFixed(2)}`, 175, currentY);
+    doc.text(formatARS(product.subtotal), 175, currentY);
     currentY += 7;
   });
   
@@ -69,18 +70,18 @@ export const generateInvoicePDF = (client: Client): void => {
   
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
-  doc.text(`Total: $${client.amount.toFixed(2)}`, 175, currentY, { align: "right" });
+  doc.text(`Total: ${formatARS(client.amount)}`, 175, currentY, { align: "right" });
   
   // Payment info if exists
   if (client.amountPaid > 0) {
     currentY += 8;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
-    doc.text(`Monto Pagado: $${client.amountPaid.toFixed(2)}`, 175, currentY, { align: "right" });
+    doc.text(`Monto Pagado: ${formatARS(client.amountPaid)}`, 175, currentY, { align: "right" });
     currentY += 6;
     const remaining = client.amount - client.amountPaid;
     doc.setFont("helvetica", "bold");
-    doc.text(`Restante: $${remaining.toFixed(2)}`, 175, currentY, { align: "right" });
+    doc.text(`Restante: ${formatARS(remaining)}`, 175, currentY, { align: "right" });
   }
   
   // Payment history with notes
@@ -94,7 +95,7 @@ export const generateInvoicePDF = (client: Client): void => {
     doc.setFontSize(10);
     doc.setFont("helvetica", "normal");
     client.payments.forEach((payment) => {
-      doc.text(`${payment.date}: $${payment.amount.toFixed(2)}`, 20, currentY);
+      doc.text(`${payment.date}: ${formatARS(payment.amount)}`, 20, currentY);
       if (payment.notes) {
         currentY += 5;
         doc.setFontSize(9);

@@ -127,12 +127,25 @@ begin
       coalesce(dp.code, '') || ' ' ||
       coalesce(dp.name, '')
     ) as search_vector,
-    -- Calculated data: TODAS las columnas en target_columns
+    -- Calculated data: columnas que estén en target_columns O tengan override
     (
+      with override_keys as (
+        select jsonb_object_keys(coalesce(v_mapping->'price_modifiers'->'overrides','{}'::jsonb)) as col_key
+      ),
+      target_keys as (
+        select jsonb_array_elements_text(v_dollar_columns) as col_key
+      ),
+      all_keys as (
+        select distinct col_key from (
+          select col_key from override_keys
+          union all
+          select col_key from target_keys
+        ) u
+      )
       select jsonb_object_agg(
         col_key,
-        case 
-          -- Si la columna tiene override configurado, aplicar modificadores + conversión
+        case
+          -- Si tiene override configurado: aplicar modificadores; aplicar conversión solo si la columna está en target_columns
           when v_mapping->'price_modifiers'->'overrides' ? col_key then
             apply_dollar_conversion(
               calculate_price_with_modifiers(
@@ -145,17 +158,20 @@ begin
                   21
                 )
               ),
-              case when v_dollar_rate > 0 then v_dollar_rate else 0 end
+              case when v_dollar_rate > 0 and (v_dollar_columns ? col_key) then v_dollar_rate else 0 end
             )
-          -- Si NO tiene override pero está en target_columns, solo conversión
-          else
+          -- Si no tiene override pero está en target_columns: solo conversión
+          when v_dollar_columns ? col_key then
             apply_dollar_conversion(
               parse_price_string(dp.data->>col_key),
               case when v_dollar_rate > 0 then v_dollar_rate else 0 end
             )
+          -- Si no tiene override ni conversión: devolver valor parseado (sin conversión)
+          else
+            parse_price_string(dp.data->>col_key)
         end
       )
-      from jsonb_array_elements_text(v_dollar_columns) as col_key
+      from all_keys
       where dp.data ? col_key
     ) as calculated_data
   from dynamic_products dp

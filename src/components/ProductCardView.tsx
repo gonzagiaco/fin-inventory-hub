@@ -8,6 +8,7 @@ import { DynamicProduct, ColumnSchema, ProductList } from "@/types/productList";
 import { Loader2 } from "lucide-react";
 import { useProductListStore } from "@/stores/productListStore";
 import { QuantityCell } from "./stock/QuantityCell";
+import { normalizeRawPrice, formatARS } from "@/utils/numberParser";
 
 interface ProductCardViewProps {
   listId: string;
@@ -100,8 +101,9 @@ export function ProductCardView({
     const hasModification = hasGeneralModifier || hasOverride;
     void hasModification;
 
-    if (isNumericField && typeof value === "number") {
-      return <span className="flex items-center gap-1.5">${value.toFixed(2)}</span>;
+    if (isNumericField) {
+      const parsed = normalizeRawPrice(value);
+      return parsed != null ? <span className="flex items-center gap-1.5">{formatARS(parsed)}</span> : "-";
     }
     if (type === "date" && value instanceof Date) {
       return value.toLocaleDateString("es-AR");

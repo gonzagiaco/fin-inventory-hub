@@ -100,34 +100,55 @@ BEGIN
     -- Generar search_text
     v_search_text := COALESCE(v_product->>'code', '') || ' ' || COALESCE(v_product->>'name', '');
 
-    -- Calcular calculated_data para columnas configuradas
-    SELECT jsonb_object_agg(
-      col_key,
-      CASE 
-        WHEN v_mapping->'price_modifiers'->'overrides' ? col_key THEN
-          apply_dollar_conversion(
-            calculate_price_with_modifiers(
-              v_product->'data'->>col_key,
-              (v_mapping->'price_modifiers'->'overrides'->col_key->>'percentage')::numeric,
-              (v_mapping->'price_modifiers'->'overrides'->col_key->>'add_vat')::boolean,
-              COALESCE(
-                (v_mapping->'price_modifiers'->'overrides'->col_key->>'vat_rate')::numeric,
-                (v_mapping->'price_modifiers'->'general'->>'vat_rate')::numeric,
-                21
-              )
-            ),
-            CASE WHEN v_dollar_rate > 0 THEN v_dollar_rate ELSE 0 END
-          )
-        ELSE
-          apply_dollar_conversion(
-            parse_price_string(v_product->'data'->>col_key),
-            CASE WHEN v_dollar_rate > 0 THEN v_dollar_rate ELSE 0 END
-          )
-      END
-    )
+    -- Calcular calculated_data para columnas configuradas: incluir overrides aunque no estén en target_columns
+    SELECT jsonb_object_agg(col_key, value)
     INTO v_calculated_data
-    FROM jsonb_array_elements_text(v_dollar_columns) AS col_key
-    WHERE v_product->'data' ? col_key;
+    FROM (
+      WITH override_keys AS (
+        SELECT jsonb_object_keys(coalesce(v_mapping->'price_modifiers'->'overrides','{}'::jsonb)) AS col_key
+      ),
+      target_keys AS (
+        SELECT jsonb_array_elements_text(v_dollar_columns) AS col_key
+      ),
+      all_keys AS (
+        SELECT DISTINCT col_key FROM (
+          SELECT col_key FROM override_keys
+          UNION ALL
+          SELECT col_key FROM target_keys
+        ) u
+      )
+      SELECT
+        col_key,
+        CASE
+          WHEN v_mapping->'price_modifiers'->'overrides' ? col_key THEN
+            to_jsonb(
+              apply_dollar_conversion(
+                calculate_price_with_modifiers(
+                  v_product->'data'->>col_key,
+                  (v_mapping->'price_modifiers'->'overrides'->col_key->>'percentage')::numeric,
+                  (v_mapping->'price_modifiers'->'overrides'->col_key->>'add_vat')::boolean,
+                  COALESCE(
+                    (v_mapping->'price_modifiers'->'overrides'->col_key->>'vat_rate')::numeric,
+                    (v_mapping->'price_modifiers'->'general'->>'vat_rate')::numeric,
+                    21
+                  )
+                ),
+                CASE WHEN v_dollar_rate > 0 AND (v_dollar_columns ? col_key) THEN v_dollar_rate ELSE 0 END
+              )
+            )
+          WHEN v_dollar_columns ? col_key THEN
+            to_jsonb(
+              apply_dollar_conversion(
+                parse_price_string(v_product->'data'->>col_key),
+                CASE WHEN v_dollar_rate > 0 THEN v_dollar_rate ELSE 0 END
+              )
+            )
+          ELSE
+            to_jsonb(parse_price_string(v_product->'data'->>col_key))
+        END AS value
+      FROM all_keys
+      WHERE v_product->'data' ? col_key
+    ) s;
 
     IF v_existing_id IS NOT NULL THEN
       -- UPDATE dynamic_products (sin quantity)

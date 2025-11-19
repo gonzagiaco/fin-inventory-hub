@@ -11,6 +11,7 @@ import { DeliveryNote, CreateDeliveryNoteInput } from "@/types";
 import { useDeliveryNotes } from "@/hooks/useDeliveryNotes";
 import DeliveryNoteProductSearch from "./DeliveryNoteProductSearch";
 import { X, Plus, Minus } from "lucide-react";
+import { formatARS } from "@/utils/numberParser";
 import { toast } from "sonner";
 
 const deliveryNoteSchema = z.object({
@@ -196,7 +197,7 @@ const DeliveryNoteDialog = ({ open, onOpenChange, note }: DeliveryNoteDialogProp
                     <div className="flex-1">
                       <p className="font-medium">{item.productName}</p>
                       <p className="text-sm text-muted-foreground">
-                        Código: {item.productCode} | ${item.unitPrice.toFixed(2)} c/u
+                        Código: {item.productCode} | {formatARS(item.unitPrice)} c/u
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -218,7 +219,7 @@ const DeliveryNoteDialog = ({ open, onOpenChange, note }: DeliveryNoteDialogProp
                         <Plus className="h-4 w-4" />
                       </Button>
                       <span className="w-20 text-right font-medium">
-                        ${(item.quantity * item.unitPrice).toFixed(2)}
+                        {formatARS(item.quantity * item.unitPrice)}
                       </span>
                       <Button
                         type="button"
@@ -235,7 +236,7 @@ const DeliveryNoteDialog = ({ open, onOpenChange, note }: DeliveryNoteDialogProp
               <div className="flex justify-end items-center gap-4 pt-2 border-t">
                 <span className="text-lg font-semibold">Total:</span>
                 <span className="text-2xl font-bold text-primary">
-                  ${calculateTotal().toFixed(2)}
+                  {formatARS(calculateTotal())}
                 </span>
               </div>
             </div>

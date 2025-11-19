@@ -3,6 +3,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useSearch } from "@/hooks/useSearch";
 import { Search, Loader2 } from "lucide-react";
+import { formatARS } from "@/utils/numberParser";
 
 interface ProductSearchProps {
   onSelect: (product: { id?: string; code: string; name: string; price: number }) => void;
@@ -54,7 +55,7 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
               >
                 <p className="font-medium">{product.name || product.code}</p>
                 <p className="text-sm text-muted-foreground">
-                  Código: {product.code || 'N/A'} | ${(product.price || 0).toFixed(2)}
+                  Código: {product.code || 'N/A'} | {formatARS(product.price || 0)}
                 </p>
               </div>
             ))}

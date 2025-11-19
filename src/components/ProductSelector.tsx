@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { X, Plus } from "lucide-react";
+import { formatARS } from "@/utils/numberParser";
 
 interface ProductSelectorProps {
   stockItems: StockItem[];
@@ -85,7 +86,7 @@ const ProductSelector = ({ stockItems, selectedProducts, onChange }: ProductSele
                   value={item.id}
                   className="text-foreground hover:bg-primary/10"
                 >
-                  {item.code} - {item.name} (${item.costPrice.toFixed(2)})
+                  {item.code} - {item.name} ({formatARS(item.costPrice)})
                 </SelectItem>
               ))}
             </SelectContent>
@@ -127,8 +128,7 @@ const ProductSelector = ({ stockItems, selectedProducts, onChange }: ProductSele
                   {product.code} - {product.name}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  ${product.salePrice.toFixed(2)} × {product.quantity} = $
-                  {product.subtotal.toFixed(2)}
+                  {formatARS(product.salePrice)} × {product.quantity} = {formatARS(product.subtotal)}
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -154,7 +154,7 @@ const ProductSelector = ({ stockItems, selectedProducts, onChange }: ProductSele
           <div className="pt-2 border-t border-primary/20">
             <div className="flex justify-between items-center text-sm font-bold">
               <span className="text-foreground">Total:</span>
-              <span className="text-primary">${calculateTotal().toFixed(2)}</span>
+              <span className="text-primary">{formatARS(calculateTotal())}</span>
             </div>
           </div>
         </div>

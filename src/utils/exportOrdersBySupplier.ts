@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx";
 import { RequestItem, Supplier } from "@/types";
+import { formatARS } from "@/utils/numberParser";
 
 /**
  * Groups request items by supplier and exports one Excel file per supplier
@@ -45,7 +46,7 @@ export function exportOrdersBySupplier(
         item.code,
         item.name,
         item.quantity,
-        item.costPrice.toFixed(2),
+        (item.costPrice).toFixed(2),
         (item.costPrice * item.quantity).toFixed(2),
       ]),
       [],
