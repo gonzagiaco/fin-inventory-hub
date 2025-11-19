@@ -35,7 +35,7 @@ const RequestCart = ({
     return (
       <button
         onClick={onToggleCollapse}
-        className="fixed bottom-6 right-6 z-50 bg-primary hover:bg-primary/90 rounded-full p-4 shadow-2xl transition-transform hover:scale-110"
+        className="fixed bottom-6 right-6 z-20 bg-primary hover:bg-primary/90 rounded-full p-4 shadow-2xl transition-transform hover:scale-110"
       >
         <ShoppingCart className="h-6 w-6 text-primary-foreground" />
         {requests.length > 0 && (

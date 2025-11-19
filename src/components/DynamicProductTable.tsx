@@ -277,9 +277,9 @@ export const DynamicProductTable = ({
       ) : (
         <div className="w-full border rounded-lg overflow-hidden">
           {/* Contenedor scrolleable: acá vive el sticky */}
-          <div className="max-h-[600px] overflow-auto">
+          <div className="max-h-[600px] overflow-auto relative">
             <Table className="min-w-full">
-              <TableHeader className="sticky top-0 safe-top-fixed z-20 bg-background shadow-sm">
+              <TableHeader>
                 <TableRow>
                   {table.getHeaderGroups()[0]?.headers.map((header) => (
                     <TableHead
