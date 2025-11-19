@@ -30,7 +30,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Settings, GripVertical, Eye } from "lucide-react";
-// NUEVO:
 import { Edit2, Check, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useProductLists } from "@/hooks/useProductLists";
@@ -49,17 +48,24 @@ interface SortablePreviewItemProps {
   isSelected: boolean;
   onToggle: (key: string, selected: boolean) => void;
   disableToggle?: boolean;
-  // NUEVO:
   onLabelChange: (key: string, newLabel: string) => void;
+  currentLabel: string;
 }
 
-function SortablePreviewItem({ id, column, isSelected, onToggle, disableToggle, onLabelChange }: SortablePreviewItemProps) {
+function SortablePreviewItem({ 
+  id, 
+  column, 
+  isSelected, 
+  onToggle, 
+  disableToggle, 
+  onLabelChange,
+  currentLabel 
+}: SortablePreviewItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
   });
-  // NUEVO estado para edición
   const [isEditing, setIsEditing] = useState(false);
-  const [editLabel, setEditLabel] = useState(column.label);
+  const [editLabel, setEditLabel] = useState(currentLabel);
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -69,14 +75,14 @@ function SortablePreviewItem({ id, column, isSelected, onToggle, disableToggle, 
 
   const handleSaveLabel = () => {
     const trimmed = editLabel.trim();
-    if (trimmed && trimmed !== column.label) {
+    if (trimmed && trimmed !== currentLabel) {
       onLabelChange(column.key, trimmed);
     }
     setIsEditing(false);
   };
 
   const handleCancelEdit = () => {
-    setEditLabel(column.label);
+    setEditLabel(currentLabel);
     setIsEditing(false);
   };
 
@@ -117,7 +123,7 @@ function SortablePreviewItem({ id, column, isSelected, onToggle, disableToggle, 
         </div>
       ) : (
         <Label htmlFor={`preview-${column.key}`} className="flex-1 cursor-pointer text-sm truncate select-none">
-          {column.label}
+          {currentLabel}
         </Label>
       )}
 
@@ -125,8 +131,8 @@ function SortablePreviewItem({ id, column, isSelected, onToggle, disableToggle, 
         <Button
           size="icon"
           variant="ghost"
-            className="h-7 w-7"
-            onClick={() => setIsEditing(true)}
+          className="h-7 w-7"
+          onClick={() => setIsEditing(true)}
         >
           <Edit2 className="h-3 w-3" />
         </Button>
@@ -139,10 +145,9 @@ function SortablePreviewItem({ id, column, isSelected, onToggle, disableToggle, 
 
 export function CardPreviewSettings({ listId, columnSchema }: CardPreviewSettingsProps) {
   const { cardPreviewFields, setCardPreviewFields, updateColumnLabel } = useProductListStore();
-  // NUEVO hook para persistir
   const { updateColumnSchema } = useProductLists();
   const [open, setOpen] = useState(false);
-  const STOCK_KEY = "quantity"; // "Stock Disponible"
+  const STOCK_KEY = "quantity";
   
   const ensureIncludes = (arr: string[], key: string) =>
     arr.includes(key) ? arr : [key, ...arr];
@@ -156,6 +161,7 @@ export function CardPreviewSettings({ listId, columnSchema }: CardPreviewSetting
   const currentPreviewFields = stored && stored.length ? ensureIncludes(stored, STOCK_KEY) : defaultFields;
   
   const [localPreviewFields, setLocalPreviewFields] = useState<string[]>(currentPreviewFields);
+  const [localLabelEdits, setLocalLabelEdits] = useState<Record<string, string>>({});
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -168,7 +174,6 @@ export function CardPreviewSettings({ listId, columnSchema }: CardPreviewSetting
     .map((key) => columnSchema.find((c) => c.key === key))
     .filter(Boolean) as ColumnSchema[];
 
-  // Add remaining columns that are not in preview
   const remainingColumns = columnSchema.filter(
     col => !localPreviewFields.includes(col.key)
   );
@@ -188,7 +193,6 @@ export function CardPreviewSettings({ listId, columnSchema }: CardPreviewSetting
 
   const handleToggle = (key: string, selected: boolean) => {
     if (key === STOCK_KEY && !selected) {
-      // Mantener siempre seleccionado "Stock Disponible"
       return;
     }
     if (selected) {
@@ -204,32 +208,61 @@ export function CardPreviewSettings({ listId, columnSchema }: CardPreviewSetting
     }
   };
 
-  const handleSave = () => {
-    setCardPreviewFields(listId, localPreviewFields);
-    toast.success("Configuración de tarjeta guardada");
-    setOpen(false);
+  const handleLocalLabelChange = (columnKey: string, newLabel: string) => {
+    setLocalLabelEdits(prev => ({
+      ...prev,
+      [columnKey]: newLabel
+    }));
+  };
+
+  const handleSave = async () => {
+    try {
+      if (Object.keys(localLabelEdits).length > 0) {
+        const updatedSchema = columnSchema.map(col => {
+          const newLabel = localLabelEdits[col.key];
+          return newLabel ? { ...col, label: newLabel } : col;
+        });
+
+        await updateColumnSchema({ listId, columnSchema: updatedSchema });
+        
+        Object.entries(localLabelEdits).forEach(([key, label]) => {
+          updateColumnLabel(listId, key, label);
+        });
+      }
+
+      setCardPreviewFields(listId, localPreviewFields);
+      
+      toast.success("Configuración guardada correctamente");
+      setOpen(false);
+      
+      setLocalLabelEdits({});
+    } catch (e) {
+      console.error("Error al guardar configuración:", e);
+      toast.error("Error al guardar la configuración");
+    }
   };
 
   const handleReset = () => {
     const resetFields = ensureIncludes(columnSchema.slice(0, 4).map(c => c.key), STOCK_KEY);
     setLocalPreviewFields(resetFields);
+    setLocalLabelEdits({});
     toast.success("Configuración restablecida");
   };
 
-  const handleLabelPersist = async (columnKey: string, newLabel: string) => {
-    const updatedSchema = columnSchema.map(col => col.key === columnKey ? { ...col, label: newLabel } : col);
-    try {
-      await updateColumnSchema({ listId, columnSchema: updatedSchema });
-      updateColumnLabel(listId, columnKey, newLabel);
-      toast.success("Etiqueta actualizada");
-    } catch (e) {
-      console.error("Error al actualizar etiqueta:", e);
-      toast.error("Error al guardar etiqueta");
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!newOpen) {
+      setLocalLabelEdits({});
+      setLocalPreviewFields(currentPreviewFields);
     }
+    setOpen(newOpen);
+  };
+
+  const getCurrentLabel = (column: ColumnSchema) => {
+    return localLabelEdits[column.key] || column.label;
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <Settings className="w-4 h-4" />
@@ -241,7 +274,7 @@ export function CardPreviewSettings({ listId, columnSchema }: CardPreviewSetting
           <DialogTitle>Configurar Vista de Tarjetas</DialogTitle>
           <DialogDescription>
             Selecciona hasta 6 campos para mostrar en la vista previa de las tarjetas.
-            Arrastra para reordenar.
+            Arrastra para reordenar. Los cambios se guardarán al presionar "Guardar".
           </DialogDescription>
         </DialogHeader>
 
@@ -271,8 +304,8 @@ export function CardPreviewSettings({ listId, columnSchema }: CardPreviewSetting
                         isSelected={isSelected}
                         disableToggle={disableToggle}
                         onToggle={handleToggle}
-                        // NUEVO prop
-                        onLabelChange={handleLabelPersist}
+                        onLabelChange={handleLocalLabelChange}
+                        currentLabel={getCurrentLabel(column)}
                       />
                     );
                   })}
