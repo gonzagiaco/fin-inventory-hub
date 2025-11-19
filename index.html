@@ -3,6 +3,19 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <script>
+      (function () {
+        function isTouchDevice() {
+          return ('ontouchstart' in window) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0) || (navigator.msMaxTouchPoints && navigator.msMaxTouchPoints > 0);
+        }
+
+        if (!isTouchDevice()) return;
+
+        var m = document.querySelector('meta[name="viewport"]');
+        if (!m) return;
+        m.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover');
+      })();
+    </script>
     <link rel="shortcut icon" href="favicon.png" type="image/x-icon">
     <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#0f1729" />

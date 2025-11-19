@@ -108,6 +108,20 @@ All colors MUST be HSL.
   html {
     @apply dark;
   }
+
+  /* Apply zoom/gesture restrictions only on touch devices */
+  @media (hover: none) and (pointer: coarse) {
+    html, body {
+      -webkit-text-size-adjust: 100%;
+      -ms-text-size-adjust: 100%;
+      touch-action: manipulation;
+      -ms-touch-action: manipulation;
+    }
+
+    button, a, input, textarea, label {
+      touch-action: manipulation;
+    }
+  }
 }
 
 @layer utilities {
