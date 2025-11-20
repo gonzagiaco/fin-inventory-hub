@@ -213,7 +213,7 @@ export default function Stock() {
   };
 
   const isSupplierSelectedNoTerm = supplierFilter !== "all" && searchTerm.trim() === "";
-  const hasSearchTerm = searchTerm.trim().length >= 3 || (isOnline === false && searchTerm.trim().length >= 1);
+  const hasSearchTerm = searchTerm.trim().length >= 1;
 
   const { data: globalResults = [], isLoading: loadingSearch } = useQuery({
     queryKey: ["global-search", searchTerm, supplierFilter, isOnline ? "online" : "offline"],

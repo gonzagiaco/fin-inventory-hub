@@ -212,80 +212,102 @@ export function ProductCardView({
 
   return (
     <>
-      {/* Controles de ordenamiento */}
-      <div className="mb-4 flex items-center gap-3">
-        <span className="text-sm text-muted-foreground">Ordenar por:</span>
-        <div className="flex items-center gap-1">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className={`min-w-[180px] justify-between ${!sortColumn ? 'rounded-md' : 'rounded-r-none'}`}>
-                {sortColumn 
-                  ? columnSchema.find(c => c.key === sortColumn)?.label || 'Seleccionar...'
-                  : 'Seleccionar...'
-                }
-                {!sortColumn && <ArrowUpDown className="h-4 w-4 ml-2" />}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[200px]">
-              {columnSchema.map((field) => {
-                const isActive = sortColumn === field.key;
-                return (
-                  <DropdownMenuItem
-                    key={field.key}
-                    onClick={() => toggleSort(field.key)}
-                    className="flex items-center justify-between"
+      {/* Controles de ordenamiento - Solo mostrar si se proporciona onSortChange */}
+      {onSortChange && (
+        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b pb-3 mb-4">
+          <div className="flex flex-col gap-2 from-516:flex-row from-516:items-center from-516:gap-3">
+            <span className="text-sm text-muted-foreground max-[515px]:text-xs">
+              Ordenar por:
+            </span>
+            <div className="flex items-center gap-1 flex-1 max-[768px]:flex-initial max-[768px]:flex-nowrap">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={`max-[768px]:!w-28 max-[768px]:flex-shrink-0 min-[769px]:min-w-[180px] justify-between overflow-hidden ${
+                      !sortColumn ? "rounded-md" : "rounded-r-none"
+                    }`}
                   >
-                    <span>{field.label}</span>
-                    {isActive && sortDirection === 'asc' && <ArrowUp className="h-3 w-3" />}
-                    {isActive && sortDirection === 'desc' && <ArrowDown className="h-3 w-3" />}
-                  </DropdownMenuItem>
-                );
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          {sortColumn && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="px-2 rounded-l-none border-l-0"
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!onSortChange) return;
-                if (sortDirection === 'asc') {
-                  onSortChange(sortColumn, 'desc');
-                } else {
-                  onSortChange(sortColumn, 'asc');
-                }
-              }}
-            >
-              {sortDirection === 'asc' ? <ArrowUp className="h-4 w-4" /> : <ArrowDown className="h-4 w-4" />}
-            </Button>
-          )}
+                    <span className="truncate block">
+                      {sortColumn
+                        ? columnSchema.find((c) => c.key === sortColumn)?.label ||
+                          "Seleccionar..."
+                        : "Seleccionar..."}
+                    </span>
+                    {!sortColumn && <ArrowUpDown className="h-4 w-4 ml-2 flex-shrink-0" />}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  className="w-[200px] max-[515px]:w-[calc(100vw-2rem)]"
+                >
+                  {columnSchema.map((field) => {
+                    const isActive = sortColumn === field.key;
+                    return (
+                      <DropdownMenuItem
+                        key={field.key}
+                        onClick={() => toggleSort(field.key)}
+                        className="flex items-center justify-between"
+                      >
+                        <span>{field.label}</span>
+                        {isActive && sortDirection === "asc" && (
+                          <ArrowUp className="h-3 w-3" />
+                        )}
+                        {isActive && sortDirection === "desc" && (
+                          <ArrowDown className="h-3 w-3" />
+                        )}
+                      </DropdownMenuItem>
+                    );
+                  })}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              {sortColumn && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="px-2 rounded-l-none border-l-0"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (sortDirection === "asc") {
+                      onSortChange(sortColumn, "desc");
+                    } else {
+                      onSortChange(sortColumn, "asc");
+                    }
+                  }}
+                >
+                  {sortDirection === "asc" ? (
+                    <ArrowUp className="h-4 w-4" />
+                  ) : (
+                    <ArrowDown className="h-4 w-4" />
+                  )}
+                </Button>
+              )}
+              {sortColumn && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    onSortChange(null, null);
+                  }}
+                  className="text-xs max-[515px]:flex-shrink-0"
+                >
+                  Restablecer
+                </Button>
+              )}
+            </div>
+          </div>
         </div>
-        {sortColumn && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              if (onSortChange) {
-                onSortChange(null, null);
-              }
-            }}
-            className="text-xs"
-          >
-            Restablecer
-          </Button>
-        )}
-      </div>
+      )}
 
-      {/* Contenedor con scroll para las cards */}
-      <div className="max-h-[600px] overflow-auto border rounded-lg p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Grid de cards sin contenedor de scroll */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {visibleProducts.map((product) => {
           const isExpanded = expandedCards.has(product.id);
           const quantity = product.quantity || 0;
           const effectiveMappingConfig = product.mappingConfig || mappingConfig;
-          const lowStockThreshold = effectiveMappingConfig?.low_stock_threshold || 50;
+          const lowStockThreshold =
+            effectiveMappingConfig?.low_stock_threshold || 50;
           const isLowStock = quantity < lowStockThreshold;
 
           return (
@@ -294,18 +316,29 @@ export function ProductCardView({
                 <div className="space-y-2">
                   {keyFields.map((field) => {
                     const value = getFieldValue(product, field.key);
-                    const displayValue = formatValue(value, field.type, field.key, product, mappingConfig);
+                    const displayValue = formatValue(
+                      value,
+                      field.type,
+                      field.key,
+                      product,
+                      mappingConfig
+                    );
 
                     // Campo especial para Stock con QuantityCell, igual que en /stock
                     if (field.key === "quantity") {
                       const quantityField = field;
                       const q = product.quantity || 0;
-                      const effectiveMappingConfig = product.mappingConfig || mappingConfig;
-                      const lowStockThresholdField = effectiveMappingConfig?.low_stock_threshold || 0;
+                      const effectiveMappingConfig =
+                        product.mappingConfig || mappingConfig;
+                      const lowStockThresholdField =
+                        effectiveMappingConfig?.low_stock_threshold || 0;
                       const isLowStockField = q < lowStockThresholdField;
 
                       return (
-                        <div key={field.key} className="text-sm border-b pb-1 flex flex-col gap-2">
+                        <div
+                          key={field.key}
+                          className="text-sm border-b pb-1 flex flex-col gap-2"
+                        >
                           {isLowStockField && (
                             <div className="w-22 from-1440:w-4/12">
                               <Badge variant="destructive" className="text-xs">
@@ -314,7 +347,9 @@ export function ProductCardView({
                             </div>
                           )}
                           <div className="flex items-center justify-between w-full from-1440:justify-normal from-1440:gap-2">
-                            <span className="text-muted-foreground">{quantityField.label}:</span>{" "}
+                            <span className="text-muted-foreground">
+                              {quantityField.label}:
+                            </span>{" "}
                             <QuantityCell
                               productId={product.id}
                               listId={product.listId ?? listId}
@@ -331,8 +366,13 @@ export function ProductCardView({
 
                     // Resto de campos: mismo diseño genérico que en /stock
                     return (
-                      <div key={field.key} className="text-sm border-b pb-1 flex gap-1">
-                        <span className="text-muted-foreground">{field.label}:</span>{" "}
+                      <div
+                        key={field.key}
+                        className="text-sm border-b pb-1 flex gap-1"
+                      >
+                        <span className="text-muted-foreground">
+                          {field.label}:
+                        </span>{" "}
                         <span className="font-medium">{displayValue}</span>
                       </div>
                     );
@@ -342,7 +382,10 @@ export function ProductCardView({
 
               <CardContent className="pt-0 flex-1 flex flex-col">
                 {otherFields.length > 0 && (
-                  <Collapsible open={isExpanded} onOpenChange={() => toggleCard(product.id)}>
+                  <Collapsible
+                    open={isExpanded}
+                    onOpenChange={() => toggleCard(product.id)}
+                  >
                     <CollapsibleTrigger asChild>
                       <Button variant="ghost" size="sm" className="w-full mb-2">
                         {isExpanded ? (
@@ -361,11 +404,22 @@ export function ProductCardView({
                     <CollapsibleContent className="space-y-2 mb-3">
                       {otherFields.map((field) => {
                         const value = getFieldValue(product, field.key);
-                        const displayValue = formatValue(value, field.type, field.key, product, mappingConfig);
+                        const displayValue = formatValue(
+                          value,
+                          field.type,
+                          field.key,
+                          product,
+                          mappingConfig
+                        );
 
                         return (
-                          <div key={field.key} className="text-sm border-b pb-1">
-                            <span className="text-muted-foreground">{field.label}:</span>{" "}
+                          <div
+                            key={field.key}
+                            className="text-sm border-b pb-1"
+                          >
+                            <span className="text-muted-foreground">
+                              {field.label}:
+                            </span>{" "}
                             <span className="font-medium">{displayValue}</span>
                           </div>
                         );
@@ -391,24 +445,28 @@ export function ProductCardView({
         })}
       </div>
 
-        {(hasLocalMore || hasMore) && (
-          <div className="text-center mt-6">
-            <Button variant="outline" onClick={handleLoadMore} disabled={isLoadingMore}>
-              {isLoadingMore ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                  Cargando más...
-                </>
-              ) : (
-                <>
-                  Ver más productos
-                  {hasLocalMore && ` (${sortedProducts.length - displayCount} más disponibles)`}
-                </>
-              )}
-            </Button>
-          </div>
-        )}
-      </div>
+      {(hasLocalMore || hasMore) && (
+        <div className="text-center mt-6">
+          <Button
+            variant="outline"
+            onClick={handleLoadMore}
+            disabled={isLoadingMore}
+          >
+            {isLoadingMore ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Cargando más...
+              </>
+            ) : (
+              <>
+                Ver más productos
+                {hasLocalMore &&
+                  ` (${sortedProducts.length - displayCount} más disponibles)`}
+              </>
+            )}
+          </Button>
+        </div>
+      )}
     </>
   );
 }

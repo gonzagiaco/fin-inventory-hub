@@ -234,18 +234,19 @@ export const DynamicProductTable = ({
 
   return (
     <div className="space-y-4">
-      {/* Buscador + ajustes */}
-      <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar productos..."
-            value={globalFilter}
-            onChange={(e) => setGlobalFilter(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <div className="flex gap-1.5 flex-wrap justify-end">
+      {/* Buscador + ajustes - Sticky cuando se hace scroll */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b pb-3">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar productos..."
+              value={globalFilter}
+              onChange={(e) => setGlobalFilter(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <div className="flex gap-1.5 flex-wrap justify-end">
           {shouldUseCardView && (
             <>
               { !isMobile && 
@@ -270,6 +271,7 @@ export const DynamicProductTable = ({
             </>
           )}
           <ColumnSettingsDrawer listId={listId} columnSchema={columnSchema} />
+        </div>
         </div>
       </div>
 

@@ -166,12 +166,12 @@ export function GlobalProductSearch({
   }
 
   // Estado: Instrucción cuando no hay resultados y el término es corto
-  if (!loadingSearch && globalResults.length === 0 && searchTerm.trim().length < 3) {
+  if (!loadingSearch && globalResults.length === 0 && searchTerm.trim().length < 1) {
     return (
       <Card className="p-4">
         <h2 className="text-lg font-semibold mb-2">Búsqueda</h2>
         <p className="text-center text-muted-foreground">
-          Escribe al menos 3 caracteres para ver resultados.
+          Comienza a escribir para buscar productos.
         </p>
       </Card>
     );
@@ -192,9 +192,9 @@ export function GlobalProductSearch({
 
   // Estado: Con resultados
   return (
-    <Card className="p-4">
-      {/* Header con título y botones de vista */}
-      <div className="flex flex-col gap-4 mb-4">
+    <div className="space-y-4">
+      {/* Header con título y botones de vista - Sticky */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b pb-3">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <h2 className="text-lg font-semibold">
             Resultados de búsqueda para "{searchTerm.trim()}"
@@ -229,9 +229,9 @@ export function GlobalProductSearch({
       {viewMode === "card" ? (
         <div className="space-y-6">
           {resultsByList.map((listGroup) => (
-            <div key={listGroup.listId} className="border rounded-lg p-4">
+            <div key={listGroup.listId} className="space-y-4">
               {/* Header de la lista */}
-              <div className="flex items-center gap-3 mb-4">
+              <div className="flex items-center gap-3">
                 {listGroup.supplierLogo && (
                   <img
                     src={listGroup.supplierLogo}
@@ -247,7 +247,7 @@ export function GlobalProductSearch({
                 </div>
               </div>
 
-              {/* Tarjetas de productos - 100% idénticas a Stock */}
+              {/* Tarjetas de productos */}
               <ProductCardView
                 listId="global-search-results"
                 products={listGroup.products}
@@ -348,6 +348,6 @@ export function GlobalProductSearch({
           </Table>
         </div>
       )}
-    </Card>
+    </div>
   );
 }
