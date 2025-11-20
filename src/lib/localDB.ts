@@ -48,6 +48,7 @@ interface DynamicProductIndexDB {
   name?: string;
   price?: number;
   quantity?: number;
+  calculated_data?: any;
   created_at: string;
   updated_at: string;
 }
@@ -448,11 +449,56 @@ async function executeOperation(op: PendingOperation): Promise<void> {
         delete insertData.id;
       }
       
-      const { error: insertError } = await (supabase as any)
+      const { data: insertedData, error: insertError } = await (supabase as any)
         .from(table_name)
-        .insert(insertData);
+        .insert(insertData)
+        .select()
+        .single();
       
       if (insertError) throw insertError;
+      
+      // 🔥 CRÍTICO: Si es una lista con ID temporal, actualizar operaciones pendientes
+      if (table_name === 'product_lists' && isTemp && insertedData) {
+        const realListId = insertedData.id;
+        console.log(`🔄 Remapeando list_id temporal ${record_id} → real ${realListId}`);
+        
+        // Actualizar todas las operaciones pendientes que usen el list_id temporal
+        const pendingOps = await localDB.pending_operations
+          .where('table_name')
+          .anyOf(['dynamic_products', 'dynamic_products_index'])
+          .toArray();
+        
+        for (const pendingOp of pendingOps) {
+          if (pendingOp.data?.list_id === record_id) {
+            await localDB.pending_operations.update(pendingOp.id!, {
+              data: { ...pendingOp.data, list_id: realListId }
+            });
+          }
+        }
+        
+        // Actualizar registros locales en IndexedDB
+        const localProducts = await localDB.dynamic_products
+          .where('list_id')
+          .equals(record_id)
+          .toArray();
+        
+        for (const product of localProducts) {
+          await localDB.dynamic_products.update(product.id, { list_id: realListId });
+        }
+        
+        const localIndex = await localDB.dynamic_products_index
+          .where('list_id')
+          .equals(record_id)
+          .toArray();
+        
+        for (const indexRecord of localIndex) {
+          await localDB.dynamic_products_index.update(indexRecord.id!, { list_id: realListId });
+        }
+        
+        // Actualizar la lista local con el ID real
+        await localDB.product_lists.delete(record_id);
+        await localDB.product_lists.add({ ...insertedData });
+      }
       break;
 
     case 'UPDATE':
@@ -704,9 +750,25 @@ export async function updateProductListOffline(
 }
 
 export async function deleteProductListOffline(listId: string): Promise<void> {
+  // Obtener productos para encolar DELETE individuales
+  const products = await localDB.dynamic_products.where('list_id').equals(listId).toArray();
+  const indexRecords = await localDB.dynamic_products_index.where('list_id').equals(listId).toArray();
+  
+  // Borrar de IndexedDB local
   await localDB.product_lists.delete(listId);
   await localDB.dynamic_products.where('list_id').equals(listId).delete();
   await localDB.dynamic_products_index.where('list_id').equals(listId).delete();
+  
+  // 🔥 CRÍTICO: Encolar DELETE para cada producto en Supabase
+  for (const product of products) {
+    await queueOperation('dynamic_products', 'DELETE', product.id, {});
+  }
+  
+  for (const indexRecord of indexRecords) {
+    await queueOperation('dynamic_products_index', 'DELETE', indexRecord.product_id, {});
+  }
+  
+  // Finalmente, encolar DELETE de la lista
   await queueOperation('product_lists', 'DELETE', listId, {});
 }
 
@@ -929,9 +991,16 @@ export async function updateProductQuantityOffline(
     });
   }
 
-  // Encolar operación para sincronizar
+  // 🔥 CRÍTICO: Encolar actualización para AMBAS tablas
   await queueOperation(
     'dynamic_products_index',
+    'UPDATE',
+    productId,
+    { quantity: newQuantity }
+  );
+  
+  await queueOperation(
+    'dynamic_products',
     'UPDATE',
     productId,
     { quantity: newQuantity }
@@ -947,19 +1016,69 @@ export async function getProductsForListOffline(
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) throw new Error('Usuario no autenticado');
 
+  // Obtener mapping_config de la lista para búsqueda avanzada
+  const list = await localDB.product_lists.get(listId);
+  const mappingConfig = list?.mapping_config as any;
+
   // Obtener todos los productos del list_id del usuario
   let allRecords = await localDB.dynamic_products_index
     .where({ list_id: listId, user_id: user.id })
     .toArray();
 
-  // Aplicar búsqueda si existe
+  // 🔥 MEJORADO: Búsqueda avanzada con campos dinámicos
   if (searchQuery) {
     const lowerQuery = searchQuery.toLowerCase();
-    allRecords = allRecords.filter(
-      (r) =>
-        r.code?.toLowerCase().includes(lowerQuery) ||
-        r.name?.toLowerCase().includes(lowerQuery)
-    );
+    
+    // Obtener productos completos para buscar en campos dinámicos
+    const fullProducts = await localDB.dynamic_products
+      .where('list_id')
+      .equals(listId)
+      .toArray();
+    
+    const fullProductsMap = new Map(fullProducts.map(p => [p.id, p]));
+    
+    allRecords = allRecords.filter((indexRecord) => {
+      // Búsqueda básica en índice
+      if (
+        indexRecord.code?.toLowerCase().includes(lowerQuery) ||
+        indexRecord.name?.toLowerCase().includes(lowerQuery)
+      ) {
+        return true;
+      }
+      
+      // 🔥 Búsqueda extendida en campos dinámicos (similar al buscador global)
+      const fullProduct = fullProductsMap.get(indexRecord.product_id);
+      if (!fullProduct?.data) return false;
+      
+      // Buscar en code_keys
+      if (mappingConfig?.code_keys) {
+        for (const key of mappingConfig.code_keys) {
+          if (fullProduct.data[key]?.toString().toLowerCase().includes(lowerQuery)) {
+            return true;
+          }
+        }
+      }
+      
+      // Buscar en name_keys
+      if (mappingConfig?.name_keys) {
+        for (const key of mappingConfig.name_keys) {
+          if (fullProduct.data[key]?.toString().toLowerCase().includes(lowerQuery)) {
+            return true;
+          }
+        }
+      }
+      
+      // Buscar en extra_index_keys
+      if (mappingConfig?.extra_index_keys) {
+        for (const key of mappingConfig.extra_index_keys) {
+          if (fullProduct.data[key]?.toString().toLowerCase().includes(lowerQuery)) {
+            return true;
+          }
+        }
+      }
+      
+      return false;
+    });
   }
 
   // Ordenar por nombre
@@ -984,6 +1103,7 @@ export async function getProductsForListOffline(
         name: indexRecord.name,
         price: indexRecord.price,
         quantity: indexRecord.quantity,
+        calculated_data: indexRecord.calculated_data,
         dynamic_products: fullProduct ? { data: fullProduct.data } : null,
       };
     })
