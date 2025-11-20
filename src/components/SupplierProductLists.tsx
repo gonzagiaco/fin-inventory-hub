@@ -28,8 +28,6 @@ import { ColumnMappingWizard } from "./mapping/ColumnMappingWizard";
 import { parseNumber } from "@/utils/numberParser";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useQueryClient } from "@tanstack/react-query";
-import { useOnlineStatus } from "@/hooks/useOnlineStatus";
-import * as XLSX from "xlsx";
 
 interface SupplierProductListsProps {
   supplierId: string;
@@ -153,8 +151,6 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
   const { productLists, isLoading, createList, deleteList, updateList, findSimilarList } = useProductLists(supplierId);
   const { collapsedLists, toggleListCollapse } = useProductListStore();
 
-  const isOnline = useOnlineStatus();
-
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -162,68 +158,29 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
     setIsUploading(true);
 
     try {
-      let productos: any[] = [];
+      // Call edge function to process document
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("supplierId", supplierId);
 
-      // ✅ Procesar archivos Excel/CSV localmente (funciona offline)
-      const isExcelOrCsv = file.name.match(/\.(xlsx?|csv)$/i);
-      
-      if (isExcelOrCsv) {
-        console.log('📊 Procesando archivo Excel/CSV localmente...');
-        const data = await file.arrayBuffer();
-        const workbook = XLSX.read(data, { type: "array" });
-        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const rawData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-        
-        // Normalizar columnas
-        productos = rawData.map((row: any) => {
-          const normalized: any = {};
-          Object.keys(row).forEach(key => {
-            const lowerKey = key.toLowerCase().trim();
-            if (lowerKey.includes('cod') || lowerKey === 'id' || lowerKey === 'sku') {
-              normalized.code = String(row[key]).trim();
-            } else if (lowerKey.includes('nombre') || lowerKey.includes('name') || lowerKey.includes('descripcion')) {
-              normalized.name = String(row[key]).trim();
-            } else if (lowerKey.includes('precio') || lowerKey.includes('price') || lowerKey.includes('costo')) {
-              normalized.price = row[key];
-            } else if (lowerKey.includes('cantidad') || lowerKey.includes('quantity') || lowerKey.includes('stock')) {
-              normalized.cantidad = row[key];
-            } else {
-              normalized[key] = row[key];
-            }
-          });
-          return normalized;
-        }).filter(prod => prod.code || prod.name);
-      } else {
-        // ❌ PDF/DOCX requieren edge function (solo funciona online)
-        if (!isOnline) {
-          toast.error('No puedes importar PDFs/DOCX sin conexión. Usa archivos Excel o CSV.');
-          return;
-        }
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-        console.log('📄 Procesando PDF/DOCX con edge function...');
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("supplierId", supplierId);
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-document`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: formData,
+      });
 
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-document`, {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.access_token}`,
-          },
-          body: formData,
-        });
-
-        if (!response.ok) {
-          throw new Error("Error al procesar el documento");
-        }
-
-        const result = await response.json();
-        productos = result.productos || [];
+      if (!response.ok) {
+        throw new Error("Error al procesar el documento");
       }
+
+      const result = await response.json();
+      const productos = result.productos || [];
 
       if (productos.length === 0) {
         toast.error("No se encontraron productos válidos en el archivo");

@@ -183,9 +183,9 @@ export function ProductCardView({
 
                     // Resto de campos: mismo diseño genérico que en /stock
                     return (
-                      <div key={field.key} className="text-sm border-b pb-1 flex gap-2 items-center">
+                      <div key={field.key} className="text-sm border-b pb-1 flex gap-1">
                         <span className="text-muted-foreground">{field.label}:</span>{" "}
-                        <span className="font-medium min-w-20">{displayValue}</span>
+                        <span className="font-medium">{displayValue}</span>
                       </div>
                     );
                   })}
