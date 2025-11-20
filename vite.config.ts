@@ -60,6 +60,7 @@ export default defineConfig(({ mode }) => ({
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2}"],
         navigateFallback: "/index.html",
         navigateFallbackDenylist: [/^\/api/, /^\/auth/],
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4MB limit
         runtimeCaching: [
           {
             urlPattern: ({ request }) => request.mode === "navigate",
