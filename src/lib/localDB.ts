@@ -374,6 +374,13 @@ export async function queueOperation(
   console.log(`📝 Operación encolada: ${operationType} en ${tableName}`);
 }
 
+// ✅ Callback para notificar cuando se completa la sincronización
+export let onSyncCompleted: (() => void) | null = null;
+
+export function setOnSyncCompletedCallback(callback: (() => void) | null) {
+  onSyncCompleted = callback;
+}
+
 export async function syncPendingOperations(): Promise<void> {
   if (!isOnline()) {
     console.warn('⚠️ No hay conexión. No se pueden sincronizar operaciones pendientes');
@@ -432,6 +439,12 @@ export async function syncPendingOperations(): Promise<void> {
   
   if (errorCount > 0) {
     toast.error(`${errorCount} operaciones fallaron`);
+  }
+  
+  // ✅ Notificar que la sincronización terminó
+  if (onSyncCompleted) {
+    console.log('♻️ Ejecutando callback de sincronización completada');
+    onSyncCompleted();
   }
 }
 
