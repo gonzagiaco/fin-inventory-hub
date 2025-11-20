@@ -8,7 +8,7 @@ interface HeaderProps {
 
 const Header = ({ title, subtitle, showSearch = true }: HeaderProps) => {
   return (
-    <header className="py-6 lg:py-0 mb-8">
+    <header className="mb-8">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold text-foreground">{title}</h1>
