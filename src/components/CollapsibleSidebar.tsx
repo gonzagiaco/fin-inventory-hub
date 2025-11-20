@@ -79,7 +79,7 @@ const CollapsibleSidebar = () => {
       <aside
         className={`
           fixed lg:sticky top-0 lg:safe-top-fixed right-0 lg:left-0 lg:right-auto min-h-[100dvh] lg:h-screen bg-background/70 backdrop-blur-xl border-l lg:border-r border-primary/20 
-          flex flex-col p-6 z-50 transition-all duration-300
+          flex flex-col p-6 z-40 transition-all duration-300
           ${
             isMobileOpen
               ? "translate-x-0"

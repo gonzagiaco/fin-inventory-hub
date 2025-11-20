@@ -50,6 +50,18 @@ export const DynamicProductTable = ({
   const [globalFilter, setGlobalFilter] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
 
+  // Estado compartido de ordenamiento para cards
+  const sortColumn = sorting.length > 0 ? sorting[0].id : null;
+  const sortDirection = sorting.length > 0 ? (sorting[0].desc ? 'desc' : 'asc') : null;
+
+  const handleSortChange = (columnKey: string | null, direction: 'asc' | 'desc' | null) => {
+    if (columnKey === null || direction === null) {
+      setSorting([]);
+    } else {
+      setSorting([{ id: columnKey, desc: direction === 'desc' }]);
+    }
+  };
+
   const isMobile = useIsMobile();
 
   // Store (orden/visibilidad + modo de vista)
@@ -273,6 +285,9 @@ export const DynamicProductTable = ({
           onLoadMore={onLoadMore}
           hasMore={hasMore}
           isLoadingMore={isLoadingMore}
+          sortColumn={sortColumn}
+          sortDirection={sortDirection}
+          onSortChange={handleSortChange}
         />
       ) : (
         <div className="w-full border rounded-lg overflow-hidden">
