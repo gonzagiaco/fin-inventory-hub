@@ -3,7 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { Supplier } from "@/types";
 import { toast } from "sonner";
 import { useOnlineStatus } from "./useOnlineStatus";
-import { createSupplierOffline, updateSupplierOffline, deleteSupplierOffline, getOfflineData, syncFromSupabase } from "@/lib/localDB";
+import {
+  createSupplierOffline,
+  updateSupplierOffline,
+  deleteSupplierOffline,
+  getOfflineData,
+  syncFromSupabase,
+} from "@/lib/localDB";
 
 export function useSuppliers() {
   const queryClient = useQueryClient();
@@ -61,6 +67,11 @@ export function useSuppliers() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      try {
+        await syncFromSupabase();
+      } catch (error) {
+        console.error("Error al sincronizar después de crear proveedor:", error);
+      }
       toast.success(isOnline ? "Proveedor creado exitosamente" : "Proveedor creado (se sincronizará al conectar)");
     },
     onError: (error: any) => {
@@ -90,14 +101,14 @@ export function useSuppliers() {
     },
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      
+
       // Sincronizar desde Supabase
       try {
         await syncFromSupabase();
       } catch (error) {
-        console.error('Error al sincronizar después de actualizar proveedor:', error);
+        console.error("Error al sincronizar después de actualizar proveedor:", error);
       }
-      
+
       toast.success(
         isOnline ? "Proveedor actualizado exitosamente" : "Proveedor actualizado (se sincronizará al conectar)",
       );
@@ -119,14 +130,14 @@ export function useSuppliers() {
     },
     onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      
+
       // Sincronizar desde Supabase
       try {
         await syncFromSupabase();
       } catch (error) {
-        console.error('Error al sincronizar después de eliminar proveedor:', error);
+        console.error("Error al sincronizar después de eliminar proveedor:", error);
       }
-      
+
       toast.success(
         isOnline ? "Proveedor eliminado exitosamente" : "Proveedor eliminado (se sincronizará al conectar)",
       );
