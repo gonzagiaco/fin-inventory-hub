@@ -107,7 +107,6 @@ export function SupplierStockSection({ supplierName, supplierLogo, lists, onAddT
                               queryClient.invalidateQueries({
                                 queryKey: ["product-lists-index"],
                               });
-                              toast.success("Mapeo guardado e índice actualizado");
                             }}
                           />
                         </DialogContent>

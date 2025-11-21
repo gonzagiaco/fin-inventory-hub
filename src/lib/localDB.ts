@@ -382,10 +382,10 @@ export async function syncFromSupabase(): Promise<void> {
     }
 
     console.log("✅ Sincronización completa desde Supabase");
-    const totalItems = (suppliers?.length || 0) + (productLists?.length || 0) + (productsIndex?.length || 0);
-    if (totalItems > 0) {
-      toast.success(`${totalItems} elementos sincronizados para uso offline`);
-    }
+    // const totalItems = (suppliers?.length || 0) + (productLists?.length || 0) + (productsIndex?.length || 0);
+    // if (totalItems > 0) {
+    //   toast.success(`${totalItems} elementos sincronizados para uso offline`);
+    // }
   } catch (error) {
     console.error("❌ Error al sincronizar desde Supabase:", error);
     toast.error("Error al sincronizar datos");
@@ -741,6 +741,95 @@ export async function deleteProductListOffline(listId: string): Promise<void> {
   await queueOperation("product_lists", "DELETE", listId, {});
 }
 
+// Helpers para sincronización puntual de listas de productos
+export async function upsertProductListLocalRecord(
+  list: Pick<ProductListDB, "id"> & Partial<Omit<ProductListDB, "id">>,
+): Promise<void> {
+  const existing = await localDB.product_lists.get(list.id);
+  if (!existing && (!list.user_id || !list.supplier_id || !list.name)) {
+    throw new Error("Datos insuficientes para crear la lista localmente");
+  }
+
+  const now = new Date().toISOString();
+  const record: ProductListDB = {
+    id: list.id,
+    user_id: list.user_id || existing?.user_id || "",
+    supplier_id: list.supplier_id || existing?.supplier_id || "",
+    name: list.name ?? existing?.name ?? "",
+    file_name: list.file_name ?? existing?.file_name ?? "",
+    file_type: list.file_type ?? existing?.file_type ?? "",
+    product_count: list.product_count ?? existing?.product_count ?? 0,
+    column_schema: list.column_schema ?? existing?.column_schema ?? [],
+    mapping_config: list.mapping_config ?? existing?.mapping_config,
+    created_at: list.created_at || existing?.created_at || now,
+    updated_at: list.updated_at || now,
+  };
+
+  await localDB.product_lists.put(record);
+}
+
+export async function deleteProductListLocalRecord(listId: string): Promise<void> {
+  await localDB.product_lists.delete(listId);
+  await localDB.dynamic_products.where("list_id").equals(listId).delete();
+  await localDB.dynamic_products_index.where("list_id").equals(listId).delete();
+}
+
+export async function replaceListProductsLocalData(
+  listId: string,
+  products: DynamicProductDB[] = [],
+  indexEntries: DynamicProductIndexDB[] = [],
+): Promise<void> {
+  await localDB.dynamic_products.where("list_id").equals(listId).delete();
+  if (products.length > 0) {
+    await localDB.dynamic_products.bulkAdd(products);
+  }
+
+  await localDB.dynamic_products_index.where("list_id").equals(listId).delete();
+  if (indexEntries.length > 0) {
+    await localDB.dynamic_products_index.bulkAdd(indexEntries);
+  }
+}
+
+export async function syncProductListById(listId: string): Promise<void> {
+  if (!isOnline()) {
+    console.warn("⚠️ Sin conexión. No se puede sincronizar la lista", listId);
+    return;
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Usuario no autenticado");
+
+  const { data: listData, error: listError } = await supabase
+    .from("product_lists")
+    .select("*")
+    .eq("id", listId)
+    .maybeSingle();
+  if (listError) throw listError;
+
+  if (!listData) {
+    await deleteProductListLocalRecord(listId);
+    return;
+  }
+
+  await upsertProductListLocalRecord(listData as ProductListDB);
+
+  const { data: productsData, error: productsError } = await supabase
+    .from("dynamic_products")
+    .select("*")
+    .eq("list_id", listId);
+  if (productsError) throw productsError;
+
+  const { data: indexData, error: indexError } = await supabase
+    .from("dynamic_products_index")
+    .select("*")
+    .eq("list_id", listId);
+  if (indexError) throw indexError;
+
+  await replaceListProductsLocalData(listId, (productsData as DynamicProductDB[]) || [], (indexData as DynamicProductIndexDB[]) || []);
+}
+
 export async function updateSupplierOffline(id: string, updates: Partial<SupplierDB>): Promise<void> {
   const existing = await localDB.suppliers.get(id);
   if (!existing) throw new Error("Proveedor no encontrado");
@@ -758,6 +847,29 @@ export async function updateSupplierOffline(id: string, updates: Partial<Supplie
 export async function deleteSupplierOffline(id: string): Promise<void> {
   await localDB.suppliers.delete(id);
   await queueOperation("suppliers", "DELETE", id, {});
+}
+
+// Helpers para sincronizar proveedores específicos cuando hay conexión
+export async function upsertSupplierLocalRecord(
+  supplier: Pick<SupplierDB, "id" | "name"> & Partial<Pick<SupplierDB, "logo_url" | "user_id" | "created_at" | "updated_at">>,
+): Promise<void> {
+  const now = new Date().toISOString();
+  const existing = await localDB.suppliers.get(supplier.id);
+
+  const record: SupplierDB = {
+    id: supplier.id,
+    user_id: supplier.user_id || existing?.user_id || "",
+    name: supplier.name || existing?.name || "",
+    logo_url: supplier.logo_url ?? existing?.logo_url,
+    created_at: supplier.created_at || existing?.created_at || now,
+    updated_at: supplier.updated_at || now,
+  };
+
+  await localDB.suppliers.put(record);
+}
+
+export async function deleteSupplierLocalRecord(id: string): Promise<void> {
+  await localDB.suppliers.delete(id);
 }
 
 // DELIVERY NOTES

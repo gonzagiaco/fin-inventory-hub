@@ -109,6 +109,24 @@ All colors MUST be HSL.
     @apply dark;
   }
 
+  /* Custom scrollbar colors */
+  * {
+    scrollbar-color: #7588eb #0f1729;
+  }
+
+  /* For Webkit browsers (Chrome, Safari, Edge) */
+  *::-webkit-scrollbar-track {
+    background: #0f1729;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background-color: #7588eb;
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background-color: #8a9bff;
+  }
+
   /* Apply zoom/gesture restrictions only on touch devices */
   @media (hover: none) and (pointer: coarse) {
     html, body {

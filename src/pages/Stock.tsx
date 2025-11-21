@@ -370,7 +370,7 @@ export default function Stock() {
               </div>
               <p className="text-muted-foreground">Cargando listas...</p>
             </div>
-          ) : searchTerm.trim().length >= 3 ||
+          ) : searchTerm.trim().length >= 1 ||
             (searchTerm === "" && supplierFilter !== "all") ? (
             <GlobalProductSearch
               searchTerm={searchTerm}

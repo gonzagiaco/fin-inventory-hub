@@ -8,12 +8,45 @@ import {
   updateSupplierOffline,
   deleteSupplierOffline,
   getOfflineData,
-  syncFromSupabase,
+  upsertSupplierLocalRecord,
+  deleteSupplierLocalRecord,
+  deleteProductListLocalRecord,
 } from "@/lib/localDB";
 
 export function useSuppliers() {
   const queryClient = useQueryClient();
   const isOnline = useOnlineStatus();
+  const mapSupplierToLocalRecord = (supplierData: any) => {
+    if (!supplierData) return null;
+    return {
+      id: supplierData.id,
+      name: supplierData.name,
+      logo_url: supplierData.logo_url ?? supplierData.logo ?? null,
+      user_id: supplierData.user_id,
+      created_at: supplierData.created_at,
+      updated_at: supplierData.updated_at,
+    };
+  };
+
+  const removeSupplierLocalLists = async (supplierId: string) => {
+    try {
+      const offlineLists = (await getOfflineData("product_lists")) as Array<{
+        id: string;
+        supplier_id?: string;
+      }>;
+
+      const supplierLists = offlineLists.filter((list) => list.supplier_id === supplierId);
+      if (supplierLists.length === 0) {
+        return;
+      }
+
+      for (const list of supplierLists) {
+        await deleteProductListLocalRecord(list.id);
+      }
+    } catch (error) {
+      console.error("Error al eliminar listas locales del proveedor:", error);
+    }
+  };
 
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["suppliers", isOnline],
@@ -65,12 +98,17 @@ export function useSuppliers() {
       if (error) throw error;
       return data;
     },
-    onSuccess: async () => {
+    onSuccess: async (createdSupplier) => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      try {
-        await syncFromSupabase();
-      } catch (error) {
-        console.error("Error al sincronizar después de crear proveedor:", error);
+      if (isOnline && createdSupplier) {
+        try {
+          const record = mapSupplierToLocalRecord(createdSupplier);
+          if (record) {
+            await upsertSupplierLocalRecord(record);
+          }
+        } catch (error) {
+          console.error("Error al sincronizar proveedor localmente después de crear:", error);
+        }
       }
       toast.success(isOnline ? "Proveedor creado exitosamente" : "Proveedor creado (se sincronizará al conectar)");
     },
@@ -86,29 +124,34 @@ export function useSuppliers() {
           name: updates.name,
           logo_url: updates.logo,
         });
-        return;
+        return { id, ...updates };
       }
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("suppliers")
         .update({
           name: updates.name,
           logo_url: updates.logo,
         })
-        .eq("id", id);
+        .eq("id", id)
+        .select()
+        .single();
 
       if (error) throw error;
+      return data;
     },
-    onSuccess: async () => {
+    onSuccess: async (updatedSupplier) => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-
-      // Sincronizar desde Supabase
-      try {
-        await syncFromSupabase();
-      } catch (error) {
-        console.error("Error al sincronizar después de actualizar proveedor:", error);
+      if (isOnline && updatedSupplier) {
+        try {
+          const record = mapSupplierToLocalRecord(updatedSupplier);
+          if (record) {
+            await upsertSupplierLocalRecord(record);
+          }
+        } catch (error) {
+          console.error("Error al sincronizar proveedor localmente después de actualizar:", error);
+        }
       }
-
       toast.success(
         isOnline ? "Proveedor actualizado exitosamente" : "Proveedor actualizado (se sincronizará al conectar)",
       );
@@ -128,16 +171,18 @@ export function useSuppliers() {
       const { error } = await supabase.from("suppliers").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, id) => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-
-      // Sincronizar desde Supabase
-      try {
-        await syncFromSupabase();
-      } catch (error) {
-        console.error("Error al sincronizar después de eliminar proveedor:", error);
+      if (id) {
+        try {
+          await removeSupplierLocalLists(id);
+          if (isOnline) {
+            await deleteSupplierLocalRecord(id);
+          }
+        } catch (error) {
+          console.error("Error al sincronizar datos locales después de eliminar proveedor:", error);
+        }
       }
-
       toast.success(
         isOnline ? "Proveedor eliminado exitosamente" : "Proveedor eliminado (se sincronizará al conectar)",
       );

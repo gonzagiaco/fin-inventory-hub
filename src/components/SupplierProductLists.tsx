@@ -39,14 +39,14 @@ const SupplierListProducts = ({
   columnSchema,
   mappingConfig,
   onAddToRequest,
+  onMappingDialogChange,
 }: {
   listId: string;
   columnSchema: ColumnSchema[];
   mappingConfig?: ProductList["mapping_config"];
   onAddToRequest?: (product: DynamicProduct) => void;
+  onMappingDialogChange?: (isOpen: boolean, listId: string | null) => void;
 }) => {
-  const [listToMap, setListToMap] = useState<string | null>(null);
-  const [showDialog, setShowDialog] = useState(false);
   const queryClient = useQueryClient();
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useListProducts(listId);
 
@@ -76,43 +76,10 @@ const SupplierListProducts = ({
     return (
       <div className="p-6 text-center border-t">
         <p className="text-muted-foreground mb-4">Esta lista no ha sido configurada aún</p>
-        <Dialog open={showDialog} onOpenChange={setShowDialog}>
-          <DialogTrigger asChild>
-            <Button onClick={() => setListToMap(listId)}>
-              <Settings className="w-4 h-4 mr-2" />
-              Configurar lista
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Configuración de lista</DialogTitle>
-            </DialogHeader>
-            <ColumnMappingWizard
-              listId={listId}
-              onSaved={() => {
-                setListToMap(null);
-                setShowDialog(false);
-                // Refrescar datos inmediatamente:
-                // 1) Resetear todas las queries de la lista (cubre online/offline/q)
-                queryClient.resetQueries({
-                  queryKey: ["list-products", listId],
-                  exact: false,
-                });
-                // 2) Invalidar las listas para que el padre reciba el mapping_config actualizado
-                queryClient.invalidateQueries({
-                  queryKey: ["product-lists"],
-                  refetchType: "all",
-                });
-                // 3) Mantener invalidación del índice por compatibilidad con otras vistas
-                queryClient.invalidateQueries({
-                  queryKey: ["product-lists-index"],
-                  refetchType: "all",
-                });
-                toast.success("Configuración guardada e índice actualizado");
-              }}
-            />
-          </DialogContent>
-        </Dialog>
+        <Button onClick={() => onMappingDialogChange?.(true, listId)}>
+          <Settings className="w-4 h-4 mr-2" />
+          Configurar lista
+        </Button>
       </div>
     );
   }
@@ -139,6 +106,7 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
   const isMobile = useIsMobile();
   const [listToDelete, setListToDelete] = useState<string | null>(null);
   const [listToMap, setListToMap] = useState<string | null>(null);
+  const [isMappingDialogOpen, setIsMappingDialogOpen] = useState(false);
   const [similarWarning, setSimilarWarning] = useState<string | null>(null);
   const [pendingUpload, setPendingUpload] = useState<{
     fileName: string;
@@ -150,6 +118,11 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
 
   const { productLists, isLoading, createList, deleteList, updateList, findSimilarList } = useProductLists(supplierId);
   const { collapsedLists, toggleListCollapse } = useProductListStore();
+
+  const handleOpenMappingDialog = (targetListId: string) => {
+    setListToMap(targetListId);
+    setIsMappingDialogOpen(true);
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -540,7 +513,7 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setListToMap(list.id);
+                          handleOpenMappingDialog(list.id);
                         }}
                       >
                         <Settings className="w-4 h-4 mr-1" />
@@ -566,6 +539,14 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
                       listId={list.id}
                       columnSchema={list.columnSchema}
                       mappingConfig={list.mapping_config}
+                      onMappingDialogChange={(isOpen, listId) => {
+                        if (isOpen && listId) {
+                          handleOpenMappingDialog(listId);
+                        } else {
+                          setIsMappingDialogOpen(false);
+                          setListToMap(null);
+                        }
+                      }}
                     />
                   </CardContent>
                 )}
@@ -586,7 +567,15 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
       />
 
       {/* Mapping Wizard Dialog */}
-      <Dialog open={!!listToMap} onOpenChange={(open) => !open && setListToMap(null)}>
+      <Dialog
+        open={isMappingDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsMappingDialogOpen(false);
+            setListToMap(null);
+          }
+        }}
+      >
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Configuración de lista</DialogTitle>
@@ -595,6 +584,8 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
             <ColumnMappingWizard
               listId={listToMap}
               onSaved={() => {
+                const currentListId = listToMap;
+                setIsMappingDialogOpen(false);
                 setListToMap(null);
                 // Refrescar datos en esta vista inmediatamente
                 queryClient.invalidateQueries({
@@ -602,11 +593,12 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
                   refetchType: "all",
                 });
                 // Resetear queries de productos de esa lista (online/offline/q)
-                queryClient.resetQueries({
-                  queryKey: ["list-products", listToMap],
-                  exact: false,
-                });
-                toast.success("Configuración guardada e índice actualizado");
+                if (currentListId) {
+                  queryClient.resetQueries({
+                    queryKey: ["list-products", currentListId],
+                    exact: false,
+                  });
+                }
               }}
             />
           )}

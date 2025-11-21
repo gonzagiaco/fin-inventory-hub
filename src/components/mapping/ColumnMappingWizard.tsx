@@ -299,8 +299,8 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
         <div className="space-y-2">
           <Label>Campos de Código (múltiples variantes)</Label>
           <p className="text-xs text-muted-foreground">
-            Selecciona todas las columnas que pueden contener el código del producto. El sistema usará la primera que
-            tenga datos.
+            Selecciona todas las columnas que pueden contener el código del
+            producto. El sistema usará la primera que tenga datos.
           </p>
           <ScrollArea className="h-[120px] border rounded-md p-2">
             <div className="space-y-2">
@@ -312,7 +312,9 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
                     onCheckedChange={(checked) => {
                       setMap((prev) => ({
                         ...prev,
-                        code_keys: checked ? [...prev.code_keys, key] : prev.code_keys.filter((k) => k !== key),
+                        code_keys: checked
+                          ? [...prev.code_keys, key]
+                          : prev.code_keys.filter((k) => k !== key),
                       }));
                     }}
                     disabled={isSaving}
@@ -329,7 +331,9 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
           </ScrollArea>
           <p className="text-xs text-muted-foreground">
             {map.code_keys.length > 0
-              ? `✓ ${map.code_keys.length} campo(s) seleccionado(s): ${map.code_keys.join(", ")}`
+              ? `✓ ${
+                  map.code_keys.length
+                } campo(s) seleccionado(s): ${map.code_keys.join(", ")}`
               : "⚠️ No hay campos seleccionados"}
           </p>
         </div>
@@ -337,8 +341,8 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
         <div className="space-y-2">
           <Label>Campos de Nombre/Descripción (múltiples variantes)</Label>
           <p className="text-xs text-muted-foreground">
-            Selecciona todas las columnas que pueden contener el nombre o descripción. El sistema usará la primera que
-            tenga datos.
+            Selecciona todas las columnas que pueden contener el nombre o
+            descripción. El sistema usará la primera que tenga datos.
           </p>
           <ScrollArea className="h-[120px] border rounded-md p-2">
             <div className="space-y-2">
@@ -350,7 +354,9 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
                     onCheckedChange={(checked) => {
                       setMap((prev) => ({
                         ...prev,
-                        name_keys: checked ? [...prev.name_keys, key] : prev.name_keys.filter((k) => k !== key),
+                        name_keys: checked
+                          ? [...prev.name_keys, key]
+                          : prev.name_keys.filter((k) => k !== key),
                       }));
                     }}
                     disabled={isSaving}
@@ -367,7 +373,9 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
           </ScrollArea>
           <p className="text-xs text-muted-foreground">
             {map.name_keys.length > 0
-              ? `✓ ${map.name_keys.length} campo(s) seleccionado(s): ${map.name_keys.join(", ")}`
+              ? `✓ ${
+                  map.name_keys.length
+                } campo(s) seleccionado(s): ${map.name_keys.join(", ")}`
               : "⚠️ No hay campos seleccionados"}
           </p>
         </div>
@@ -396,6 +404,58 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
               ))}
             </SelectContent>
           </Select>
+          <div className="space-y-2">
+            <Label>Columnas adicionales de precio</Label>
+            <p className="text-xs text-muted-foreground">
+              Se formatearán igual que el precio principal (parseo y símbolo $).
+            </p>
+            <ScrollArea className="h-40 border rounded-md p-3">
+              {keys
+                .filter(
+                  (key) => isNumericColumn(key) && key !== map.price_primary_key
+                )
+                .map((columnKey) => {
+                  const isChecked = map.price_alt_keys.includes(columnKey);
+                  return (
+                    <div
+                      key={columnKey}
+                      className="flex items-center gap-2 py-1.5"
+                    >
+                      <Checkbox
+                        id={`price-alt-${columnKey}`}
+                        checked={isChecked}
+                        onCheckedChange={(checked) => {
+                          setMap((prev) => {
+                            const next = checked
+                              ? Array.from(
+                                  new Set([
+                                    ...(prev.price_alt_keys ?? []),
+                                    columnKey,
+                                  ])
+                                )
+                              : (prev.price_alt_keys ?? []).filter(
+                                  (k) => k !== columnKey
+                                );
+                            return { ...prev, price_alt_keys: next };
+                          });
+                        }}
+                      />
+                      <label
+                        htmlFor={`price-alt-${columnKey}`}
+                        className="text-sm leading-none cursor-pointer"
+                      >
+                        {columnKey}
+                      </label>
+                    </div>
+                  );
+                })}
+            </ScrollArea>
+            <p className="text-xs text-muted-foreground">
+              {map.price_alt_keys.length > 0
+                ? `✓ ${map.price_alt_keys.length} columna(s) marcada(s)`
+                : "No hay columnas adicionales seleccionadas"}
+            </p>
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -537,7 +597,9 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
                   <Input
                     type="number"
                     value={
-                      map.price_modifiers.overrides[columnKey].vat_rate ?? map.price_modifiers?.general.vat_rate ?? 21
+                      map.price_modifiers.overrides[columnKey].vat_rate ??
+                      map.price_modifiers?.general.vat_rate ??
+                      21
                     }
                     onChange={(e) => {
                       const rate = parseFloat(e.target.value) || 0;
@@ -567,9 +629,12 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
       {/* Conversión de Dólar a Pesos */}
       <div className="space-y-4 p-4 border rounded-lg bg-muted/30">
         <div className="space-y-2">
-          <Label className="text-base font-semibold">Conversión de Dólar a Pesos</Label>
+          <Label className="text-base font-semibold">
+            Conversión de Dólar a Pesos
+          </Label>
           <p className="text-sm text-muted-foreground">
-            Si tus precios están en dólares, selecciona las columnas a convertir usando el valor oficial.
+            Si tus precios están en dólares, selecciona las columnas a convertir
+            usando el valor oficial.
           </p>
         </div>
 
@@ -581,14 +646,19 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
                 <DollarSign className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Dólar Oficial</p>
+                <p className="text-sm font-medium text-muted-foreground">
+                  Dólar Oficial
+                </p>
                 {loadingDollar ? (
                   <p className="text-lg font-bold">Cargando...</p>
                 ) : officialDollar ? (
                   <>
-                    <p className="text-2xl font-bold text-primary">${officialDollar.rate.toFixed(2)}</p>
+                    <p className="text-2xl font-bold text-primary">
+                      ${officialDollar.rate.toFixed(2)}
+                    </p>
                     <p className="text-xs text-muted-foreground">
-                      Actualizado: {formatArgentinaTime(officialDollar.updatedAt)}
+                      Actualizado:{" "}
+                      {formatArgentinaTime(officialDollar.updatedAt)}
                     </p>
                   </>
                 ) : (
@@ -603,7 +673,9 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
               onClick={() => handleRefetchDollar()}
               disabled={loadingDollar}
             >
-              <RefreshCw className={`h-4 w-4 ${loadingDollar ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`h-4 w-4 ${loadingDollar ? "animate-spin" : ""}`}
+              />
             </Button>
           </div>
 
@@ -611,9 +683,10 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
             <Info className="h-4 w-4" />
             <AlertTitle>Conversión Automática</AlertTitle>
             <AlertDescription>
-              El valor del dólar se actualiza automáticamente todos los días a las 6:00 AM. Puedes actualizarlo
-              manualmente pulsando el ícono situado a la derecha del contenedor. Este valor se aplicará a todas las
-              columnas seleccionadas abajo.
+              El valor del dólar se actualiza automáticamente todos los días a
+              las 6:00 AM. Puedes actualizarlo manualmente pulsando el ícono
+              situado a la derecha del contenedor. Este valor se aplicará a
+              todas las columnas seleccionadas abajo.
             </AlertDescription>
           </Alert>
         </div>
@@ -623,13 +696,15 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
           <div className="space-y-3">
             <Label>Columnas a convertir de USD a ARS</Label>
             <p className="text-xs text-muted-foreground">
-              Se multiplicarán por el valor oficial: ${officialDollar.rate.toFixed(2)}
+              Se multiplicarán por el valor oficial: $
+              {officialDollar.rate.toFixed(2)}
             </p>
             <ScrollArea className="h-[200px] border rounded-md p-3">
               {keys
                 .filter((k) => isNumericColumn(k))
                 .map((key) => {
-                  const isSelected = map.dollar_conversion?.target_columns.includes(key);
+                  const isSelected =
+                    map.dollar_conversion?.target_columns.includes(key);
                   return (
                     <div key={key} className="flex items-center space-x-2 py-2">
                       <Checkbox
@@ -637,8 +712,11 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
                         checked={isSelected}
                         onCheckedChange={(checked) => {
                           setMap((prev) => {
-                            const current = prev.dollar_conversion?.target_columns || [];
-                            const updated = checked ? [...current, key] : current.filter((k) => k !== key);
+                            const current =
+                              prev.dollar_conversion?.target_columns || [];
+                            const updated = checked
+                              ? [...current, key]
+                              : current.filter((k) => k !== key);
                             return {
                               ...prev,
                               dollar_conversion: {
@@ -648,7 +726,10 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
                           });
                         }}
                       />
-                      <label htmlFor={`dollar-col-${key}`} className="text-sm font-medium cursor-pointer">
+                      <label
+                        htmlFor={`dollar-col-${key}`}
+                        className="text-sm font-medium cursor-pointer"
+                      >
                         {key}
                       </label>
                     </div>
@@ -657,7 +738,8 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
             </ScrollArea>
             {map.dollar_conversion?.target_columns.length > 0 && (
               <p className="text-xs text-success font-medium">
-                ✓ {map.dollar_conversion.target_columns.length} columna(s) seleccionada(s)
+                ✓ {map.dollar_conversion.target_columns.length} columna(s)
+                seleccionada(s)
               </p>
             )}
           </div>
@@ -669,8 +751,9 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Conversión no disponible</AlertTitle>
             <AlertDescription>
-              El valor del dólar oficial aún no está configurado en el sistema. La conversión automática estará
-              disponible una vez que se actualice el valor.
+              El valor del dólar oficial aún no está configurado en el sistema.
+              La conversión automática estará disponible una vez que se
+              actualice el valor.
             </AlertDescription>
           </Alert>
         )}
@@ -706,16 +789,21 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
           }}
         />
         <p className="text-xs text-muted-foreground">
-          Los productos con cantidad menor a este valor se marcarán como "Bajo Stock" (por defecto: 0)
+          Los productos con cantidad menor a este valor se marcarán como "Bajo
+          Stock" (por defecto: 0)
         </p>
       </div>
 
       {/* Columna de precio para carrito */}
       <div className="space-y-2">
-        <Label className="font-semibold text-foreground">Columna de precio para carrito de pedidos</Label>
+        <Label className="font-semibold text-foreground">
+          Columna de precio para carrito de pedidos
+        </Label>
         <Select
           value={map.cart_price_column || ""}
-          onValueChange={(value) => setMap({ ...map, cart_price_column: value || null })}
+          onValueChange={(value) =>
+            setMap({ ...map, cart_price_column: value || null })
+          }
         >
           <SelectTrigger className="bg-muted/50 border-primary/20 text-foreground">
             <SelectValue placeholder="Selecciona la columna de precio" />
@@ -759,15 +847,6 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
           )}
         </Button>
       </div>
-
-      {sample.length > 0 && (
-        <details className="rounded-lg border bg-muted/50 p-4">
-          <summary className="text-xs font-medium cursor-pointer">
-            Vista previa de datos (primeras {sample.length} filas)
-          </summary>
-          <pre className="mt-3 max-h-64 overflow-auto text-xs">{JSON.stringify(sample, null, 2)}</pre>
-        </details>
-      )}
     </div>
   );
 }

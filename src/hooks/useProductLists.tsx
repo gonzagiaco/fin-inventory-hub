@@ -9,8 +9,8 @@ import {
   createProductListOffline,
   updateProductListOffline,
   deleteProductListOffline,
-  localDB,
-  syncFromSupabase,
+  deleteProductListLocalRecord,
+  syncProductListById,
 } from "@/lib/localDB";
 
 // Helper function to extract name from product data when index is missing it
@@ -241,13 +241,15 @@ export const useProductLists = (supplierId?: string) => {
 
       return listData;
     },
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       queryClient.invalidateQueries({ queryKey: ["product-lists"] });
       queryClient.invalidateQueries({ queryKey: ["dynamic-products"] });
-      try {
-        await syncFromSupabase();
-      } catch (error) {
-        console.error("Error al sincronizar después de crear lista:", error);
+      if (isOnline && result?.id) {
+        try {
+          await syncProductListById(result.id);
+        } catch (error) {
+          console.error("Error al sincronizar lista recién creada:", error);
+        }
       }
       toast.success(
         isOnline ? "Lista de productos importada exitosamente" : "Lista creada (se sincronizará al conectar)",
@@ -271,17 +273,7 @@ export const useProductLists = (supplierId?: string) => {
         const { error } = await supabase.from("product_lists").delete().eq("id", listId);
         if (error) throw error;
 
-        console.log("🗑️ Lista eliminada de Supabase, limpiando IndexedDB...");
-
-        // ✅ Limpiar IndexedDB inmediatamente (solución híbrida)
-        await localDB.product_lists.delete(listId);
-        console.log("✅ product_lists limpiado");
-
-        await localDB.dynamic_products.where("list_id").equals(listId).delete();
-        console.log("✅ dynamic_products limpiado");
-
-        await localDB.dynamic_products_index.where("list_id").equals(listId).delete();
-        console.log("✅ dynamic_products_index limpiado");
+        await deleteProductListLocalRecord(listId);
       } catch (error: any) {
         console.error("❌ Error al eliminar lista:", error);
         throw error;
@@ -310,13 +302,6 @@ export const useProductLists = (supplierId?: string) => {
         queryKey: ["product-lists-index"],
         refetchType: "all",
       });
-
-      // Sincronizar desde Supabase
-      try {
-        await syncFromSupabase();
-      } catch (error) {
-        console.error("Error al sincronizar después de eliminar lista:", error);
-      }
 
       toast.success(isOnline ? "Lista eliminada exitosamente" : "Lista eliminada (se sincronizará al conectar)");
     },
@@ -358,11 +343,12 @@ export const useProductLists = (supplierId?: string) => {
         refetchType: "all",
       });
 
-      // Sincronizar desde Supabase
-      try {
-        await syncFromSupabase();
-      } catch (error) {
-        console.error("Error al sincronizar después de actualizar schema:", error);
+      if (isOnline) {
+        try {
+          await syncProductListById(listId);
+        } catch (error) {
+          console.error("Error al sincronizar la lista tras actualizar el esquema:", error);
+        }
       }
 
       toast.success("Esquema de columnas actualizado");
@@ -474,22 +460,6 @@ export const useProductLists = (supplierId?: string) => {
         throw new Error("Error al verificar productos guardados");
       }
 
-      // 3. ✅ AHORA SÍ: Sincronizar IndexedDB (eliminar datos viejos)
-      await localDB.dynamic_products.where("list_id").equals(listId).delete();
-      await localDB.dynamic_products_index.where("list_id").equals(listId).delete();
-
-      // 4. Sincronizar IndexedDB: recargar desde Supabase
-      const { data: productsData } = await supabase.from("dynamic_products").select("*").eq("list_id", listId);
-
-      const { data: indexData } = await supabase.from("dynamic_products_index").select("*").eq("list_id", listId);
-
-      if (productsData) {
-        await localDB.dynamic_products.bulkAdd(productsData);
-      }
-
-      if (indexData) {
-        await localDB.dynamic_products_index.bulkAdd(indexData);
-      }
     },
     onSuccess: async (_, variables) => {
       const { listId } = variables;
@@ -517,11 +487,12 @@ export const useProductLists = (supplierId?: string) => {
         refetchType: "all",
       });
 
-      // Sincronizar desde Supabase
-      try {
-        await syncFromSupabase();
-      } catch (error) {
-        console.error("Error al sincronizar después de actualizar lista:", error);
+      if (isOnline) {
+        try {
+          await syncProductListById(listId);
+        } catch (error) {
+          console.error("Error al sincronizar la lista actualizada:", error);
+        }
       }
 
       toast.success(isOnline ? "Lista actualizada exitosamente" : "Lista actualizada (se sincronizará al conectar)");
