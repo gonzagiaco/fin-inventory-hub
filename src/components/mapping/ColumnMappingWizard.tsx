@@ -10,6 +10,7 @@ import { Loader2, RefreshCw, DollarSign, Info, AlertCircle } from "lucide-react"
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { Input } from "../ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { syncFromSupabase } from "@/lib/localDB";
 
 // Helper para convertir a zona horaria de Argentina
 function formatArgentinaTime(dateString: string): string {
@@ -259,6 +260,12 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
         queryKey: ["list-products", listId],
         exact: false,
       });
+
+      try {
+        await syncFromSupabase();
+      } catch (error) {
+        console.error("Error al sincronizar después de guardar mapeo:", error);
+      }
 
       toast.success("Configuración guardada e índice actualizado correctamente");
       onSaved?.();
