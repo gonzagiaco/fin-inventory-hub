@@ -1,37 +1,29 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { Supplier } from '@/types';
-import { toast } from 'sonner';
-import { useOnlineStatus } from './useOnlineStatus';
-import {
-  createSupplierOffline,
-  updateSupplierOffline,
-  deleteSupplierOffline,
-  getOfflineData
-} from '@/lib/localDB';
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { Supplier } from "@/types";
+import { toast } from "sonner";
+import { useOnlineStatus } from "./useOnlineStatus";
+import { createSupplierOffline, updateSupplierOffline, deleteSupplierOffline, getOfflineData } from "@/lib/localDB";
 
 export function useSuppliers() {
   const queryClient = useQueryClient();
   const isOnline = useOnlineStatus();
 
   const { data: suppliers = [], isLoading } = useQuery({
-    queryKey: ['suppliers'],
+    queryKey: ["suppliers", isOnline],
     queryFn: async () => {
       if (isOnline === false) {
-        const offlineData = await getOfflineData('suppliers') as any[];
-        return (offlineData || []).map(s => ({
+        const offlineData = (await getOfflineData("suppliers")) as any[];
+        return (offlineData || []).map((s) => ({
           id: s.id,
           name: s.name,
           logo: s.logo_url,
         })) as Supplier[];
       }
 
-      const { data, error } = await supabase
-        .from('suppliers')
-        .select('*')
-        .order('name', { ascending: true });
+      const { data, error } = await supabase.from("suppliers").select("*").order("name", { ascending: true });
       if (error) throw error;
-      return (data ?? []).map(s => ({
+      return (data ?? []).map((s) => ({
         id: s.id,
         name: s.name,
         logo: s.logo_url,
@@ -69,11 +61,7 @@ export function useSuppliers() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
-      toast.success(
-        isOnline 
-          ? "Proveedor creado exitosamente" 
-          : "Proveedor creado (se sincronizará al conectar)"
-      );
+      toast.success(isOnline ? "Proveedor creado exitosamente" : "Proveedor creado (se sincronizará al conectar)");
     },
     onError: (error: any) => {
       toast.error(`Error al crear proveedor: ${error.message}`);
@@ -103,9 +91,7 @@ export function useSuppliers() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       toast.success(
-        isOnline
-          ? "Proveedor actualizado exitosamente"
-          : "Proveedor actualizado (se sincronizará al conectar)"
+        isOnline ? "Proveedor actualizado exitosamente" : "Proveedor actualizado (se sincronizará al conectar)",
       );
     },
     onError: (error: any) => {
@@ -126,9 +112,7 @@ export function useSuppliers() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       toast.success(
-        isOnline
-          ? "Proveedor eliminado exitosamente"
-          : "Proveedor eliminado (se sincronizará al conectar)"
+        isOnline ? "Proveedor eliminado exitosamente" : "Proveedor eliminado (se sincronizará al conectar)",
       );
     },
     onError: (error: any) => {
