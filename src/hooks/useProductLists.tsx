@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { ProductList, DynamicProduct, ColumnSchema } from "@/types/productList";
 import { fetchAllFromTable } from "@/utils/fetchAllProducts";
 import { useOnlineStatus } from './useOnlineStatus';
-import { getOfflineData, createProductListOffline, updateProductListOffline, deleteProductListOffline, localDB } from '@/lib/localDB';
+import { getOfflineData, createProductListOffline, updateProductListOffline, deleteProductListOffline, localDB, syncFromSupabase } from '@/lib/localDB';
 
 // Helper function to extract name from product data when index is missing it
 function extractNameFromData(
@@ -282,7 +282,7 @@ export const useProductLists = (supplierId?: string) => {
         throw error;
       }
     },
-    onSuccess: (_, listId) => {
+    onSuccess: async (_, listId) => {
       // Resetear queries específicas de esta lista (fuerza limpieza completa)
       queryClient.resetQueries({
         queryKey: ["list-products", listId],
@@ -306,6 +306,13 @@ export const useProductLists = (supplierId?: string) => {
         refetchType: 'all' 
       });
       
+      // Sincronizar desde Supabase
+      try {
+        await syncFromSupabase();
+      } catch (error) {
+        console.error('Error al sincronizar después de eliminar lista:', error);
+      }
+      
       toast.success(
         isOnline
           ? "Lista eliminada exitosamente"
@@ -326,7 +333,7 @@ export const useProductLists = (supplierId?: string) => {
 
       if (error) throw error;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
       const { listId } = variables;
       
       // Resetear queries específicas de esta lista
@@ -349,6 +356,13 @@ export const useProductLists = (supplierId?: string) => {
         queryKey: ["product-lists-index"],
         refetchType: 'all' 
       });
+      
+      // Sincronizar desde Supabase
+      try {
+        await syncFromSupabase();
+      } catch (error) {
+        console.error('Error al sincronizar después de actualizar schema:', error);
+      }
       
       toast.success("Esquema de columnas actualizado");
     },
@@ -483,7 +497,7 @@ export const useProductLists = (supplierId?: string) => {
         await localDB.dynamic_products_index.bulkAdd(indexData);
       }
     },
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
       const { listId } = variables;
       
       // Resetear queries específicas de esta lista
@@ -508,6 +522,13 @@ export const useProductLists = (supplierId?: string) => {
         queryKey: ["product-lists-index"],
         refetchType: 'all' 
       });
+      
+      // Sincronizar desde Supabase
+      try {
+        await syncFromSupabase();
+      } catch (error) {
+        console.error('Error al sincronizar después de actualizar lista:', error);
+      }
       
       toast.success(
         isOnline
