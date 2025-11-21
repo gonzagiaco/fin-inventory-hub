@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Supplier } from "@/types";
 import { toast } from "sonner";
 import { useOnlineStatus } from "./useOnlineStatus";
-import { createSupplierOffline, updateSupplierOffline, deleteSupplierOffline, getOfflineData } from "@/lib/localDB";
+import { createSupplierOffline, updateSupplierOffline, deleteSupplierOffline, getOfflineData, syncFromSupabase } from "@/lib/localDB";
 
 export function useSuppliers() {
   const queryClient = useQueryClient();
@@ -88,8 +88,16 @@ export function useSuppliers() {
 
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      
+      // Sincronizar desde Supabase
+      try {
+        await syncFromSupabase();
+      } catch (error) {
+        console.error('Error al sincronizar después de actualizar proveedor:', error);
+      }
+      
       toast.success(
         isOnline ? "Proveedor actualizado exitosamente" : "Proveedor actualizado (se sincronizará al conectar)",
       );
@@ -109,8 +117,16 @@ export function useSuppliers() {
       const { error } = await supabase.from("suppliers").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
+      
+      // Sincronizar desde Supabase
+      try {
+        await syncFromSupabase();
+      } catch (error) {
+        console.error('Error al sincronizar después de eliminar proveedor:', error);
+      }
+      
       toast.success(
         isOnline ? "Proveedor eliminado exitosamente" : "Proveedor eliminado (se sincronizará al conectar)",
       );
