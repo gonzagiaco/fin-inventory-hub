@@ -65,7 +65,7 @@ export function useSuppliers() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       queryClient.invalidateQueries({ queryKey: ["suppliers"] });
       try {
         await syncFromSupabase();
