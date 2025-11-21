@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { formatARS, normalizeRawPrice } from "@/utils/numberParser";
-import { List, LayoutGrid, Plus } from "lucide-react";
+import { List, LayoutGrid, Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,9 @@ interface GlobalProductSearchProps {
   suppliers: any[];
   onAddToRequest: (product: any) => void;
   defaultViewMode?: "table" | "card";
+  onLoadMore?: () => void;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
 }
 
 export function GlobalProductSearch({
@@ -33,6 +36,9 @@ export function GlobalProductSearch({
   suppliers,
   onAddToRequest,
   defaultViewMode = "card",
+  onLoadMore,
+  hasMore = false,
+  isLoadingMore = false,
 }: GlobalProductSearchProps) {
   const [viewMode, setViewMode] = useState(() => defaultViewMode);
   const { setCardPreviewFields, cardPreviewFields } = useProductListStore();
@@ -266,6 +272,22 @@ export function GlobalProductSearch({
               />
             </div>
           ))}
+
+          {/* Botón para cargar más productos */}
+          {hasMore && onLoadMore && (
+            <div className="text-center my-4">
+              <Button variant="outline" onClick={onLoadMore} disabled={isLoadingMore}>
+                {isLoadingMore ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Cargando más...
+                  </>
+                ) : (
+                  "Ver más productos"
+                )}
+              </Button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="overflow-x-auto">
@@ -346,6 +368,22 @@ export function GlobalProductSearch({
               })}
             </TableBody>
           </Table>
+
+          {/* Botón para cargar más productos en vista tabla */}
+          {hasMore && onLoadMore && (
+            <div className="text-center my-4">
+              <Button variant="outline" onClick={onLoadMore} disabled={isLoadingMore}>
+                {isLoadingMore ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Cargando más...
+                  </>
+                ) : (
+                  "Ver más productos"
+                )}
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -78,6 +78,7 @@ interface ProductListStore {
   setColumnOrder: (listId: string, order: string[]) => void;
   setColumnPinning: (listId: string, pinning: { left?: string[]; right?: string[] }) => void;
   toggleListCollapse: (listId: string) => void;
+  initializeCollapsedState: (listIds: string[]) => void;
   resetColumnSettings: (listId: string) => void;
   setViewMode: (listId: string, mode: "table" | "cards") => void;
   setCardPreviewFields: (listId: string, fields: string[]) => void;
@@ -111,6 +112,19 @@ export const useProductListStore = create<ProductListStore>()(
       quantityColumn: {},
       priceColumn: {},
       lowStockThreshold: {},
+      
+      // Helper to initialize collapsed state for new lists
+      initializeCollapsedState: (listIds: string[]) =>
+        set((state) => {
+          const newCollapsed = new Set(state.collapsedLists);
+          listIds.forEach(id => {
+            // Si la lista no tiene estado guardado, agregarla como colapsada
+            if (!state.collapsedLists.has(id)) {
+              newCollapsed.add(id);
+            }
+          });
+          return { collapsedLists: newCollapsed };
+        }),
 
       setColumnVisibility: (listId, columnKey, visible) =>
         set((state) => ({

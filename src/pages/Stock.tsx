@@ -12,7 +12,7 @@ import { useProductListsIndex } from "@/hooks/useProductListsIndex";
 import { useSuppliers } from "@/hooks/useSuppliers";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { QuantityCell } from "@/components/stock/QuantityCell";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
@@ -215,10 +215,18 @@ export default function Stock() {
   const isSupplierSelectedNoTerm = supplierFilter !== "all" && searchTerm.trim() === "";
   const hasSearchTerm = searchTerm.trim().length >= 1;
 
-  const { data: globalResults = [], isLoading: loadingSearch } = useQuery({
+  const { 
+    data: globalSearchData,
+    isLoading: loadingSearch,
+    fetchNextPage: fetchNextSearchPage,
+    hasNextPage: hasNextSearchPage,
+    isFetchingNextPage: isFetchingNextSearchPage,
+  } = useInfiniteQuery({
     queryKey: ["global-search", searchTerm, supplierFilter, isOnline ? "online" : "offline"],
-    queryFn: async () => {
-      if (!searchTerm || searchTerm.trim().length < 1) return [];
+    queryFn: async ({ pageParam = 0 }) => {
+      if (!searchTerm || searchTerm.trim().length < 1) return { data: [], count: 0, nextPage: undefined };
+
+      const PAGE_SIZE = 50;
 
       // MODO OFFLINE: Buscar en IndexedDB
       if (isOnline === false) {
@@ -287,20 +295,46 @@ export default function Stock() {
           return p;
         });
 
-        return filtered;
+        const total = filtered.length;
+        const from = pageParam * PAGE_SIZE;
+        const to = from + PAGE_SIZE;
+        const paginatedData = filtered.slice(from, to);
+
+        return {
+          data: paginatedData,
+          count: total,
+          nextPage: to < total ? pageParam + 1 : undefined,
+        };
       }
 
-      // MODO ONLINE: Usar RPC de Supabase
+      // MODO ONLINE: Usar RPC de Supabase con paginación
+      const from = pageParam * PAGE_SIZE;
       const { data, error } = await supabase.rpc("search_products", {
         p_term: searchTerm.trim(),
         p_supplier_id: supplierFilter === "all" ? null : supplierFilter,
+        p_limit: PAGE_SIZE,
+        p_offset: from,
       });
+      
       if (error) throw error;
-      return data || [];
+
+      const results = data || [];
+      return {
+        data: results,
+        count: results.length,
+        nextPage: results.length === PAGE_SIZE ? pageParam + 1 : undefined,
+      };
     },
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => lastPage.nextPage,
     enabled: hasSearchTerm,
     retry: false,
   });
+
+  const globalResults = useMemo(() => {
+    if (!globalSearchData?.pages) return [];
+    return globalSearchData.pages.flatMap((page) => page.data || []);
+  }, [globalSearchData]);
 
   return (
     <div className="min-h-screen w-full bg-background overflow-x-hidden">
@@ -382,6 +416,11 @@ export default function Stock() {
               suppliers={suppliers}
               onAddToRequest={handleAddToRequest}
               defaultViewMode={isMobile ? "card" : "table"}
+              onLoadMore={() => {
+                void fetchNextSearchPage();
+              }}
+              hasMore={hasNextSearchPage}
+              isLoadingMore={isFetchingNextSearchPage}
             />
           ) : visibleSupplierSections.length === 0 ? (
             // ------- Sin proveedores -------

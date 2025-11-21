@@ -27,7 +27,7 @@ interface SupplierStockSectionProps {
 }
 
 export function SupplierStockSection({ supplierName, supplierLogo, lists, onAddToRequest }: SupplierStockSectionProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
   const [listToMap, setListToMap] = useState<string | null>(null);
   const queryClient = useQueryClient();
 

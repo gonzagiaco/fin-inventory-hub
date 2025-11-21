@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { useListProducts } from "@/hooks/useListProducts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -117,7 +117,15 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
   const queryClient = useQueryClient();
 
   const { productLists, isLoading, createList, deleteList, updateList, findSimilarList } = useProductLists(supplierId);
-  const { collapsedLists, toggleListCollapse } = useProductListStore();
+  const { collapsedLists, toggleListCollapse, initializeCollapsedState } = useProductListStore();
+
+  // Inicializar listas como colapsadas cuando se cargan por primera vez
+  useEffect(() => {
+    if (productLists.length > 0) {
+      const listIds = productLists.map(list => list.id);
+      initializeCollapsedState(listIds);
+    }
+  }, [productLists, initializeCollapsedState]);
 
   const handleOpenMappingDialog = (targetListId: string) => {
     setListToMap(targetListId);
