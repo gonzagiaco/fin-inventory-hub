@@ -265,7 +265,13 @@ export const useDeliveryNotes = () => {
 
       return note;
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Forzar refetch completo desde IndexedDB
+      await queryClient.refetchQueries({ 
+        queryKey: ["delivery-notes"],
+        type: 'active'
+      });
+      
       invalidateProductQueries(queryClient);
       toast.success(
         isOnline
@@ -391,12 +397,18 @@ export const useDeliveryNotes = () => {
         console.error("Error al sincronizar remito actualizado a IndexedDB:", error);
       }
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Forzar refetch completo desde IndexedDB
+      await queryClient.refetchQueries({ 
+        queryKey: ["delivery-notes"],
+        type: 'active'
+      });
+      
       invalidateProductQueries(queryClient);
       toast.success(
         isOnline
           ? "Remito actualizado exitosamente"
-          : "Remito actualizado (se sincronizará al conectar)"
+          : "Remito actualizado localmente"
       );
     },
     onError: (error: any) => {
@@ -439,7 +451,13 @@ export const useDeliveryNotes = () => {
         console.error("Error al sincronizar eliminación a IndexedDB:", error);
       }
     },
-    onSuccess: () => {
+    onSuccess: async () => {
+      // Forzar refetch completo desde IndexedDB
+      await queryClient.refetchQueries({ 
+        queryKey: ["delivery-notes"],
+        type: 'active'
+      });
+      
       invalidateProductQueries(queryClient);
       toast.success(
         isOnline
@@ -490,8 +508,13 @@ export const useDeliveryNotes = () => {
         console.error("Error al sincronizar pago a IndexedDB:", error);
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
+    onSuccess: async () => {
+      // Forzar refetch completo desde IndexedDB
+      await queryClient.refetchQueries({ 
+        queryKey: ["delivery-notes"],
+        type: 'active'
+      });
+      
       toast.success(
         isOnline
           ? "Remito marcado como pagado"

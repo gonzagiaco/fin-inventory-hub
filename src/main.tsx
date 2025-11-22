@@ -3,6 +3,7 @@ import App from "./App.tsx";
 import "./index.css";
 import { registerSW } from 'virtual:pwa-register';
 import { setupOfflineHandler } from './utils/offlineHandler';
+import { initDB, cleanupOldOperations } from './lib/localDB';
 
 // Registrar Service Worker
 const updateSW = registerSW({
@@ -17,5 +18,10 @@ const updateSW = registerSW({
 
 // Configurar handler de offline para recarga automática
 setupOfflineHandler();
+
+// Inicializar DB y limpiar operaciones obsoletas
+initDB().then(() => {
+  cleanupOldOperations();
+});
 
 createRoot(document.getElementById("root")!).render(<App />);

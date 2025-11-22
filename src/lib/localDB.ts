@@ -133,6 +133,21 @@ interface SettingsDB {
   created_at: string;
 }
 
+interface IdMappingDB {
+  temp_id: string;
+  real_id: string;
+  table_name: string;
+  created_at: string;
+}
+
+interface StockCompensationDB {
+  id?: number;
+  operation_id: number;
+  product_id: string;
+  quantity_delta: number;
+  timestamp: number;
+}
+
 // ==================== DEXIE DATABASE ====================
 
 class LocalDatabase extends Dexie {
@@ -147,6 +162,8 @@ class LocalDatabase extends Dexie {
   pending_operations!: Table<PendingOperation, number>;
   tokens!: Table<AuthTokenDB, string>;
   settings!: Table<SettingsDB, string>;
+  id_mappings!: Table<IdMappingDB, string>;
+  stock_compensations!: Table<StockCompensationDB, number>;
 
   constructor() {
     super("ProveedoresLocalDB");
@@ -163,6 +180,23 @@ class LocalDatabase extends Dexie {
       stock_items: "id, user_id, code, name, category, supplier_id",
       pending_operations: "++id, table_name, timestamp, record_id",
       tokens: "userId, updatedAt",
+    });
+
+    // Versión 5: Agregar tablas para mapeo de IDs y compensación de stock
+    this.version(5).stores({
+      suppliers: "id, user_id, name",
+      product_lists: "id, user_id, supplier_id, name",
+      dynamic_products_index: "id, user_id, list_id, product_id, code, name",
+      dynamic_products: "id, user_id, list_id, code, name",
+      delivery_notes: "id, user_id, customer_name, status, issue_date",
+      delivery_note_items: "id, delivery_note_id, product_id",
+      settings: "key, updated_at",
+      request_items: "id, user_id, product_id",
+      stock_items: "id, user_id, code, name, category, supplier_id",
+      pending_operations: "++id, table_name, timestamp, record_id",
+      tokens: "userId, updatedAt",
+      id_mappings: "temp_id, real_id, table_name",
+      stock_compensations: "++id, operation_id, product_id",
     });
   }
 }
@@ -395,23 +429,133 @@ export async function syncFromSupabase(): Promise<void> {
 
 // ==================== COLA DE OPERACIONES PENDIENTES ====================
 
+/**
+ * Sanitiza datos según la tabla destino
+ */
+function sanitizeDataForSync(tableName: string, operationType: string, data: any): any {
+  const cleanData = { ...data };
+  delete cleanData.id;
+  delete cleanData.items;
+  
+  if (tableName === "delivery_notes") {
+    if (cleanData.issue_date) {
+      cleanData.issue_date = new Date(cleanData.issue_date).toISOString();
+    }
+    
+    if (cleanData.total_amount !== undefined) {
+      cleanData.total_amount = Number(cleanData.total_amount);
+    }
+    if (cleanData.paid_amount !== undefined) {
+      cleanData.paid_amount = Number(cleanData.paid_amount);
+    }
+    if (cleanData.remaining_balance !== undefined) {
+      cleanData.remaining_balance = Number(cleanData.remaining_balance);
+    }
+  }
+  
+  if (tableName === "delivery_note_items") {
+    if (cleanData.quantity !== undefined) {
+      cleanData.quantity = Number(cleanData.quantity);
+    }
+    if (cleanData.unit_price !== undefined) {
+      cleanData.unit_price = Number(cleanData.unit_price);
+    }
+    if (cleanData.subtotal !== undefined) {
+      cleanData.subtotal = Number(cleanData.subtotal);
+    }
+  }
+  
+  return cleanData;
+}
+
 export async function queueOperation(
   tableName: string,
   operationType: "INSERT" | "UPDATE" | "DELETE",
   recordId: string,
   data: any,
 ): Promise<void> {
+  const sanitizedData = sanitizeDataForSync(tableName, operationType, data);
+  
   const operation: PendingOperation = {
     table_name: tableName,
     operation_type: operationType,
     record_id: recordId,
-    data,
+    data: sanitizedData,
     timestamp: Date.now(),
     retry_count: 0,
   };
 
   await localDB.pending_operations.add(operation);
   console.log(`📝 Operación encolada: ${operationType} en ${tableName}`);
+}
+
+/**
+ * Versión de queueOperation que retorna el ID de la operación
+ */
+async function queueOperationWithId(
+  tableName: string,
+  operationType: "INSERT" | "UPDATE" | "DELETE",
+  recordId: string,
+  data: any,
+): Promise<number> {
+  const sanitizedData = sanitizeDataForSync(tableName, operationType, data);
+  
+  const operation: PendingOperation = {
+    table_name: tableName,
+    operation_type: operationType,
+    record_id: recordId,
+    data: sanitizedData,
+    timestamp: Date.now(),
+    retry_count: 0,
+  };
+
+  const id = await localDB.pending_operations.add(operation);
+  console.log(`📝 Operación encolada: ${operationType} ${tableName} ${recordId} (id=${id})`);
+  return id as number;
+}
+
+/**
+ * Resuelve IDs temporales a IDs reales de Supabase
+ */
+async function resolveRecordId(tableName: string, recordId: string): Promise<string> {
+  if (!isTempId(recordId)) return recordId;
+  
+  const mapping = await localDB.id_mappings.get(recordId);
+  return mapping?.real_id || recordId;
+}
+
+/**
+ * Actualiza referencias locales después de crear registro en Supabase
+ */
+async function updateLocalRecordId(tableName: string, tempId: string, realId: string): Promise<void> {
+  console.log(`🔄 Mapeando ID: ${tempId} -> ${realId}`);
+  
+  await localDB.id_mappings.put({
+    temp_id: tempId,
+    real_id: realId,
+    table_name: tableName,
+    created_at: new Date().toISOString()
+  });
+  
+  if (tableName === "delivery_notes") {
+    const note = await localDB.delivery_notes.get(tempId);
+    if (note) {
+      await localDB.delivery_notes.delete(tempId);
+      await localDB.delivery_notes.put({ ...note, id: realId });
+      
+      const items = await localDB.delivery_note_items
+        .where("delivery_note_id")
+        .equals(tempId)
+        .toArray();
+      
+      for (const item of items) {
+        await localDB.delivery_note_items.put({
+          ...item,
+          delivery_note_id: realId
+        });
+      }
+    }
+  }
 }
 
 export async function syncPendingOperations(): Promise<void> {
@@ -429,7 +573,6 @@ export async function syncPendingOperations(): Promise<void> {
 
   console.log(`🔄 Sincronizando ${operations.length} operaciones pendientes...`);
 
-  // Ordenar operaciones por timestamp
   const sortedOps = operations.sort((a, b) => a.timestamp - b.timestamp);
 
   let successCount = 0;
@@ -439,25 +582,33 @@ export async function syncPendingOperations(): Promise<void> {
     try {
       await executeOperation(op);
       await localDB.pending_operations.delete(op.id!);
+      
+      await clearStockCompensation(op.id!);
+      
       successCount++;
     } catch (error: any) {
       errorCount++;
       console.error(`❌ Error al sincronizar operación ${op.id}:`, error);
 
-      // Actualizar contador de reintentos
       const updatedOp = await localDB.pending_operations.get(op.id!);
       if (updatedOp) {
+        const newRetryCount = op.retry_count + 1;
+        
         await localDB.pending_operations.put({
           ...updatedOp,
-          retry_count: op.retry_count + 1,
+          retry_count: newRetryCount,
           error: error.message,
         });
-      }
 
-      // Si ha fallado más de 3 veces, eliminar de la cola
-      if (op.retry_count >= 3) {
-        console.error(`❌ Operación ${op.id} descartada después de 3 intentos`);
-        await localDB.pending_operations.delete(op.id!);
+        if (newRetryCount >= 3) {
+          console.error(`❌ Operación ${op.id} descartada después de 3 intentos`);
+          
+          await rollbackStockCompensation(op.id!);
+          
+          await localDB.pending_operations.delete(op.id!);
+          
+          toast.error(`Operación fallida: ${op.table_name} - Stock revertido`);
+        }
       }
     }
   }
@@ -476,97 +627,51 @@ export async function syncPendingOperations(): Promise<void> {
 }
 
 async function executeOperation(op: PendingOperation): Promise<void> {
-  const { table_name, operation_type, record_id, data } = op;
+  console.log(`🔄 Ejecutando: ${op.operation_type} ${op.table_name} ${op.record_id}`);
 
-  // Si es un ID temporal, necesitamos manejarlo especialmente
-  const isTemp = isTempId(record_id);
+  const realId = await resolveRecordId(op.table_name, op.record_id);
+  
+  if (op.operation_type === "INSERT") {
+    const { data, error } = await supabase
+      .from(op.table_name)
+      .insert([op.data])
+      .select()
+      .single();
 
-  switch (operation_type) {
-    case "INSERT":
-      // Para INSERT, no enviamos el ID temporal
-      const insertData = { ...data };
-      if (isTemp) {
-        delete insertData.id;
-      }
+    if (error) throw error;
+    
+    if (data && isTempId(op.record_id)) {
+      await updateLocalRecordId(op.table_name, op.record_id, data.id);
+    }
+    
+  } else if (op.operation_type === "UPDATE") {
+    if (isTempId(realId)) {
+      console.warn(`⚠️ No se puede actualizar registro con ID temporal: ${realId}`);
+      throw new Error(`ID temporal no resuelto: ${realId}`);
+    }
+    
+    const { error } = await supabase
+      .from(op.table_name)
+      .update(op.data)
+      .eq("id", realId);
 
-      const { data: insertedData, error: insertError } = await (supabase as any)
-        .from(table_name)
-        .insert(insertData)
-        .select()
-        .single();
+    if (error) throw error;
+    
+  } else if (op.operation_type === "DELETE") {
+    if (isTempId(realId)) {
+      console.log(`✅ Skip DELETE de registro temporal: ${realId}`);
+      return;
+    }
+    
+    const { error } = await supabase
+      .from(op.table_name)
+      .delete()
+      .eq("id", realId);
 
-      if (insertError) throw insertError;
-
-      // 🔧 NUEVO: Sincronizar a IndexedDB después de INSERT de delivery_notes
-      if (table_name === "delivery_notes" && insertedData?.id) {
-        await syncDeliveryNoteById(insertedData.id);
-        await refreshAffectedProductsIndex(insertedData.id);
-      }
-      break;
-
-    case "UPDATE":
-      // Para UPDATE, si tiene ID temporal, intentamos buscar por otros campos
-      if (isTemp) {
-        console.warn(`⚠️ No se puede actualizar registro con ID temporal: ${record_id}`);
-        return;
-      }
-
-      // Caso especial: dynamic_products_index usa product_id en lugar de id
-      if (table_name === "dynamic_products_index") {
-        const { error: updateIndexError } = await (supabase as any)
-          .from(table_name)
-          .update(data)
-          .eq("product_id", record_id); // Buscar por product_id
-
-        if (updateIndexError) throw updateIndexError;
-      } else if (table_name === "dynamic_products") {
-        // dynamic_products usa id directamente
-        const { error: updateProductError } = await (supabase as any).from(table_name).update(data).eq("id", record_id);
-
-        if (updateProductError) throw updateProductError;
-
-        // 🔧 NUEVO: Refrescar índice del producto actualizado
-        const { data: product } = await supabase
-          .from("dynamic_products")
-          .select("list_id")
-          .eq("id", record_id)
-          .single();
-
-        if (product?.list_id) {
-          await refreshProductListIndex(product.list_id);
-        }
-      } else {
-        // Resto de tablas: usar id
-        const { error: updateError } = await (supabase as any).from(table_name).update(data).eq("id", record_id);
-
-        if (updateError) throw updateError;
-
-        // 🔧 NUEVO: Sincronizar a IndexedDB después de UPDATE de delivery_notes
-        if (table_name === "delivery_notes") {
-          await syncDeliveryNoteById(record_id);
-          await refreshAffectedProductsIndex(record_id);
-        }
-      }
-      break;
-
-    case "DELETE":
-      if (isTemp) {
-        console.warn(`⚠️ No se puede eliminar registro con ID temporal: ${record_id}`);
-        return;
-      }
-
-      const { error: deleteError } = await (supabase as any).from(table_name).delete().eq("id", record_id);
-
-      if (deleteError) throw deleteError;
-
-      // 🔧 NUEVO: Limpiar IndexedDB después de DELETE de delivery_notes
-      if (table_name === "delivery_notes") {
-        await localDB.delivery_notes.delete(record_id);
-        await localDB.delivery_note_items.where("delivery_note_id").equals(record_id).delete();
-        console.log(`✅ Remito ${record_id} eliminado de IndexedDB`);
-      }
-      break;
+    if (error) throw error;
   }
+
+  console.log(`✅ Operación completada: ${op.operation_type} ${op.table_name}`);
 }
 
 /**
@@ -697,6 +802,19 @@ export async function syncDeliveryNotesToLocal(): Promise<void> {
   }
 
   console.log(`✅ ${notes?.length || 0} remitos y ${items?.length || 0} items sincronizados a IndexedDB`);
+}
+
+/**
+ * Refresca los datos de remitos en memoria después de operaciones offline
+ */
+export async function refreshDeliveryNotesCache(): Promise<DeliveryNoteDB[]> {
+  const notes = await localDB.delivery_notes.toArray();
+  const items = await localDB.delivery_note_items.toArray();
+  
+  return notes.map(note => ({
+    ...note,
+    items: items.filter(item => item.delivery_note_id === note.id)
+  })) as any;
 }
 
 // ==================== OPERACIONES CRUD OFFLINE ====================
@@ -1036,6 +1154,58 @@ export async function deleteSupplierLocalRecord(id: string): Promise<void> {
   await localDB.suppliers.delete(id);
 }
 
+/**
+ * Actualiza stock y registra compensación para rollback
+ */
+async function updateProductQuantityDeltaWithCompensation(
+  productId: string,
+  quantityDelta: number,
+  operationId: number
+): Promise<void> {
+  await updateProductQuantityDelta(productId, quantityDelta);
+  
+  await localDB.stock_compensations.add({
+    operation_id: operationId,
+    product_id: productId,
+    quantity_delta: quantityDelta,
+    timestamp: Date.now()
+  });
+  
+  console.log(`📊Compensación registrada: producto=${productId}, delta=${quantityDelta}`);
+}
+
+/**
+ * Revierte cambios de stock si la operación falla
+ */
+async function rollbackStockCompensation(operationId: number): Promise<void> {
+  const compensations = await localDB.stock_compensations
+    .where("operation_id")
+    .equals(operationId)
+    .toArray();
+  
+  console.log(`🔄 Revirtiendo ${compensations.length} cambios de stock...`);
+  
+  for (const comp of compensations) {
+    await updateProductQuantityDelta(comp.product_id, -comp.quantity_delta);
+    console.log(`  ✅ Revertido: producto=${comp.product_id}, delta=${-comp.quantity_delta}`);
+  }
+  
+  await localDB.stock_compensations
+    .where("operation_id")
+    .equals(operationId)
+    .delete();
+}
+
+/**
+ * Limpia compensaciones exitosas
+ */
+async function clearStockCompensation(operationId: number): Promise<void> {
+  await localDB.stock_compensations
+    .where("operation_id")
+    .equals(operationId)
+    .delete();
+}
+
 // DELIVERY NOTES
 export async function createDeliveryNoteOffline(
   note: Omit<DeliveryNoteDB, "id" | "created_at" | "updated_at">,
@@ -1058,9 +1228,9 @@ export async function createDeliveryNoteOffline(
   };
 
   await localDB.delivery_notes.add(newNote);
-  await queueOperation("delivery_notes", "INSERT", tempNoteId, newNote);
+  
+  const operationId = await queueOperationWithId("delivery_notes", "INSERT", tempNoteId, newNote);
 
-  // Crear items y actualizar stock
   for (const item of items) {
     const tempItemId = generateTempId();
     const newItem: DeliveryNoteItemDB = {
@@ -1073,13 +1243,16 @@ export async function createDeliveryNoteOffline(
     await localDB.delivery_note_items.add(newItem);
     await queueOperation("delivery_note_items", "INSERT", tempItemId, newItem);
 
-    // 🔧 CORRECCIÓN: Actualizar stock con delta negativo
     if (item.product_id) {
-      await updateProductQuantityDelta(item.product_id, -item.quantity);
+      await updateProductQuantityDeltaWithCompensation(
+        item.product_id,
+        -item.quantity,
+        operationId
+      );
     }
   }
 
-  console.log(`✅ Remito ${tempNoteId} creado offline con actualización de stock`);
+  console.log(`✅ Remito ${tempNoteId} creado offline con compensación de stock`);
   return tempNoteId;
 }
 
@@ -1506,6 +1679,29 @@ export async function getOfficialDollarRate(): Promise<number> {
     console.error("Error obteniendo dólar oficial offline:", error);
     return 0;
   }
+}
+
+/**
+ * Limpia operaciones pendientes muy antiguas (más de 7 días)
+ */
+export async function cleanupOldOperations(): Promise<void> {
+  const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+  
+  const oldOps = await localDB.pending_operations
+    .where("timestamp")
+    .below(sevenDaysAgo)
+    .toArray();
+  
+  if (oldOps.length === 0) return;
+  
+  console.log(`🗑️ Limpiando ${oldOps.length} operaciones antiguas...`);
+  
+  for (const op of oldOps) {
+    await rollbackStockCompensation(op.id!);
+    await localDB.pending_operations.delete(op.id!);
+  }
+  
+  toast.info(`${oldOps.length} operaciones obsoletas eliminadas`);
 }
 
 // ==================== OBTENER DATOS OFFLINE ====================
