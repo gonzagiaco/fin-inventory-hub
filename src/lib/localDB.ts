@@ -489,9 +489,19 @@ async function executeOperation(op: PendingOperation): Promise<void> {
         delete insertData.id;
       }
 
-      const { error: insertError } = await (supabase as any).from(table_name).insert(insertData);
+      const { data: insertedData, error: insertError } = await (supabase as any)
+        .from(table_name)
+        .insert(insertData)
+        .select()
+        .single();
 
       if (insertError) throw insertError;
+
+      // 🔧 NUEVO: Sincronizar a IndexedDB después de INSERT de delivery_notes
+      if (table_name === "delivery_notes" && insertedData?.id) {
+        await syncDeliveryNoteById(insertedData.id);
+        await refreshAffectedProductsIndex(insertedData.id);
+      }
       break;
 
     case "UPDATE":
@@ -514,11 +524,28 @@ async function executeOperation(op: PendingOperation): Promise<void> {
         const { error: updateProductError } = await (supabase as any).from(table_name).update(data).eq("id", record_id);
 
         if (updateProductError) throw updateProductError;
+
+        // 🔧 NUEVO: Refrescar índice del producto actualizado
+        const { data: product } = await supabase
+          .from("dynamic_products")
+          .select("list_id")
+          .eq("id", record_id)
+          .single();
+
+        if (product?.list_id) {
+          await refreshProductListIndex(product.list_id);
+        }
       } else {
         // Resto de tablas: usar id
         const { error: updateError } = await (supabase as any).from(table_name).update(data).eq("id", record_id);
 
         if (updateError) throw updateError;
+
+        // 🔧 NUEVO: Sincronizar a IndexedDB después de UPDATE de delivery_notes
+        if (table_name === "delivery_notes") {
+          await syncDeliveryNoteById(record_id);
+          await refreshAffectedProductsIndex(record_id);
+        }
       }
       break;
 
@@ -531,8 +558,145 @@ async function executeOperation(op: PendingOperation): Promise<void> {
       const { error: deleteError } = await (supabase as any).from(table_name).delete().eq("id", record_id);
 
       if (deleteError) throw deleteError;
+
+      // 🔧 NUEVO: Limpiar IndexedDB después de DELETE de delivery_notes
+      if (table_name === "delivery_notes") {
+        await localDB.delivery_notes.delete(record_id);
+        await localDB.delivery_note_items.where("delivery_note_id").equals(record_id).delete();
+        console.log(`✅ Remito ${record_id} eliminado de IndexedDB`);
+      }
       break;
   }
+}
+
+/**
+ * Refresca el índice de productos de una lista específica
+ */
+async function refreshProductListIndex(listId: string): Promise<void> {
+  console.log(`🔄 Refrescando índice para lista: ${listId}`);
+  
+  const { error } = await supabase.rpc("refresh_list_index", { p_list_id: listId });
+  
+  if (error) {
+    console.error("❌ Error al refrescar índice:", error);
+    throw error;
+  }
+  
+  console.log(`✅ Índice refrescado para lista: ${listId}`);
+}
+
+/**
+ * Refresca índices de productos afectados por un remito
+ */
+async function refreshAffectedProductsIndex(deliveryNoteId: string): Promise<void> {
+  console.log(`🔄 Refrescando índices de productos del remito: ${deliveryNoteId}`);
+
+  // Obtener items del remito
+  const { data: items, error } = await supabase
+    .from("delivery_note_items")
+    .select("product_id, dynamic_products!inner(list_id)")
+    .eq("delivery_note_id", deliveryNoteId);
+
+  if (error) {
+    console.error("❌ Error al obtener items del remito:", error);
+    return;
+  }
+
+  // Obtener listas únicas afectadas
+  const affectedLists = new Set<string>();
+  items?.forEach((item: any) => {
+    if (item.dynamic_products?.list_id) {
+      affectedLists.add(item.dynamic_products.list_id);
+    }
+  });
+
+  // Refrescar índice de cada lista
+  for (const listId of affectedLists) {
+    await refreshProductListIndex(listId);
+  }
+
+  console.log(`✅ Índices refrescados para ${affectedLists.size} listas`);
+}
+
+/**
+ * Sincroniza un remito específico desde Supabase a IndexedDB
+ */
+export async function syncDeliveryNoteById(noteId: string): Promise<void> {
+  console.log(`🔄 Sincronizando remito ${noteId} a IndexedDB...`);
+
+  const { data: noteData, error: noteError } = await supabase
+    .from("delivery_notes")
+    .select("*")
+    .eq("id", noteId)
+    .maybeSingle();
+
+  if (noteError) throw noteError;
+
+  if (!noteData) {
+    // Si no existe en Supabase, eliminar de IndexedDB
+    await localDB.delivery_notes.delete(noteId);
+    await localDB.delivery_note_items.where("delivery_note_id").equals(noteId).delete();
+    console.log(`✅ Remito ${noteId} eliminado de IndexedDB`);
+    return;
+  }
+
+  // Actualizar remito en IndexedDB
+  await localDB.delivery_notes.put(noteData as DeliveryNoteDB);
+
+  // Sincronizar items del remito
+  const { data: itemsData, error: itemsError } = await supabase
+    .from("delivery_note_items")
+    .select("*")
+    .eq("delivery_note_id", noteId);
+
+  if (itemsError) throw itemsError;
+
+  // Eliminar items viejos
+  await localDB.delivery_note_items.where("delivery_note_id").equals(noteId).delete();
+
+  // Insertar items nuevos
+  if (itemsData && itemsData.length > 0) {
+    await localDB.delivery_note_items.bulkAdd(itemsData as DeliveryNoteItemDB[]);
+  }
+
+  console.log(`✅ Remito ${noteId} sincronizado a IndexedDB con ${itemsData?.length || 0} items`);
+}
+
+/**
+ * Sincroniza múltiples remitos a IndexedDB (útil después de operaciones masivas)
+ */
+export async function syncDeliveryNotesToLocal(): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Usuario no autenticado");
+
+  console.log("🔄 Sincronizando todos los remitos a IndexedDB...");
+
+  // Sincronizar delivery_notes
+  const { data: notes, error: notesError } = await supabase
+    .from("delivery_notes")
+    .select("*")
+    .eq("user_id", user.id);
+
+  if (notesError) throw notesError;
+
+  await localDB.delivery_notes.clear();
+  if (notes && notes.length > 0) {
+    await localDB.delivery_notes.bulkAdd(notes as DeliveryNoteDB[]);
+  }
+
+  // Sincronizar delivery_note_items
+  const { data: items, error: itemsError } = await supabase
+    .from("delivery_note_items")
+    .select("*");
+
+  if (itemsError) throw itemsError;
+
+  await localDB.delivery_note_items.clear();
+  if (items && items.length > 0) {
+    await localDB.delivery_note_items.bulkAdd(items as DeliveryNoteItemDB[]);
+  }
+
+  console.log(`✅ ${notes?.length || 0} remitos y ${items?.length || 0} items sincronizados a IndexedDB`);
 }
 
 // ==================== OPERACIONES CRUD OFFLINE ====================
@@ -896,7 +1060,7 @@ export async function createDeliveryNoteOffline(
   await localDB.delivery_notes.add(newNote);
   await queueOperation("delivery_notes", "INSERT", tempNoteId, newNote);
 
-  // Crear items
+  // Crear items y actualizar stock
   for (const item of items) {
     const tempItemId = generateTempId();
     const newItem: DeliveryNoteItemDB = {
@@ -909,12 +1073,13 @@ export async function createDeliveryNoteOffline(
     await localDB.delivery_note_items.add(newItem);
     await queueOperation("delivery_note_items", "INSERT", tempItemId, newItem);
 
-    // Actualizar stock localmente
+    // 🔧 CORRECCIÓN: Actualizar stock con delta negativo
     if (item.product_id) {
       await updateProductQuantityDelta(item.product_id, -item.quantity);
     }
   }
 
+  console.log(`✅ Remito ${tempNoteId} creado offline con actualización de stock`);
   return tempNoteId;
 }
 
@@ -926,65 +1091,108 @@ export async function updateDeliveryNoteOffline(
   const existing = await localDB.delivery_notes.get(id);
   if (!existing) throw new Error("Remito no encontrado");
 
+  const now = new Date().toISOString();
+
+  // Si se proporcionan items, reemplazarlos con reversión de stock
+  if (items !== undefined) {
+    // PASO 1: Obtener items antiguos para revertir stock
+    const oldItems = await localDB.delivery_note_items
+      .where("delivery_note_id")
+      .equals(id)
+      .toArray();
+
+    console.log(`🔄 Actualizando remito offline ${id}:`);
+    console.log(`  Items antiguos: ${oldItems.length}`);
+    console.log(`  Items nuevos: ${items.length}`);
+
+    // PASO 2: Revertir stock de items antiguos
+    for (const oldItem of oldItems) {
+      if (oldItem.product_id) {
+        console.log(`  ✅ Revirtiendo: ${oldItem.product_name} (+${oldItem.quantity})`);
+        await updateProductQuantityDelta(oldItem.product_id, oldItem.quantity); // Delta positivo
+      }
+    }
+
+    // PASO 3: Eliminar items antiguos
+    await localDB.delivery_note_items
+      .where("delivery_note_id")
+      .equals(id)
+      .delete();
+
+    // Encolar eliminación de items antiguos
+    for (const oldItem of oldItems) {
+      await queueOperation("delivery_note_items", "DELETE", oldItem.id, {});
+    }
+
+    // PASO 4: Insertar nuevos items y descontar stock
+    for (const item of items) {
+      const itemId = crypto.randomUUID();
+      const newItem: DeliveryNoteItemDB = {
+        id: itemId,
+        delivery_note_id: id,
+        ...item,
+        created_at: now,
+      };
+
+      await localDB.delivery_note_items.add(newItem);
+      await queueOperation("delivery_note_items", "INSERT", itemId, newItem);
+
+      // Descontar nuevo stock
+      if (item.product_id) {
+        console.log(`  ✅ Descontando: ${item.product_name} (-${item.quantity})`);
+        await updateProductQuantityDelta(item.product_id, -item.quantity); // Delta negativo
+      }
+    }
+  }
+
+  // PASO 5: Actualizar nota principal
   const updated = {
     ...existing,
     ...updates,
-    updated_at: new Date().toISOString(),
+    updated_at: now,
   };
 
   await localDB.delivery_notes.put(updated);
   await queueOperation("delivery_notes", "UPDATE", id, updates);
 
-  // Si se proporcionan items, reemplazarlos
-  if (items) {
-    // Obtener items antiguos para revertir stock
-    const oldItems = await localDB.delivery_note_items.where("delivery_note_id").equals(id).toArray();
-
-    // Revertir stock de items antiguos
-    for (const oldItem of oldItems) {
-      if (oldItem.product_id) {
-        await updateProductQuantityDelta(oldItem.product_id, oldItem.quantity);
-      }
-      await localDB.delivery_note_items.delete(oldItem.id);
-      await queueOperation("delivery_note_items", "DELETE", oldItem.id, {});
-    }
-
-    // Agregar nuevos items
-    for (const item of items) {
-      const tempItemId = generateTempId();
-      const newItem: DeliveryNoteItemDB = {
-        id: tempItemId,
-        delivery_note_id: id,
-        ...item,
-        created_at: new Date().toISOString(),
-      };
-
-      await localDB.delivery_note_items.add(newItem);
-      await queueOperation("delivery_note_items", "INSERT", tempItemId, newItem);
-
-      // Actualizar stock
-      if (item.product_id) {
-        await updateProductQuantityDelta(item.product_id, -item.quantity);
-      }
-    }
-  }
+  console.log(`✅ Remito ${id} actualizado offline con reversión de stock`);
 }
 
 export async function deleteDeliveryNoteOffline(id: string): Promise<void> {
-  // Obtener items para revertir stock
-  const items = await localDB.delivery_note_items.where("delivery_note_id").equals(id).toArray();
+  const note = await localDB.delivery_notes.get(id);
+  if (!note) throw new Error("Remito no encontrado");
 
-  // Revertir stock
+  console.log(`🗑️ Eliminando remito offline: ${id}`);
+
+  // PASO 1: Obtener items para revertir stock
+  const items = await localDB.delivery_note_items
+    .where("delivery_note_id")
+    .equals(id)
+    .toArray();
+
+  // PASO 2: Revertir stock antes de eliminar (delta POSITIVO)
   for (const item of items) {
     if (item.product_id) {
+      console.log(`  ⬆️ Revirtiendo: ${item.product_name} (+${item.quantity})`);
       await updateProductQuantityDelta(item.product_id, item.quantity);
     }
-    await localDB.delivery_note_items.delete(item.id);
+  }
+
+  // PASO 3: Eliminar items de la base de datos
+  await localDB.delivery_note_items
+    .where("delivery_note_id")
+    .equals(id)
+    .delete();
+
+  for (const item of items) {
     await queueOperation("delivery_note_items", "DELETE", item.id, {});
   }
 
+  // PASO 4: Eliminar nota
   await localDB.delivery_notes.delete(id);
   await queueOperation("delivery_notes", "DELETE", id, {});
+
+  console.log(`✅ Remito ${id} eliminado offline con reversión de stock`);
 }
 
 export async function markDeliveryNoteAsPaidOffline(id: string, paidAmount: number): Promise<void> {
@@ -1009,33 +1217,51 @@ export async function markDeliveryNoteAsPaidOffline(id: string, paidAmount: numb
 }
 
 // PRODUCTOS - Actualizar cantidad (privada, usa delta)
+/**
+ * Actualiza la cantidad de un producto en modo offline
+ * Delta positivo = aumentar stock, Delta negativo = reducir stock
+ */
 async function updateProductQuantityDelta(productId: string, quantityDelta: number): Promise<void> {
-  // Actualizar en index
-  const indexProduct = await localDB.dynamic_products_index.get(productId);
-  if (indexProduct) {
-    const newQuantity = Math.max(0, (indexProduct.quantity || 0) + quantityDelta);
-    await localDB.dynamic_products_index.put({
-      ...indexProduct,
-      quantity: newQuantity,
-      updated_at: new Date().toISOString(),
-    });
-    await queueOperation("dynamic_products_index", "UPDATE", productId, {
-      quantity: newQuantity,
-    });
+  console.log(`📦 Actualizando stock offline: productId=${productId}, delta=${quantityDelta}`);
+
+  // PASO 1: Buscar en dynamic_products_index usando product_id
+  const indexRecord = await localDB.dynamic_products_index
+    .where({ product_id: productId })
+    .first();
+
+  if (!indexRecord) {
+    console.warn(`⚠️ Producto ${productId} no encontrado en índice local`);
+    return;
   }
 
-  // Actualizar en productos completos
-  const product = await localDB.dynamic_products.get(productId);
-  if (product) {
-    const newQuantity = Math.max(0, (product.quantity || 0) + quantityDelta);
-    await localDB.dynamic_products.put({
-      ...product,
+  // PASO 2: Calcular nueva cantidad (no permitir negativos)
+  const currentQuantity = indexRecord.quantity || 0;
+  const newQuantity = Math.max(0, currentQuantity + quantityDelta);
+
+  console.log(`  Cantidad actual: ${currentQuantity}, Nueva cantidad: ${newQuantity}`);
+
+  // PASO 3: Actualizar en dynamic_products_index
+  await localDB.dynamic_products_index.update(indexRecord.id!, {
+    quantity: newQuantity,
+    updated_at: new Date().toISOString(),
+  });
+
+  // PASO 4: Actualizar en dynamic_products (tabla principal)
+  const fullProduct = await localDB.dynamic_products.get(productId);
+  if (fullProduct) {
+    await localDB.dynamic_products.update(productId, {
       quantity: newQuantity,
       updated_at: new Date().toISOString(),
     });
+
+    // PASO 5: Encolar operación para sincronizar cuando haya conexión
     await queueOperation("dynamic_products", "UPDATE", productId, {
       quantity: newQuantity,
     });
+
+    console.log(`✅ Stock actualizado offline: ${productId} -> ${newQuantity}`);
+  } else {
+    console.warn(`⚠️ Producto ${productId} no encontrado en dynamic_products`);
   }
 }
 

@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, QueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { DeliveryNote, CreateDeliveryNoteInput, UpdateDeliveryNoteInput } from "@/types";
 import { toast } from "sonner";
@@ -8,41 +8,84 @@ import {
   updateDeliveryNoteOffline,
   deleteDeliveryNoteOffline,
   markDeliveryNoteAsPaidOffline,
-  getOfflineData
+  getOfflineData,
+  syncDeliveryNoteById
 } from '@/lib/localDB';
 
-async function updateProductStock(productId: string, quantityDelta: number) {
-  const queryClient = useQueryClient();
-  
+/**
+ * Actualiza el stock de un producto
+ * @param productId - ID del producto
+ * @param quantityDelta - Delta de cantidad (positivo = aumentar, negativo = disminuir)
+ * @param queryClient - QueryClient para invalidar cache
+ */
+async function updateProductStock(productId: string, quantityDelta: number, queryClient: QueryClient) {
+  console.log(`📦 Actualizando stock: productId=${productId}, delta=${quantityDelta}`);
+
   const { data: indexProduct, error: fetchError } = await (supabase as any)
     .from("dynamic_products_index")
     .select("quantity, list_id")
     .eq("product_id", productId)
     .maybeSingle();
   
-  if (fetchError) throw fetchError;
+  if (fetchError) {
+    console.error("❌ Error al obtener producto del índice:", fetchError);
+    throw fetchError;
+  }
+  
   if (!indexProduct) {
-    console.warn(`Product ${productId} not found in index`);
+    console.warn(`⚠️ Producto ${productId} no encontrado en índice`);
     return;
   }
   
-  const newQuantity = (indexProduct.quantity || 0) + quantityDelta;
+  const currentQuantity = indexProduct.quantity || 0;
+  const newQuantity = Math.max(0, currentQuantity + quantityDelta);
+
+  console.log(`  Cantidad actual: ${currentQuantity}`);
+  console.log(`  Delta: ${quantityDelta}`);
+  console.log(`  Nueva cantidad: ${newQuantity}`);
   
   const { error: updateIndexError } = await (supabase as any)
     .from("dynamic_products_index")
     .update({ quantity: newQuantity })
     .eq("product_id", productId);
   
-  if (updateIndexError) throw updateIndexError;
+  if (updateIndexError) {
+    console.error("❌ Error al actualizar índice:", updateIndexError);
+    throw updateIndexError;
+  }
 
   const { error: updateProductError } = await supabase
     .from("dynamic_products")
     .update({ quantity: newQuantity })
     .eq("id", productId);
   
-  if (updateProductError) throw updateProductError;
+  if (updateProductError) {
+    console.error("❌ Error al actualizar producto:", updateProductError);
+    throw updateProductError;
+  }
+
+  console.log(`✅ Stock actualizado correctamente: ${productId} -> ${newQuantity}`);
   
   queryClient.invalidateQueries({ queryKey: ['list-products', indexProduct.list_id] });
+  queryClient.invalidateQueries({ queryKey: ['global-search'] });
+}
+
+/**
+ * Invalida todas las queries relacionadas con productos
+ */
+function invalidateProductQueries(queryClient: QueryClient) {
+  queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
+  queryClient.invalidateQueries({ queryKey: ["list-products"], refetchType: "all" });
+  queryClient.invalidateQueries({ queryKey: ["global-search"], refetchType: "all" });
+  queryClient.invalidateQueries({ queryKey: ["product-lists-index"], refetchType: "all" });
+  queryClient.invalidateQueries({ queryKey: ["product-lists"], refetchType: "all" });
+  queryClient.invalidateQueries({ queryKey: ["dynamic-products"], refetchType: "all" });
+  
+  // Forzar refetch inmediato
+  queryClient.refetchQueries({ 
+    queryKey: ["list-products"], 
+    type: "active" 
+  });
 }
 
 export const useDeliveryNotes = () => {
@@ -166,6 +209,11 @@ export const useDeliveryNotes = () => {
         return { id };
       }
 
+      // 🔧 Convertir fecha a mediodía UTC para evitar problemas de timezone
+      const issueDate = input.issueDate 
+        ? `${input.issueDate}T12:00:00.000Z` 
+        : new Date().toISOString();
+
       const { data: note, error: noteError } = await supabase
         .from("delivery_notes")
         .insert({
@@ -173,7 +221,7 @@ export const useDeliveryNotes = () => {
           customer_name: input.customerName,
           customer_address: input.customerAddress,
           customer_phone: input.customerPhone,
-          issue_date: input.issueDate || new Date().toISOString(),
+          issue_date: issueDate,
           total_amount: total,
           paid_amount: input.paidAmount || 0,
           extra_fields: input.extraFields,
@@ -202,15 +250,23 @@ export const useDeliveryNotes = () => {
 
       for (const item of input.items) {
         if (item.productId) {
-          await updateProductStock(item.productId, -item.quantity);
+          await updateProductStock(item.productId, -item.quantity, queryClient);
+        }
+      }
+
+      // 🆕 SINCRONIZAR A INDEXEDDB DESPUÉS DE CREAR
+      if (note?.id) {
+        try {
+          await syncDeliveryNoteById(note.id);
+        } catch (error) {
+          console.error("Error al sincronizar remito a IndexedDB:", error);
         }
       }
 
       return note;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
-      queryClient.invalidateQueries({ queryKey: ["list-products"] });
+      invalidateProductQueries(queryClient);
       toast.success(
         isOnline
           ? "Remito creado exitosamente y stock actualizado"
@@ -225,10 +281,21 @@ export const useDeliveryNotes = () => {
   const updateMutation = useMutation({
     mutationFn: async ({ id, ...updates }: UpdateDeliveryNoteInput) => {
       if (!isOnline) {
-        await updateDeliveryNoteOffline(id, updates);
+        // Asegurar que se pasen los items para la reversión offline
+        const mappedItems = updates.items?.map(item => ({
+          product_id: item.productId,
+          product_code: item.productCode,
+          product_name: item.productName,
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+          subtotal: item.quantity * item.unitPrice,
+        }));
+        
+        await updateDeliveryNoteOffline(id, updates, mappedItems);
         return;
       }
 
+      // PASO 1: Obtener remito original con items
       const { data: originalNote, error: fetchError } = await supabase
         .from("delivery_notes")
         .select(`*, items:delivery_note_items(*)`)
@@ -237,6 +304,17 @@ export const useDeliveryNotes = () => {
 
       if (fetchError) throw fetchError;
 
+      // PASO 2: Revertir stock de items originales
+      console.log("🔄 Revirtiendo stock de items originales...");
+      for (const item of originalNote.items) {
+        if (item.product_id) {
+          // Devolver al stock (delta positivo)
+          await updateProductStock(item.product_id, item.quantity, queryClient);
+          console.log(`  ✅ Revertido: ${item.product_name} (+${item.quantity})`);
+        }
+      }
+
+      // PASO 3: Calcular nuevo total
       let newTotal = originalNote.total_amount;
       if (updates.items) {
         newTotal = updates.items.reduce((sum, item) => 
@@ -244,39 +322,43 @@ export const useDeliveryNotes = () => {
         );
       }
 
-      const paidAmount = updates.paidAmount ?? originalNote.paid_amount;
-      const status = paidAmount >= newTotal ? 'paid' : 'pending';
+      const newPaidAmount = updates.paidAmount ?? originalNote.paid_amount;
+      const newStatus = newPaidAmount >= newTotal ? 'paid' : 'pending';
 
-      const { error: updateError } = await supabase
+      // PASO 4: Actualizar nota principal
+      // 🔧 Convertir fecha a mediodía UTC si se proporciona
+      const issueDate = updates.issueDate 
+        ? `${updates.issueDate}T12:00:00.000Z` 
+        : undefined;
+
+      const { error: noteError } = await supabase
         .from("delivery_notes")
         .update({
           customer_name: updates.customerName,
           customer_address: updates.customerAddress,
           customer_phone: updates.customerPhone,
-          issue_date: updates.issueDate,
+          issue_date: issueDate,
           total_amount: newTotal,
-          paid_amount: paidAmount,
-          extra_fields: updates.extraFields,
+          paid_amount: newPaidAmount,
           notes: updates.notes,
-          status,
+          status: newStatus,
         })
         .eq("id", id);
 
-      if (updateError) throw updateError;
+      if (noteError) throw noteError;
 
+      // PASO 5: Reemplazar items si se proporcionaron
       if (updates.items) {
-        for (const item of originalNote.items) {
-          if (item.product_id) {
-            await updateProductStock(item.product_id, item.quantity);
-          }
-        }
-
-        await supabase
+        // Eliminar items antiguos
+        const { error: deleteError } = await supabase
           .from("delivery_note_items")
           .delete()
           .eq("delivery_note_id", id);
 
-        await supabase
+        if (deleteError) throw deleteError;
+
+        // Insertar nuevos items
+        const { error: itemsError } = await supabase
           .from("delivery_note_items")
           .insert(
             updates.items.map(item => ({
@@ -289,16 +371,28 @@ export const useDeliveryNotes = () => {
             }))
           );
 
+        if (itemsError) throw itemsError;
+
+        // PASO 6: Descontar stock de nuevos items
+        console.log("🔄 Descontando stock de nuevos items...");
         for (const item of updates.items) {
           if (item.productId) {
-            await updateProductStock(item.productId, -item.quantity);
+            // Descontar del stock (delta negativo)
+            await updateProductStock(item.productId, -item.quantity, queryClient);
+            console.log(`  ✅ Descontado: ${item.productName} (-${item.quantity})`);
           }
         }
       }
+
+      // 🆕 SINCRONIZAR A INDEXEDDB DESPUÉS DE ACTUALIZAR
+      try {
+        await syncDeliveryNoteById(id);
+      } catch (error) {
+        console.error("Error al sincronizar remito actualizado a IndexedDB:", error);
+      }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
-      queryClient.invalidateQueries({ queryKey: ["list-products"] });
+      invalidateProductQueries(queryClient);
       toast.success(
         isOnline
           ? "Remito actualizado exitosamente"
@@ -327,7 +421,7 @@ export const useDeliveryNotes = () => {
 
       for (const item of note.items) {
         if (item.product_id) {
-          await updateProductStock(item.product_id, item.quantity);
+          await updateProductStock(item.product_id, item.quantity, queryClient);
         }
       }
 
@@ -337,10 +431,16 @@ export const useDeliveryNotes = () => {
         .eq("id", id);
 
       if (deleteError) throw deleteError;
+
+      // 🆕 SINCRONIZAR A INDEXEDDB DESPUÉS DE ELIMINAR
+      try {
+        await syncDeliveryNoteById(id);
+      } catch (error) {
+        console.error("Error al sincronizar eliminación a IndexedDB:", error);
+      }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
-      queryClient.invalidateQueries({ queryKey: ["list-products"] });
+      invalidateProductQueries(queryClient);
       toast.success(
         isOnline
           ? "Remito eliminado y stock revertido"
@@ -382,6 +482,13 @@ export const useDeliveryNotes = () => {
         .eq("id", id);
 
       if (error) throw error;
+
+      // 🆕 SINCRONIZAR A INDEXEDDB DESPUÉS DE MARCAR COMO PAGADO
+      try {
+        await syncDeliveryNoteById(id);
+      } catch (error) {
+        console.error("Error al sincronizar pago a IndexedDB:", error);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
@@ -400,5 +507,6 @@ export const useDeliveryNotes = () => {
     updateDeliveryNote: updateMutation.mutateAsync,
     deleteDeliveryNote: deleteMutation.mutateAsync,
     markAsPaid: markAsPaidMutation.mutateAsync,
+    isDeleting: deleteMutation.isPending,
   };
 };

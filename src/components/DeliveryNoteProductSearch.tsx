@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { useSearch } from "@/hooks/useSearch";
 import { Search, Loader2 } from "lucide-react";
 import { formatARS } from "@/utils/numberParser";
+import { useGlobalProductSearch } from "@/hooks/useGlobalProductSearch";
+import { useProductLists } from "@/hooks/useProductLists";
 
 interface ProductSearchProps {
   onSelect: (product: { id?: string; code: string; name: string; price: number }) => void;
@@ -11,18 +12,58 @@ interface ProductSearchProps {
 
 const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
   const [query, setQuery] = useState("");
-  
-  const { results, loading } = useSearch(query, 10);
+  const [isFocused, setIsFocused] = useState(false);
+
+  const { productLists } = useProductLists();
+
+  const { 
+    data: searchData, 
+    isLoading,
+    isOnline 
+  } = useGlobalProductSearch({
+    searchTerm: query,
+    supplierFilter: "all",
+    minSearchLength: 2,
+    pageSize: 20,
+  });
+
+  const results = useMemo(() => {
+    if (!searchData?.pages) return [];
+    return searchData.pages.flatMap((page) => page.data || []);
+  }, [searchData]);
 
   const handleSelect = (product: any) => {
+    // Obtener nombre del producto
+    let productName = product.name || product.code || "Producto sin nombre";
+
+    // Si tenemos el producto completo con data, extraer mejor nombre
+    if (product.dynamic_products?.data) {
+      const list = productLists.find((l: any) => l.id === product.list_id);
+      const mappingConfig = list?.mapping_config;
+
+      if (mappingConfig?.name_keys && Array.isArray(mappingConfig.name_keys)) {
+        for (const key of mappingConfig.name_keys) {
+          const value = product.dynamic_products.data[key];
+          if (value && String(value).trim()) {
+            productName = String(value).trim();
+            break;
+          }
+        }
+      }
+    }
+
     onSelect({
       id: product.product_id,
-      code: product.code || "",
-      name: product.name || "",
+      code: product.code || "SIN-CODIGO",
+      name: productName,
       price: product.price || 0,
     });
+
     setQuery("");
+    setIsFocused(false);
   };
+
+  const showResults = isFocused && query.length >= 2;
 
   return (
     <div className="relative">
@@ -33,39 +74,77 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
             placeholder="Buscar por código o nombre..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
+            onFocus={() => setIsFocused(true)}
+            onBlur={() => {
+              // Delay para permitir click en resultados
+              setTimeout(() => setIsFocused(false), 200);
+            }}
             className="pl-9"
           />
         </div>
       </div>
 
-      {loading && (
+      {isLoading && showResults && (
         <Card className="absolute z-50 mt-1 w-full p-4 text-center">
           <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+          <p className="text-sm text-muted-foreground mt-2">
+            Buscando{!isOnline ? " (modo offline)" : ""}...
+          </p>
         </Card>
       )}
 
-      {!loading && results.length > 0 && (
-        <Card className="absolute z-50 mt-1 w-full max-h-80 overflow-y-auto">
+      {!isLoading && showResults && results.length > 0 && (
+        <Card className="absolute z-50 mt-1 w-full max-h-80 overflow-y-auto shadow-lg">
           <div className="divide-y">
-            {results.map((product) => (
+            {results.map((product: any) => (
               <div
                 key={product.product_id}
-                className="p-3 hover:bg-accent cursor-pointer"
+                className="p-3 hover:bg-accent cursor-pointer transition-colors"
                 onClick={() => handleSelect(product)}
               >
-                <p className="font-medium">{product.name || product.code}</p>
-                <p className="text-sm text-muted-foreground">
-                  Código: {product.code || 'N/A'} | {formatARS(product.price || 0)}
-                </p>
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <p className="font-medium">{product.name || product.code || "Sin nombre"}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Código: {product.code || "N/A"}
+                    </p>
+                    {product.quantity !== undefined && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-muted-foreground">Stock:</span>
+                        <span 
+                          className={`text-xs font-semibold ${
+                            product.quantity === 0 
+                              ? "text-red-500" 
+                              : product.quantity < 10 
+                              ? "text-orange-500" 
+                              : "text-green-600"
+                          }`}
+                        >
+                          {product.quantity} unidades
+                        </span>
+                        {product.quantity === 0 && (
+                          <span className="text-xs bg-red-100 text-red-800 px-2 py-0.5 rounded">
+                            Sin stock
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold">{formatARS(product.price || 0)}</p>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
         </Card>
       )}
 
-      {!loading && query.length >= 2 && results.length === 0 && (
+      {!isLoading && showResults && query.length >= 2 && results.length === 0 && (
         <Card className="absolute z-50 mt-1 w-full p-4 text-center">
-          <p className="text-muted-foreground">No se encontraron productos</p>
+          <p className="text-muted-foreground">
+            No se encontraron productos{!isOnline ? " (modo offline)" : ""}
+          </p>
         </Card>
       )}
     </div>
