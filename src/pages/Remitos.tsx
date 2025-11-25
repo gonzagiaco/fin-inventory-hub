@@ -88,26 +88,26 @@ const Remitos = () => {
 
       // Construir mensaje con toda la información del remito
       let message = `*REMITO*\n\n` +
-        `📅 Fecha: ${format(new Date(note.issueDate), "dd/MM/yyyy")}\n` +
-        `👤 Cliente: ${note.customerName}\n`;
+        `Fecha: ${format(new Date(note.issueDate), "dd/MM/yyyy")}\n` +
+        `Cliente: ${note.customerName}\n`;
       
       if (note.customerAddress) {
-        message += `📍 Dirección: ${note.customerAddress}\n`;
+        message += `Dirección: ${note.customerAddress}\n`;
       }
       
       message += `\n*Productos:*\n${productsList}\n\n` +
         `━━━━━━━━━━━━━━━━━━\n` +
-        `💰 *Total: ${formatARS(note.totalAmount)}*\n` +
-        `✅ Pagado: ${formatARS(note.paidAmount)}\n` +
-        `📌 Restante: ${formatARS(note.remainingBalance)}\n` +
+        `*Total: ${formatARS(note.totalAmount)}*\n` +
+        `Pagado: ${formatARS(note.paidAmount)}\n` +
+        `Restante: ${formatARS(note.remainingBalance)}\n` +
         `━━━━━━━━━━━━━━━━━━\n` +
-        `Estado: ${note.status === 'paid' ? '✅ PAGADO' : '⏳ PENDIENTE'}`;
+        `Estado: ${note.status === 'paid' ? 'PAGADO' : 'PENDIENTE'}`;
       
       if (note.notes) {
-        message += `\n\n📝 Notas: ${note.notes}`;
+        message += `\n\n Notas: ${note.notes}`;
       }
       
-      message += `\n\n📄 *Descargar PDF:*\n${pdfUrl}`;
+      message += `\n\n *Descargar PDF:*\n${pdfUrl}`;
       message += `\n\n_Gracias por su compra_`;
 
       const encodedMessage = encodeURIComponent(message);
@@ -122,7 +122,7 @@ const Remitos = () => {
       
       toast({
         title: "PDF generado",
-        description: "El remito se subió correctamente y se abrió WhatsApp",
+        description: "El remito se subió correctamente",
       });
     } catch (err) {
       toast({
