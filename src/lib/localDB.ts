@@ -633,7 +633,7 @@ async function executeOperation(op: PendingOperation): Promise<void> {
   
   if (op.operation_type === "INSERT") {
     const { data, error } = await supabase
-      .from(op.table_name)
+      .from(op.table_name as any)
       .insert([op.data])
       .select()
       .single();
@@ -641,7 +641,7 @@ async function executeOperation(op: PendingOperation): Promise<void> {
     if (error) throw error;
     
     if (data && isTempId(op.record_id)) {
-      await updateLocalRecordId(op.table_name, op.record_id, data.id);
+      await updateLocalRecordId(op.table_name, op.record_id, (data as any).id);
     }
     
   } else if (op.operation_type === "UPDATE") {
@@ -651,7 +651,7 @@ async function executeOperation(op: PendingOperation): Promise<void> {
     }
     
     const { error } = await supabase
-      .from(op.table_name)
+      .from(op.table_name as any)
       .update(op.data)
       .eq("id", realId);
 
@@ -664,7 +664,7 @@ async function executeOperation(op: PendingOperation): Promise<void> {
     }
     
     const { error } = await supabase
-      .from(op.table_name)
+      .from(op.table_name as any)
       .delete()
       .eq("id", realId);
 
