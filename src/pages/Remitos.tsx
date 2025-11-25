@@ -21,8 +21,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useDeliveryNotes } from "@/hooks/useDeliveryNotes";
+import { useToast } from "@/hooks/use-toast";
 import DeliveryNoteDialog from "@/components/DeliveryNoteDialog";
-import { generateDeliveryNotePDF, generateDeliveryNotePDFBlob } from "@/utils/deliveryNotePdfGenerator";
+import { generateDeliveryNotePDF } from "@/utils/deliveryNotePdfGenerator";
+import { uploadDeliveryNotePDF } from "@/services/pdfStorageService";
 import { Plus, Download, MessageCircle, Trash2, CheckCircle, Edit, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { formatARS } from "@/utils/numberParser";
@@ -31,10 +33,12 @@ import Header from "@/components/Header";
 
 const Remitos = () => {
   const { deliveryNotes, isLoading, deleteDeliveryNote, markAsPaid, isDeleting } = useDeliveryNotes();
+  const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingNote, setEditingNote] = useState<DeliveryNote | undefined>();
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
+  const [isSendingWhatsApp, setIsSendingWhatsApp] = useState<string | null>(null);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "paid">("all");
@@ -60,32 +64,75 @@ const Remitos = () => {
     generateDeliveryNotePDF(note);
   };
 
-  const handleWhatsApp = (note: DeliveryNote) => {
-    // Generar PDF sin descargarlo
-    const pdfUrl = generateDeliveryNotePDFBlob(note);
+  const handleWhatsApp = async (note: DeliveryNote) => {
+    setIsSendingWhatsApp(note.id);
     
-    // Construir lista de productos
-    const productsList = note.items?.map(
-      (item, index) => `${index + 1}. ${item.productName} x${item.quantity} - ${formatARS(item.subtotal)}`
-    ).join("\n") || "";
+    try {
+      // Subir PDF a Supabase Storage
+      const { url: pdfUrl, error } = await uploadDeliveryNotePDF(note);
+      
+      if (error) {
+        toast({
+          title: "Error al generar PDF",
+          description: error,
+          variant: "destructive",
+        });
+        setIsSendingWhatsApp(null);
+        return;
+      }
 
-    const message = encodeURIComponent(
-      `Hola ${note.customerName}, te envío tu remito.\n\n` +
-        `Fecha: ${format(new Date(note.issueDate), "dd/MM/yyyy")}\n\n` +
-        `Productos:\n${productsList}\n\n` +
-        `Total: ${formatARS(note.totalAmount)}\n` +
-        `Pagado: ${formatARS(note.paidAmount)}\n` +
-        `Restante: ${formatARS(note.remainingBalance)}\n\n` +
-        `Descargar PDF: ${pdfUrl}`
-    );
+      // Construir lista de productos
+      const productsList = note.items?.map(
+        (item, index) => `${index + 1}. ${item.productName} x${item.quantity} - ${formatARS(item.subtotal)}`
+      ).join("\n") || "";
 
-    // Teléfono ya viene en formato +54XXXXXXXXXX
-    const phone = note.customerPhone?.replace(/\D/g, "");
-    const whatsappUrl = phone 
-      ? `https://wa.me/${phone}?text=${message}` 
-      : `https://wa.me/?text=${message}`;
+      // Construir mensaje con toda la información del remito
+      let message = `*REMITO*\n\n` +
+        `📅 Fecha: ${format(new Date(note.issueDate), "dd/MM/yyyy")}\n` +
+        `👤 Cliente: ${note.customerName}\n`;
+      
+      if (note.customerAddress) {
+        message += `📍 Dirección: ${note.customerAddress}\n`;
+      }
+      
+      message += `\n*Productos:*\n${productsList}\n\n` +
+        `━━━━━━━━━━━━━━━━━━\n` +
+        `💰 *Total: ${formatARS(note.totalAmount)}*\n` +
+        `✅ Pagado: ${formatARS(note.paidAmount)}\n` +
+        `📌 Restante: ${formatARS(note.remainingBalance)}\n` +
+        `━━━━━━━━━━━━━━━━━━\n` +
+        `Estado: ${note.status === 'paid' ? '✅ PAGADO' : '⏳ PENDIENTE'}`;
+      
+      if (note.notes) {
+        message += `\n\n📝 Notas: ${note.notes}`;
+      }
+      
+      message += `\n\n📄 *Descargar PDF:*\n${pdfUrl}`;
+      message += `\n\n_Gracias por su compra_`;
 
-    window.open(whatsappUrl, "_blank");
+      const encodedMessage = encodeURIComponent(message);
+
+      // Teléfono ya viene en formato +54XXXXXXXXXX
+      const phone = note.customerPhone?.replace(/\D/g, "");
+      const whatsappUrl = phone 
+        ? `https://wa.me/${phone}?text=${encodedMessage}` 
+        : `https://wa.me/?text=${encodedMessage}`;
+
+      window.open(whatsappUrl, "_blank");
+      
+      toast({
+        title: "PDF generado",
+        description: "El remito se subió correctamente y se abrió WhatsApp",
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: "No se pudo generar el PDF para compartir",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingWhatsApp(null);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -132,24 +179,36 @@ const Remitos = () => {
           <CardHeader>
             <CardTitle>Filtros</CardTitle>
           </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Input
-              placeholder="Buscar por cliente..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
-            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="pending">Pendientes</SelectItem>
-                <SelectItem value="paid">Pagados</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input type="date" placeholder="Desde" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-            <Input type="date" placeholder="Hasta" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+            <div className="space-y-1">
+              <span className="text-sm font-medium">Cliente</span>
+              <Input
+                placeholder="Buscar por cliente..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <span className="text-sm font-medium">Estado</span>
+              <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as any)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos</SelectItem>
+                  <SelectItem value="pending">Pendientes</SelectItem>
+                  <SelectItem value="paid">Pagados</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <span className="text-sm font-medium">Desde</span>
+              <Input type="date" placeholder="Desde" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <span className="text-sm font-medium">Hasta</span>
+              <Input type="date" placeholder="Hasta" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            </div>
           </CardContent>
         </Card>
 
@@ -230,12 +289,21 @@ const Remitos = () => {
 
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Button size="sm" variant="outline" onClick={() => handleWhatsApp(note)}>
-                              <MessageCircle className="h-4 w-4" />
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={() => handleWhatsApp(note)}
+                              disabled={isSendingWhatsApp === note.id}
+                            >
+                              {isSendingWhatsApp === note.id ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <MessageCircle className="h-4 w-4" />
+                              )}
                             </Button>
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Enviar por WhatsApp</p>
+                            <p>{isSendingWhatsApp === note.id ? "Subiendo PDF..." : "Enviar por WhatsApp"}</p>
                           </TooltipContent>
                         </Tooltip>
 

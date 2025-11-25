@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -23,6 +23,8 @@ import { List, LayoutGrid, Loader2 } from "lucide-react";
 import { QuantityCell } from "./stock/QuantityCell";
 import { normalizeRawPrice, formatARS } from "@/utils/numberParser";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useListProducts } from "@/hooks/useListProducts";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface DynamicProductTableProps {
   listId: string;
@@ -49,6 +51,46 @@ export const DynamicProductTable = ({
 }: DynamicProductTableProps) => {
   const [globalFilter, setGlobalFilter] = useState("");
   const [sorting, setSorting] = useState<SortingState>([]);
+
+  // Debounce del término de búsqueda para evitar demasiadas consultas
+  const debouncedSearchTerm = useDebounce(globalFilter, 300);
+
+  // Determinar si estamos en modo búsqueda activa (mínimo 2 caracteres)
+  const isSearchActive = debouncedSearchTerm.trim().length >= 2;
+
+  // Hook para búsqueda server-side cuando hay término de búsqueda
+  const {
+    data: searchData,
+    isLoading: isSearchLoading,
+    fetchNextPage: fetchNextSearchPage,
+    hasNextPage: hasNextSearchPage,
+    isFetchingNextPage: isFetchingNextSearchPage,
+  } = useListProducts(listId, isSearchActive ? debouncedSearchTerm : undefined);
+
+  // Productos de búsqueda server-side
+  const searchProducts = useMemo(() => {
+    if (!isSearchActive || !searchData?.pages) return [];
+    return searchData.pages.flatMap((page: any) =>
+      (page.data || []).map((item: any) => ({
+        id: item.product_id,
+        listId: item.list_id,
+        code: item.code,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+        data: item?.dynamic_products?.data ?? item?.data ?? {},
+        calculated_data: item.calculated_data ?? {},
+      } as DynamicProduct))
+    );
+  }, [searchData, isSearchActive]);
+
+  // Usar productos de búsqueda o productos iniciales según el estado
+  const effectiveProducts = isSearchActive ? searchProducts : products;
+  const effectiveHasMore = isSearchActive ? hasNextSearchPage : hasMore;
+  const effectiveIsLoadingMore = isSearchActive ? isFetchingNextSearchPage : isLoadingMore;
+  const effectiveOnLoadMore = isSearchActive
+    ? () => { void fetchNextSearchPage(); }
+    : onLoadMore;
 
   // Estado compartido de ordenamiento para cards
   const sortColumn = sorting.length > 0 ? sorting[0].id : null;
@@ -218,16 +260,18 @@ export const DynamicProductTable = ({
   }, [columns]);
 
   const table = useReactTable({
-    data: products,
+    data: effectiveProducts,
     columns: visibleColumns,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getSortedRowModel: getSortedRowModel(),
     onSortingChange: setSorting,
+    // NO usar globalFilter del table cuando hay búsqueda server-side activa
     onGlobalFilterChange: setGlobalFilter,
     state: {
       sorting,
-      globalFilter,
+      // Solo aplicar filtro local cuando NO hay búsqueda server-side
+      globalFilter: isSearchActive ? "" : globalFilter,
       columnPinning: columnPinning[listId] || {},
     },
   });
@@ -240,12 +284,21 @@ export const DynamicProductTable = ({
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar productos..."
+              placeholder="Buscar en todos los productos... (mín. 2 caracteres)"
               value={globalFilter}
               onChange={(e) => setGlobalFilter(e.target.value)}
               className="pl-10"
             />
+            {isSearchLoading && isSearchActive && (
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
+            )}
           </div>
+          {/* Indicador de resultados de búsqueda */}
+          {isSearchActive && !isSearchLoading && (
+            <div className="text-sm text-muted-foreground flex items-center gap-1 whitespace-nowrap">
+              {searchProducts.length} resultado{searchProducts.length !== 1 ? 's' : ''}
+            </div>
+          )}
           <div className="flex gap-1.5 flex-wrap justify-end">
           {shouldUseCardView && (
             <>
@@ -284,9 +337,9 @@ export const DynamicProductTable = ({
           mappingConfig={mappingConfig}
           onAddToRequest={onAddToRequest}
           showActions={showStockActions}
-          onLoadMore={onLoadMore}
-          hasMore={hasMore}
-          isLoadingMore={isLoadingMore}
+          onLoadMore={effectiveOnLoadMore}
+          hasMore={effectiveHasMore}
+          isLoadingMore={effectiveIsLoadingMore || (isSearchLoading && isSearchActive)}
           sortColumn={sortColumn}
           sortDirection={sortDirection}
           onSortChange={handleSortChange}
@@ -317,10 +370,21 @@ export const DynamicProductTable = ({
               </TableHeader>
 
               <TableBody>
-                {table.getRowModel().rows.length === 0 ? (
+                {isSearchLoading && isSearchActive ? (
+                  <TableRow>
+                    <TableCell colSpan={visibleColumns.length} className="text-center py-8">
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Buscando productos...
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : table.getRowModel().rows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={visibleColumns.length} className="text-center text-muted-foreground py-8">
-                      No se encontraron productos
+                      {isSearchActive
+                        ? `No se encontraron productos para "${debouncedSearchTerm}"`
+                        : "No se encontraron productos"}
                     </TableCell>
                   </TableRow>
                 ) : (
@@ -343,10 +407,10 @@ export const DynamicProductTable = ({
               </TableBody>
             </Table>
 
-            {effectiveViewMode === "table" && hasMore && (
+            {effectiveViewMode === "table" && effectiveHasMore && (
               <div className="text-center my-4">
-                <Button variant="outline" onClick={onLoadMore} disabled={isLoadingMore}>
-                  {isLoadingMore ? (
+                <Button variant="outline" onClick={effectiveOnLoadMore} disabled={effectiveIsLoadingMore}>
+                  {effectiveIsLoadingMore ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       Cargando más...

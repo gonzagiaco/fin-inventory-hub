@@ -1480,15 +1480,67 @@ export async function getProductsForListOffline(
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Usuario no autenticado");
 
+  // Obtener la lista para acceder al mapping_config
+  const listRecord = await localDB.product_lists.get(listId);
+  const mappingConfig = listRecord?.mapping_config;
+
   // Obtener todos los productos del list_id del usuario
   let allRecords = await localDB.dynamic_products_index.where({ list_id: listId, user_id: user.id }).toArray();
 
-  // Aplicar búsqueda si existe
-  if (searchQuery) {
-    const lowerQuery = searchQuery.toLowerCase();
-    allRecords = allRecords.filter(
-      (r) => r.code?.toLowerCase().includes(lowerQuery) || r.name?.toLowerCase().includes(lowerQuery),
-    );
+  // Aplicar búsqueda si existe (mínimo 2 caracteres)
+  if (searchQuery && searchQuery.trim().length >= 2) {
+    const lowerQuery = searchQuery.toLowerCase().trim();
+
+    // Obtener productos completos para búsqueda más profunda
+    const fullProducts = await localDB.dynamic_products.where({ list_id: listId }).toArray();
+    const fullProductsMap = new Map(fullProducts.map((p: any) => [p.id, p]));
+
+    allRecords = allRecords.filter((r) => {
+      // Buscar en campos del índice (code y name)
+      if (r.code?.toLowerCase().includes(lowerQuery) || r.name?.toLowerCase().includes(lowerQuery)) {
+        return true;
+      }
+
+      // Buscar en producto completo usando mapping_config
+      const fullProduct = fullProductsMap.get(r.product_id);
+      if (!fullProduct?.data) return false;
+
+      // Buscar en code_keys
+      if (mappingConfig?.code_keys && Array.isArray(mappingConfig.code_keys)) {
+        for (const key of mappingConfig.code_keys) {
+          if (fullProduct.data[key]?.toString().toLowerCase().includes(lowerQuery)) {
+            return true;
+          }
+        }
+      }
+
+      // Buscar en name_keys
+      if (mappingConfig?.name_keys && Array.isArray(mappingConfig.name_keys)) {
+        for (const key of mappingConfig.name_keys) {
+          if (fullProduct.data[key]?.toString().toLowerCase().includes(lowerQuery)) {
+            return true;
+          }
+        }
+      }
+
+      // Buscar en extra_index_keys si existen
+      if (mappingConfig?.extra_index_keys && Array.isArray(mappingConfig.extra_index_keys)) {
+        for (const key of mappingConfig.extra_index_keys) {
+          if (fullProduct.data[key]?.toString().toLowerCase().includes(lowerQuery)) {
+            return true;
+          }
+        }
+      }
+
+      // Búsqueda adicional en todos los campos de data (fallback)
+      for (const [, value] of Object.entries(fullProduct.data)) {
+        if (value && typeof value === "string" && value.toLowerCase().includes(lowerQuery)) {
+          return true;
+        }
+      }
+
+      return false;
+    });
   }
 
   // Ordenar por nombre
@@ -1513,6 +1565,7 @@ export async function getProductsForListOffline(
         name: indexRecord.name,
         price: indexRecord.price,
         quantity: indexRecord.quantity,
+        calculated_data: (indexRecord as any).calculated_data ?? {},
         dynamic_products: fullProduct ? { data: fullProduct.data } : null,
       };
     }),
