@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { QuantityCell } from "@/components/stock/QuantityCell";
+import { AddProductDropdown } from "@/components/stock/AddProductDropdown";
 import { ProductCardView } from "@/components/ProductCardView";
 import { ColumnSchema, DynamicProduct } from "@/types/productList";
 import { useProductListStore } from "@/stores/productListStore";
@@ -311,24 +312,19 @@ export function GlobalProductSearch({
                 return (
                   <TableRow key={item.product_id}>
                     <TableCell className="text-right">
-                      {(() => {
-                        const { AddProductDropdown } = require("./stock/AddProductDropdown");
-                        return (
-                          <AddProductDropdown
-                            product={{
-                              id: item.product_id,
-                              listId: item.list_id,
-                              code: item.code,
-                              name: item.name,
-                              price: Number(item.price) || 0,
-                              quantity: item.quantity || 0,
-                              supplierId: supplierInfo ? supplierInfo.id : "",
-                            }}
-                            onAddToRequest={onAddToRequest}
-                            showAddToStock={true}
-                          />
-                        );
-                      })()}
+                      <AddProductDropdown
+                        product={{
+                          id: item.product_id,
+                          listId: item.list_id,
+                          code: item.code,
+                          name: item.name,
+                          price: Number(item.price) || 0,
+                          quantity: item.quantity || 0,
+                          supplierId: supplierInfo ? supplierInfo.id : "",
+                        }}
+                        onAddToRequest={onAddToRequest}
+                        showAddToStock={true}
+                      />
                     </TableCell>
 
                     <TableCell>
