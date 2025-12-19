@@ -94,7 +94,7 @@ export function useMyStockProducts(options: UseMyStockProductsOptions = {}) {
 
       return filtered as MyStockProduct[];
     },
-    staleTime: 1000 * 30, // 30 seconds
+    staleTime: 0, // Always refetch to get real-time updates
   });
 
   const invalidate = () => {

@@ -38,6 +38,9 @@ export const QuantityCell: React.FC<Props> = ({
           .eq("product_id", productId);
 
         if (error) throw error;
+        
+        // También actualizar IndexedDB para mantener sincronizado
+        await updateProductQuantityOffline(productId, listId, newQty);
         toast.success("Stock actualizado");
       } else {
         // Modo offline: guardar en IndexedDB y encolar
@@ -51,6 +54,7 @@ export const QuantityCell: React.FC<Props> = ({
       // Invalidar queries (tanto online como offline)
       queryClient.invalidateQueries({ queryKey: ["global-search"] });
       queryClient.invalidateQueries({ queryKey: ["list-products", listId] });
+      queryClient.invalidateQueries({ queryKey: ["my-stock"] });
     } catch (error: any) {
       console.error("Error al actualizar stock:", error);
       toast.error(`Error al actualizar stock: ${error.message}`);
