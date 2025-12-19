@@ -34,17 +34,12 @@ export function AddProductDropdown({
   const listId = product.list_id || product.listId;
 
   const handleAddToStock = async () => {
-    // 1. Feedback inmediato al usuario
     toast.success("Agregado a Mi Stock");
-    setOpen(false);
-
-    // 2. Invalidar la query ANTES de las operaciones para refrescar la UI
     queryClient.invalidateQueries({ queryKey: ["my-stock"] });
 
-    // 3. Ejecutar operaciones de BD en el siguiente tick del event loop
     queueMicrotask(async () => {
       try {
-        await addToMyStock(productId, productListId, isOnline);
+        await addToMyStock(productId, listId, isOnline);
       } catch (error) {
         console.error("Error al agregar a Mi Stock:", error);
       }

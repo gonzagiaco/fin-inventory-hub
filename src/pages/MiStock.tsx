@@ -91,7 +91,9 @@ export default function MiStock() {
 
       section.lists.get(listInfo.id)!.products.push({
         id: product.product_id,
+        product_id: product.product_id,
         listId: product.list_id,
+        list_id: product.list_id,
         code: product.code,
         name: product.name,
         price: product.price,
