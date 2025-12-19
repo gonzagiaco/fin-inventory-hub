@@ -506,6 +506,23 @@ export async function updateDeliveryNoteOffline(
   };
 
   await localDB.delivery_notes.put(updated);
+  // Recalcular total, paid, remaining y status offline antes de guardar
++  let newTotal = existing.total_amount;
++  if (items) {
++    newTotal = items.reduce((sum, it) => sum + it.subtotal, 0);
++  }
++  const newPaid = updates.paid_amount !== undefined ? updates.paid_amount : existing.paid_amount;
++  const newStatus = newPaid >= newTotal ? 'paid' : 'pending';
++  const updatedNote = {
++    ...existing,
++    ...updates,
++    total_amount: newTotal,
++    paid_amount: newPaid,
++    remaining_balance: newTotal - newPaid,
++    status: newStatus,
++    updated_at: new Date().toISOString()
++  };
++  await localDB.delivery_notes.put(updatedNote);
   await queueOperation('delivery_notes', 'UPDATE', id, updates);
 
   // Si se proporcionan items, reemplazarlos
