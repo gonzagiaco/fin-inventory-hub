@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { getOfflineData } from "@/lib/localDB";
+import { getOfflineData, updateProductQuantityOffline } from "@/lib/localDB";
 import { useOnlineStatus } from "./useOnlineStatus";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -12,6 +12,7 @@ export interface MyStockProduct {
   price: number | null;
   quantity: number | null;
   calculated_data?: Record<string, any>;
+  data?: Record<string, any>;
   created_at: string;
   updated_at: string;
 }
@@ -38,11 +39,18 @@ export function useMyStockProducts(options: UseMyStockProductsOptions = {}) {
     queryFn: async () => {
       // Fetch from IndexedDB (offline-first approach for this view)
       const indexedProducts = (await getOfflineData("dynamic_products_index")) as any[];
+      const fullProducts = (await getOfflineData("dynamic_products")) as any[];
       const productLists = (await getOfflineData("product_lists")) as any[];
       
       if (!indexedProducts || !productLists) {
         return [];
       }
+
+      // Create a map of product_id -> full data
+      const productDataMap = new Map<string, any>();
+      fullProducts?.forEach((p: any) => {
+        productDataMap.set(p.id, p.data || {});
+      });
 
       // Create a map of list_id to supplier_id
       const listToSupplier = new Map<string, string>();
@@ -60,6 +68,12 @@ export function useMyStockProducts(options: UseMyStockProductsOptions = {}) {
         
         return hasStock || wasModified;
       });
+
+      // Enrich products with full data
+      filtered = filtered.map((p: any) => ({
+        ...p,
+        data: productDataMap.get(p.product_id) || {},
+      }));
 
       // Filter by supplier if specified
       if (supplierId && supplierId !== "all") {
@@ -94,7 +108,7 @@ export function useMyStockProducts(options: UseMyStockProductsOptions = {}) {
 
       return filtered as MyStockProduct[];
     },
-    staleTime: 0, // Always refetch to get real-time updates
+    staleTime: 0,
   });
 
   const invalidate = () => {
@@ -116,8 +130,6 @@ export async function addToMyStock(
   listId: string,
   isOnline: boolean
 ): Promise<void> {
-  const { updateProductQuantityOffline } = await import("@/lib/localDB");
-  
   // Get current product data
   const indexedProducts = (await getOfflineData("dynamic_products_index")) as any[];
   const product = indexedProducts?.find(
@@ -137,8 +149,48 @@ export async function addToMyStock(
       .eq("product_id", productId);
     
     if (error) throw error;
+    
+    // Also update IndexedDB to keep in sync
+    await updateProductQuantityOffline(productId, listId, currentQuantity);
   } else {
     // Update via offline handler
     await updateProductQuantityOffline(productId, listId, currentQuantity);
+  }
+}
+
+/**
+ * Function to remove a product from My Stock.
+ * Sets quantity to 0 and resets updated_at to created_at.
+ */
+export async function removeFromMyStock(
+  productId: string,
+  listId: string,
+  isOnline: boolean
+): Promise<void> {
+  if (isOnline) {
+    // Get the original created_at to reset updated_at
+    const { data: product } = await supabase
+      .from("dynamic_products_index")
+      .select("created_at")
+      .eq("product_id", productId)
+      .single();
+    
+    if (product) {
+      const { error } = await supabase
+        .from("dynamic_products_index")
+        .update({ 
+          quantity: 0,
+          updated_at: product.created_at // Reset to original timestamp
+        })
+        .eq("product_id", productId);
+      
+      if (error) throw error;
+    }
+    
+    // Also update IndexedDB
+    await updateProductQuantityOffline(productId, listId, 0);
+  } else {
+    // In offline mode, just set quantity to 0
+    await updateProductQuantityOffline(productId, listId, 0);
   }
 }

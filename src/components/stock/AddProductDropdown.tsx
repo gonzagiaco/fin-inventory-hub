@@ -1,14 +1,15 @@
-import { Plus, ShoppingCart, Package } from "lucide-react";
+import { Plus, ShoppingCart, Package, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
-import { addToMyStock } from "@/hooks/useMyStockProducts";
+import { addToMyStock, removeFromMyStock } from "@/hooks/useMyStockProducts";
 import { useQueryClient } from "@tanstack/react-query";
 
 interface AddProductDropdownProps {
@@ -16,6 +17,7 @@ interface AddProductDropdownProps {
   mappingConfig?: any;
   onAddToRequest: (product: any, mappingConfig?: any) => void;
   showAddToStock?: boolean;
+  showRemoveFromStock?: boolean;
 }
 
 export function AddProductDropdown({
@@ -23,24 +25,71 @@ export function AddProductDropdown({
   mappingConfig,
   onAddToRequest,
   showAddToStock = true,
+  showRemoveFromStock = false,
 }: AddProductDropdownProps) {
   const isOnline = useOnlineStatus();
   const queryClient = useQueryClient();
 
+  const productId = product.product_id || product.id;
+  const listId = product.list_id || product.listId;
+
   const handleAddToStock = async () => {
+    // Immediate feedback
+    toast.success("Producto agregado a Mi Stock");
+    
+    // Background operation
     try {
-      await addToMyStock(product.id, product.listId, isOnline);
+      await addToMyStock(productId, listId, isOnline);
       queryClient.invalidateQueries({ queryKey: ["my-stock"] });
-      toast.success("Producto agregado a Mi Stock");
     } catch (error: any) {
       console.error("Error adding to stock:", error);
       toast.error("Error al agregar a Mi Stock");
     }
   };
 
+  const handleRemoveFromStock = async () => {
+    toast.success("Producto quitado de Mi Stock");
+    
+    try {
+      await removeFromMyStock(productId, listId, isOnline);
+      queryClient.invalidateQueries({ queryKey: ["my-stock"] });
+    } catch (error: any) {
+      console.error("Error removing from stock:", error);
+      toast.error("Error al quitar de Mi Stock");
+    }
+  };
+
   // If product already has stock, don't show "Add to My Stock" option
   const hasStock = (product.quantity || 0) > 0;
   const shouldShowAddToStock = showAddToStock && !hasStock;
+
+  // If we're in MyStock page and showing remove option
+  if (showRemoveFromStock) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm" variant="outline">
+            <Plus className="h-4 w-4 mr-1" />
+            Agregar
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="bg-background">
+          <DropdownMenuItem onClick={() => onAddToRequest(product, mappingConfig)}>
+            <ShoppingCart className="h-4 w-4 mr-2" />
+            Agregar al pedido
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem 
+            onClick={handleRemoveFromStock}
+            className="text-destructive focus:text-destructive"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Quitar de Mi Stock
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
 
   // If we don't need to show dropdown, just show simple button
   if (!shouldShowAddToStock) {
