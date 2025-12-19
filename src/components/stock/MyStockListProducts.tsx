@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { List, LayoutGrid } from "lucide-react";
+import { List, LayoutGrid, ChevronUp, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -9,7 +9,16 @@ import { ColumnSchema, DynamicProduct } from "@/types/productList";
 import { normalizeRawPrice, formatARS } from "@/utils/numberParser";
 import { AddProductDropdown } from "./AddProductDropdown";
 import { ColumnSettingsDrawer } from "@/components/ColumnSettingsDrawer";
+import { CardPreviewSettings } from "@/components/CardPreviewSettings";
 import { useProductListStore } from "@/stores/productListStore";
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  flexRender,
+  ColumnDef,
+  SortingState,
+} from "@tanstack/react-table";
 
 interface MyStockListProductsProps {
   listId: string;
@@ -28,57 +37,189 @@ export function MyStockListProducts({
   onAddToRequest,
   isMobile,
 }: MyStockListProductsProps) {
-  const [viewMode, setViewMode] = useState<string>(isMobile ? "cards" : "table");
-  const { columnVisibility, columnOrder } = useProductListStore();
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const { columnVisibility, columnOrder, viewMode: storeViewMode, setViewMode } = useProductListStore();
 
-  // Get original labels from columnSchema based on mappingConfig keys
-  const dynamicSchema: ColumnSchema[] = useMemo(() => {
-    const codeKey = mappingConfig?.code_keys?.[0];
-    const nameKey = mappingConfig?.name_keys?.[0];
-    const priceKey = mappingConfig?.price_primary_key;
+  // Default view mode
+  const defaultViewMode = isMobile ? "cards" : "table";
+  const currentViewMode = storeViewMode[listId] || defaultViewMode;
 
-    // Find original labels from columnSchema
-    const codeColumn = columnSchema.find(c => c.key === codeKey);
-    const nameColumn = columnSchema.find(c => c.key === nameKey);
-    const priceColumn = columnSchema.find(c => c.key === priceKey);
-    const stockColumn = columnSchema.find(c => c.key === "quantity");
+  // Process schema: only mark quantity as isStandard (fixed)
+  const processedSchema: ColumnSchema[] = useMemo(() => {
+    // Ensure quantity column is at a good default position and is the only fixed column
+    return columnSchema.map((col, index) => ({
+      ...col,
+      isStandard: col.key === "quantity", // Only quantity is fixed
+      order: col.order ?? index,
+    }));
+  }, [columnSchema]);
 
-    return [
-      { key: "code", label: codeColumn?.label || "Código", type: "text", visible: true, order: 0, isStandard: true },
-      { key: "name", label: nameColumn?.label || "Nombre", type: "text", visible: true, order: 1, isStandard: true },
-      { key: "price", label: priceColumn?.label || "Precio", type: "number", visible: true, order: 2, isStandard: true },
-      { key: "quantity", label: stockColumn?.label || "Stock", type: "number", visible: true, order: 3, isStandard: true },
-    ];
-  }, [columnSchema, mappingConfig]);
+  // Column order: default puts quantity second (after actions)
+  const schemaKeys = useMemo(() => processedSchema.map((c) => c.key), [processedSchema]);
+  
+  const currentOrder = useMemo(() => {
+    const saved = columnOrder[listId];
+    
+    if (!saved || saved.length === 0) {
+      // Default order: quantity first, then the rest
+      const withoutQuantity = schemaKeys.filter(k => k !== "quantity");
+      return ["quantity", ...withoutQuantity];
+    }
+    
+    // Add any new columns that aren't in saved order
+    const extra = schemaKeys.filter((key) => !saved.includes(key));
+    return [...saved, ...extra];
+  }, [columnOrder, listId, schemaKeys]);
 
-  // Get visibility settings for this list
   const visibilityState = columnVisibility[listId] || {};
-  const currentOrder = columnOrder[listId] || dynamicSchema.map(c => c.key);
 
-  // Apply visibility and order settings
+  // Sorting state for cards
+  const sortColumn = sorting.length > 0 ? sorting[0].id : null;
+  const sortDirection = sorting.length > 0 ? (sorting[0].desc ? 'desc' : 'asc') : null;
+
+  const handleSortChange = (columnKey: string | null, direction: 'asc' | 'desc' | null) => {
+    if (columnKey === null || direction === null) {
+      setSorting([]);
+    } else {
+      setSorting([{ id: columnKey, desc: direction === 'desc' }]);
+    }
+  };
+
+  // Build columns for TanStack Table
+  const columns = useMemo<ColumnDef<any>[]>(() => {
+    const orderedSchema = currentOrder
+      .map((key) => processedSchema.find((c) => c.key === key))
+      .filter(Boolean) as ColumnSchema[];
+
+    const dataColumns = orderedSchema.map((schema) => {
+      const isVisible = visibilityState[schema.key] !== false;
+
+      // Special case: quantity column with editable input
+      if (schema.key === "quantity") {
+        return {
+          id: schema.key,
+          accessorKey: "quantity",
+          header: schema.label,
+          cell: ({ row }: any) => {
+            const quantity = row.original.quantity || 0;
+            const lowStockThreshold = mappingConfig?.low_stock_threshold || 0;
+            const isLowStock = quantity < lowStockThreshold;
+
+            return (
+              <div className="flex items-center gap-2">
+                {isLowStock && lowStockThreshold > 0 && (
+                  <Badge variant="destructive" className="text-xs">
+                    Bajo Stock
+                  </Badge>
+                )}
+                <QuantityCell
+                  productId={row.original.product_id || row.original.id}
+                  listId={row.original.list_id || listId}
+                  value={row.original.quantity}
+                  visibleSpan={false}
+                />
+              </div>
+            );
+          },
+          meta: { isStandard: true, visible: isVisible },
+        } as ColumnDef<any>;
+      }
+
+      // Other columns
+      return {
+        id: schema.key,
+        accessorFn: (row: any) => {
+          // Price primary key from mapping
+          if (mappingConfig?.price_primary_key && schema.key === mappingConfig.price_primary_key) {
+            return row.price;
+          }
+          // Calculated data overrides
+          if (row.calculated_data && schema.key in row.calculated_data) {
+            return row.calculated_data[schema.key];
+          }
+          // Standard mappings
+          if (schema.key === "code") return row.code;
+          if (schema.key === "name") return row.name;
+          if (schema.key === "price") return row.price;
+          // Custom columns from data
+          return row.data?.[schema.key];
+        },
+        header: schema.label,
+        cell: ({ getValue }: any) => {
+          const value = getValue();
+          if (value === null || value === undefined) return "-";
+
+          const key = schema.key.toLowerCase();
+          const priceKeys = [
+            "price",
+            "precio",
+            mappingConfig?.price_primary_key?.toLowerCase(),
+            ...(mappingConfig?.price_alt_keys?.map((k: string) => k.toLowerCase()) || []),
+          ].filter(Boolean);
+          const isPriceField = priceKeys.includes(key) || key.includes("precio") || key.includes("price");
+
+          if (isPriceField || schema.type === "number") {
+            const numericValue = normalizeRawPrice(value);
+            if (numericValue !== null) {
+              return formatARS(numericValue);
+            }
+          }
+
+          return String(value);
+        },
+        meta: { isStandard: schema.isStandard, visible: isVisible },
+      } as ColumnDef<any>;
+    });
+
+    // Actions column at the start
+    dataColumns.unshift({
+      id: "actions",
+      header: "Acciones",
+      cell: ({ row }: any) => (
+        <AddProductDropdown
+          product={row.original}
+          mappingConfig={mappingConfig}
+          onAddToRequest={onAddToRequest}
+          showAddToStock={false}
+        />
+      ),
+      meta: { visible: true },
+    } as any);
+
+    return dataColumns;
+  }, [processedSchema, currentOrder, visibilityState, mappingConfig, onAddToRequest, listId]);
+
   const visibleColumns = useMemo(() => {
-    return currentOrder
-      .map(key => dynamicSchema.find(c => c.key === key))
-      .filter((col): col is ColumnSchema => col !== undefined && visibilityState[col.key] !== false);
-  }, [currentOrder, dynamicSchema, visibilityState]);
+    return columns.filter((col) => {
+      const meta = col.meta as any;
+      return meta?.visible !== false;
+    });
+  }, [columns]);
 
   // Transform products for card view
   const transformedProducts: DynamicProduct[] = useMemo(() => {
     return products.map((p) => ({
-      id: p.id,
-      listId: p.listId,
+      id: p.product_id || p.id,
+      listId: p.list_id || listId,
       code: p.code,
       name: p.name,
       price: p.price,
       quantity: p.quantity,
-      data: {},
+      data: p.data || {},
       calculated_data: p.calculated_data || {},
       supplierId: p.supplierId,
       mappingConfig,
     }));
-  }, [products, mappingConfig]);
+  }, [products, mappingConfig, listId]);
 
-  const lowStockThreshold = mappingConfig?.low_stock_threshold || 0;
+  const table = useReactTable({
+    data: products,
+    columns: visibleColumns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    onSortingChange: setSorting,
+    state: { sorting },
+  });
 
   if (products.length === 0) {
     return (
@@ -89,38 +230,46 @@ export function MyStockListProducts({
   }
 
   const ViewToggle = () => (
-    <div className="flex justify-end gap-1.5">
+    <div className="flex gap-1.5">
+      {!isMobile && (
+        <Button
+          variant={currentViewMode === "table" ? "default" : "outline"}
+          size="sm"
+          onClick={() => setViewMode(listId, "table")}
+        >
+          <List className="h-4 w-4" />
+        </Button>
+      )}
       <Button
-        variant={viewMode === "table" ? "default" : "outline"}
+        variant={currentViewMode === "cards" ? "default" : "outline"}
         size="sm"
-        onClick={() => setViewMode("table")}
-      >
-        <List className="h-4 w-4" />
-      </Button>
-      <Button
-        variant={viewMode === "cards" ? "default" : "outline"}
-        size="sm"
-        onClick={() => setViewMode("cards")}
+        onClick={() => setViewMode(listId, "cards")}
       >
         <LayoutGrid className="h-4 w-4" />
       </Button>
     </div>
   );
 
-  if (viewMode === "cards") {
+  if (currentViewMode === "cards") {
     return (
       <div className="p-4 border-t">
-        <div className="flex justify-between items-center mb-4">
-          <ColumnSettingsDrawer listId={listId} columnSchema={dynamicSchema} />
-          {!isMobile && <ViewToggle />}
+        <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+          <div className="flex gap-1.5">
+            <CardPreviewSettings listId={listId} columnSchema={processedSchema} />
+            <ColumnSettingsDrawer listId={listId} columnSchema={processedSchema} />
+          </div>
+          <ViewToggle />
         </div>
         <ProductCardView
           listId={listId}
-          products={transformedProducts}
-          columnSchema={visibleColumns.length > 0 ? visibleColumns : dynamicSchema}
+          products={table.getRowModel().rows.map((row) => row.original as any)}
+          columnSchema={processedSchema}
           mappingConfig={mappingConfig}
           onAddToRequest={(product) => onAddToRequest(product, mappingConfig)}
           showActions={true}
+          sortColumn={sortColumn}
+          sortDirection={sortDirection}
+          onSortChange={handleSortChange}
         />
       </div>
     );
@@ -128,8 +277,11 @@ export function MyStockListProducts({
 
   return (
     <div className="p-4 border-t">
-      <div className="flex justify-between items-center mb-4">
-        <ColumnSettingsDrawer listId={listId} columnSchema={dynamicSchema} />
+      <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+        <div className="flex gap-1.5">
+          <CardPreviewSettings listId={listId} columnSchema={processedSchema} />
+          <ColumnSettingsDrawer listId={listId} columnSchema={processedSchema} />
+        </div>
         <ViewToggle />
       </div>
 
@@ -138,65 +290,33 @@ export function MyStockListProducts({
           <Table className="min-w-full">
             <TableHeader>
               <TableRow>
-                <TableHead>Acciones</TableHead>
-                {visibleColumns.map((col) => (
-                  <TableHead key={col.key}>{col.label}</TableHead>
+                {table.getHeaderGroups()[0]?.headers.map((header) => (
+                  <TableHead
+                    key={header.id}
+                    className="cursor-pointer select-none bg-background"
+                    onClick={header.column.getToggleSortingHandler()}
+                  >
+                    <div className="flex items-center gap-2">
+                      {flexRender(header.column.columnDef.header, header.getContext())}
+                      {{
+                        asc: <ChevronUp className="w-4 h-4" />,
+                        desc: <ChevronDown className="w-4 h-4" />,
+                      }[header.column.getIsSorted() as string] ?? null}
+                    </div>
+                  </TableHead>
                 ))}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {products.map((product) => {
-                const isLowStock = (product.quantity || 0) < lowStockThreshold;
-                const priceValue = normalizeRawPrice(product.price);
-
-                return (
-                  <TableRow key={product.id}>
-                    <TableCell>
-                      <AddProductDropdown
-                        product={product}
-                        mappingConfig={mappingConfig}
-                        onAddToRequest={onAddToRequest}
-                        showAddToStock={false}
-                      />
+              {table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id}>
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
-                    {visibleColumns.map((col) => {
-                      if (col.key === "code") {
-                        return <TableCell key={col.key}>{product.code || "-"}</TableCell>;
-                      }
-                      if (col.key === "name") {
-                        return <TableCell key={col.key}>{product.name || "-"}</TableCell>;
-                      }
-                      if (col.key === "price") {
-                        return (
-                          <TableCell key={col.key}>
-                            {priceValue != null ? formatARS(priceValue) : "-"}
-                          </TableCell>
-                        );
-                      }
-                      if (col.key === "quantity") {
-                        return (
-                          <TableCell key={col.key}>
-                            <div className="flex items-center gap-2">
-                              {isLowStock && lowStockThreshold > 0 && (
-                                <Badge variant="destructive" className="text-xs">
-                                  Bajo Stock
-                                </Badge>
-                              )}
-                              <QuantityCell
-                                productId={product.id}
-                                listId={product.listId}
-                                value={product.quantity}
-                                visibleSpan={false}
-                              />
-                            </div>
-                          </TableCell>
-                        );
-                      }
-                      return null;
-                    })}
-                  </TableRow>
-                );
-              })}
+                  ))}
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </div>
