@@ -126,37 +126,31 @@ export default function Stock() {
   }, [lists]);
 
   function parsePriceValue(value: any): number | null {
-  if (value == null) return null;
+    if (value == null) return null;
 
-  if (typeof value === "number") {
-    return isFinite(value) ? value : null;
+    if (typeof value === "number") {
+      return isFinite(value) ? value : null;
+    }
+
+    const cleaned = String(value)
+      // quitar símbolos de moneda, espacios, etc.
+      .replace(/[^0-9.,-]/g, "")
+      // pasar coma decimal a punto
+      .replace(",", ".");
+
+    const parsed = parseFloat(cleaned);
+    return !isNaN(parsed) && isFinite(parsed) ? parsed : null;
   }
-
-  const cleaned = String(value)
-    // quitar símbolos de moneda, espacios, etc.
-    .replace(/[^0-9.,-]/g, "")
-    // pasar coma decimal a punto
-    .replace(",", ".");
-
-  const parsed = parseFloat(cleaned);
-  return !isNaN(parsed) && isFinite(parsed) ? parsed : null;
-}
 
   const handleAddToRequest = (product: any, mappingConfig?: any) => {
     const existingItem = requestList.find((r) => r.productId === product.id);
 
     // Fallback: si el producto no trae supplierId, lo derivamos de la lista
     const effectiveSupplierId =
-      product.supplierId ||
-      (lists.find((l: any) => l.id === product.listId)?.supplier_id) ||
-      "";
+      product.supplierId || lists.find((l: any) => l.id === product.listId)?.supplier_id || "";
 
     if (existingItem) {
-      setRequestList((prev) =>
-        prev.map((r) =>
-          r.productId === product.id ? { ...r, quantity: r.quantity + 1 } : r
-        )
-      );
+      setRequestList((prev) => prev.map((r) => (r.productId === product.id ? { ...r, quantity: r.quantity + 1 } : r)));
       toast.success("Cantidad actualizada en la lista de pedidos");
     } else {
       let finalPrice = parsePriceValue(product.price) ?? 0;
@@ -215,7 +209,7 @@ export default function Stock() {
   const isSupplierSelectedNoTerm = supplierFilter !== "all" && searchTerm.trim() === "";
   const hasSearchTerm = searchTerm.trim().length >= 1;
 
-  const { 
+  const {
     data: globalSearchData,
     isLoading: loadingSearch,
     fetchNextPage: fetchNextSearchPage,
@@ -315,7 +309,7 @@ export default function Stock() {
         p_limit: PAGE_SIZE,
         p_offset: from,
       });
-      
+
       if (error) throw error;
 
       const results = data || [];
@@ -343,7 +337,7 @@ export default function Stock() {
         style={{ paddingTop: "max(env(safe-area-inset-top), 1.5rem)" }}
       >
         <div className="w-full px-4 pt-5 pb-10 lg:pl-4 max-w-full overflow-hidden">
-          <h1 className="text-3xl font-bold mb-6">Stock de Productos</h1>
+          <h1 className="text-3xl font-bold mb-6">Listas de proveedores</h1>
 
           <div className="flex flex-col md:flex-row gap-4 mb-4">
             <div className="flex flex-1 gap-2">
@@ -375,10 +369,7 @@ export default function Stock() {
           <div className="flex items-center gap-3 flex-wrap">
             <div className="text-sm text-muted-foreground">
               {totalProducts} productos en total{" • "}
-              {visibleSupplierSections.length}{" "}
-              {visibleSupplierSections.length === 1
-                ? "proveedor"
-                : "proveedores"}
+              {visibleSupplierSections.length} {visibleSupplierSections.length === 1 ? "proveedor" : "proveedores"}
             </div>
           </div>
         </div>
@@ -404,8 +395,7 @@ export default function Stock() {
               </div>
               <p className="text-muted-foreground">Cargando listas...</p>
             </div>
-          ) : searchTerm.trim().length >= 1 ||
-            (searchTerm === "" && supplierFilter !== "all") ? (
+          ) : searchTerm.trim().length >= 1 || (searchTerm === "" && supplierFilter !== "all") ? (
             <GlobalProductSearch
               searchTerm={searchTerm}
               globalResults={globalResults}
@@ -425,9 +415,7 @@ export default function Stock() {
           ) : visibleSupplierSections.length === 0 ? (
             // ------- Sin proveedores -------
             <Card className="p-12 text-center">
-              <p className="text-muted-foreground">
-                No se encontraron proveedores
-              </p>
+              <p className="text-muted-foreground">No se encontraron proveedores</p>
             </Card>
           ) : (
             // ------- Secciones de proveedores (como antes) -------
