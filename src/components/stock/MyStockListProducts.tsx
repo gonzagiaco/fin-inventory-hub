@@ -181,6 +181,7 @@ export function MyStockListProducts({
           mappingConfig={mappingConfig}
           onAddToRequest={onAddToRequest}
           showAddToStock={false}
+          showRemoveFromStock={true}
         />
       ),
       meta: { visible: true },
