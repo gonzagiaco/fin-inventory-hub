@@ -29,6 +29,8 @@ interface MyStockListProductsProps {
   columnSchema: ColumnSchema[];
   mappingConfig: any;
   onAddToRequest: (product: any, mappingConfig?: any) => void;
+  onQuantityChange?: (productId: string, newQuantity: number) => void;
+  onRemoveProduct?: (productId: string) => void;
   isMobile: boolean;
 }
 
@@ -38,6 +40,8 @@ export function MyStockListProducts({
   columnSchema,
   mappingConfig,
   onAddToRequest,
+  onQuantityChange,
+  onRemoveProduct,
   isMobile,
 }: MyStockListProductsProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -49,21 +53,31 @@ export function MyStockListProducts({
   const defaultViewMode = isMobile ? "cards" : "table";
   const currentViewMode = storeViewMode[listId] || defaultViewMode;
 
-  // Handler para quitar de Mi Stock
+  // Handler para quitar de Mi Stock (optimista)
   const handleRemoveFromStock = (product: any) => {
     const productId = product.product_id || product.id;
     const productListId = product.list_id || listId;
     
-    toast.success("Producto quitado de Mi Stock");
-    queryClient.invalidateQueries({ queryKey: ["my-stock"] });
+    // 1. Actualización optimista INMEDIATA
+    onRemoveProduct?.(productId);
     
+    // 2. Toast
+    toast.success("Producto quitado de Mi Stock");
+    
+    // 3. Backend en segundo plano
     queueMicrotask(async () => {
       try {
         await removeFromMyStock(productId, productListId, isOnline);
+        queryClient.invalidateQueries({ queryKey: ["my-stock"] });
       } catch (error) {
         console.error("Error al quitar de Mi Stock:", error);
       }
     });
+  };
+
+  // Handler para actualizar cantidad (optimista)
+  const handleQuantityChange = (productId: string, newQuantity: number) => {
+    onQuantityChange?.(productId, newQuantity);
   };
 
   // Process schema: only mark quantity as isStandard (fixed)
@@ -169,6 +183,7 @@ export function MyStockListProducts({
                   listId={row.original.list_id || listId}
                   value={row.original.quantity}
                   visibleSpan={false}
+                  onOptimisticUpdate={(newQty) => handleQuantityChange(row.original.product_id || row.original.id, newQty)}
                 />
               </div>
             );

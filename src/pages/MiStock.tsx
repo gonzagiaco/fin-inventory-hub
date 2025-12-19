@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Filter, Package } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,6 +23,9 @@ export default function MiStock() {
   const [onlyWithStock, setOnlyWithStock] = useState(false);
   const [requestList, setRequestList] = useState<RequestItem[]>([]);
   const [isCartCollapsed, setIsCartCollapsed] = useState(true);
+  
+  // Estado local para actualizaciones optimistas
+  const [localProducts, setLocalProducts] = useState<any[]>([]);
 
   const { suppliers = [], isLoading: isLoadingSuppliers } = useSuppliers();
   const { data: lists = [], isLoading: isLoadingLists } = useProductListsIndex();
@@ -35,7 +38,33 @@ export default function MiStock() {
     onlyWithStock,
   });
 
+  // Sincronizar estado local con datos de la query
+  useEffect(() => {
+    if (myStockProducts && myStockProducts.length > 0) {
+      setLocalProducts(myStockProducts);
+    }
+  }, [myStockProducts]);
+
+  // Handler para actualizar cantidad localmente (optimista)
+  const handleUpdateQuantity = (productId: string, newQuantity: number) => {
+    setLocalProducts(prev => 
+      prev.map(p => 
+        (p.product_id === productId) ? { ...p, quantity: newQuantity } : p
+      )
+    );
+  };
+
+  // Handler para eliminar producto localmente (optimista)
+  const handleRemoveProduct = (productId: string) => {
+    setLocalProducts(prev => 
+      prev.filter(p => p.product_id !== productId)
+    );
+  };
+
   const isLoading = isLoadingSuppliers || isLoadingLists || isLoadingProducts;
+
+  // Usar localProducts en lugar de myStockProducts para UI
+  const productsToDisplay = localProducts.length > 0 ? localProducts : myStockProducts;
 
   // Group products by supplier and then by list
   const supplierSections = useMemo(() => {
@@ -63,7 +92,7 @@ export default function MiStock() {
       listInfoMap.set(list.id, list);
     });
 
-    myStockProducts.forEach((product: any) => {
+    productsToDisplay.forEach((product: any) => {
       const listInfo = listInfoMap.get(product.list_id);
       if (!listInfo) return;
 
@@ -105,7 +134,7 @@ export default function MiStock() {
     });
 
     return sections;
-  }, [myStockProducts, lists, suppliers]);
+  }, [productsToDisplay, lists, suppliers]);
 
   const visibleSupplierSections = useMemo(() => {
     if (supplierFilter === "all") {
@@ -175,8 +204,8 @@ export default function MiStock() {
     });
   };
 
-  const totalProducts = myStockProducts.length;
-  const productsWithStock = myStockProducts.filter((p: any) => (p.quantity || 0) > 0).length;
+  const totalProducts = productsToDisplay.length;
+  const productsWithStock = productsToDisplay.filter((p: any) => (p.quantity || 0) > 0).length;
 
   return (
     <div className="min-h-screen w-full bg-background overflow-x-hidden">
@@ -275,6 +304,8 @@ export default function MiStock() {
                   supplierLogo={section.supplierLogo}
                   lists={Array.from(section.lists.values())}
                   onAddToRequest={handleAddToRequest}
+                  onQuantityChange={handleUpdateQuantity}
+                  onRemoveProduct={handleRemoveProduct}
                   isMobile={isMobile}
                 />
               ))}
