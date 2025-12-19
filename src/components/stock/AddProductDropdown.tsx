@@ -67,7 +67,7 @@ export function AddProductDropdown({
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button size="sm" variant="outline">
+          <Button size="sm" variant="outline" className="w-full">
             <Plus className="h-4 w-4 mr-1" />
             Agregar
           </Button>
@@ -90,7 +90,7 @@ export function AddProductDropdown({
   // If we don't need to show dropdown, just show simple button
   if (!shouldShowAddToStock) {
     return (
-      <Button size="sm" variant="outline" onClick={() => onAddToRequest(product, mappingConfig)}>
+      <Button size="sm" variant="outline" onClick={() => onAddToRequest(product, mappingConfig)} className="w-full">
         <Plus className="h-4 w-4 mr-1" />
         Agregar
       </Button>
@@ -100,7 +100,7 @@ export function AddProductDropdown({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button size="sm" variant="outline">
+        <Button size="sm" variant="outline" className="w-full">
           <Plus className="h-4 w-4 mr-1" />
           Agregar
         </Button>

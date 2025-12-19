@@ -113,12 +113,42 @@ export function MyStockListProducts({
       .map((key) => processedSchema.find((c) => c.key === key))
       .filter(Boolean) as ColumnSchema[];
 
-    const dataColumns = orderedSchema.map((schema) => {
+    const dataColumns: ColumnDef<any>[] = [];
+
+    // Actions column at the start (remove + add to cart)
+    dataColumns.push({
+      id: "actions",
+      header: "Acciones",
+      cell: ({ row }: any) => (
+        <div className="flex items-center gap-2">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+            onClick={() => handleRemoveFromStock(row.original)}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onAddToRequest(row.original, mappingConfig)}
+          >
+            <ShoppingCart className="h-4 w-4 mr-1" />
+            Agregar
+          </Button>
+        </div>
+      ),
+      meta: { visible: true },
+    } as any);
+
+    // Data columns
+    orderedSchema.forEach((schema) => {
       const isVisible = visibilityState[schema.key] !== false;
 
       // Special case: quantity column with editable input
       if (schema.key === "quantity") {
-        return {
+        dataColumns.push({
           id: schema.key,
           accessorKey: "quantity",
           header: schema.label,
@@ -144,11 +174,12 @@ export function MyStockListProducts({
             );
           },
           meta: { isStandard: true, visible: isVisible },
-        } as ColumnDef<any>;
+        } as ColumnDef<any>);
+        return;
       }
 
       // Other columns
-      return {
+      dataColumns.push({
         id: schema.key,
         accessorFn: (row: any) => {
           // Price primary key from mapping
@@ -190,42 +221,8 @@ export function MyStockListProducts({
           return String(value);
         },
         meta: { isStandard: schema.isStandard, visible: isVisible },
-      } as ColumnDef<any>;
+      } as ColumnDef<any>);
     });
-
-    // Remove column at the start
-    dataColumns.unshift({
-      id: "remove",
-      header: "Quitar de stock",
-      cell: ({ row }: any) => (
-        <Button
-          size="icon"
-          variant="ghost"
-          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-          onClick={() => handleRemoveFromStock(row.original)}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-      ),
-      meta: { visible: true },
-    } as any);
-
-    // Actions column (add to cart)
-    dataColumns.push({
-      id: "actions",
-      header: "Acciones",
-      cell: ({ row }: any) => (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => onAddToRequest(row.original, mappingConfig)}
-        >
-          <ShoppingCart className="h-4 w-4 mr-1" />
-          Agregar al carrito
-        </Button>
-      ),
-      meta: { visible: true },
-    } as any);
 
     return dataColumns;
   }, [processedSchema, currentOrder, visibilityState, mappingConfig, onAddToRequest, listId]);

@@ -8,6 +8,7 @@ import { DynamicProduct, ColumnSchema, ProductList } from "@/types/productList";
 import { Loader2 } from "lucide-react";
 import { useProductListStore } from "@/stores/productListStore";
 import { QuantityCell } from "./stock/QuantityCell";
+import { AddProductDropdown } from "./stock/AddProductDropdown";
 import { normalizeRawPrice, formatARS } from "@/utils/numberParser";
 import {
   DropdownMenu,
@@ -356,6 +357,21 @@ export function ProductCardView({
                           key={field.key}
                           className="text-sm border-b pb-1 flex flex-col gap-2"
                         >
+                          <div className={`w-full ${isLowStockField ? 'mb-0' : 'mb-3'}`}>
+                            {showRemoveFromStock && onRemoveFromStock && (
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="absolute top-2 right-2 h-7 w-7 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-70 group-hover:opacity-100"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onRemoveFromStock(product);
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          </div>
                           {isLowStockField && (
                             <div className="w-22 from-1440:w-4/12">
                               <Badge variant="destructive" className="text-xs">
@@ -446,15 +462,14 @@ export function ProductCardView({
                 )}
 
                 {showActions && onAddToRequest && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => onAddToRequest(product, mappingConfig)}
-                    className="mt-auto"
-                  >
-                    <ShoppingCart className="h-4 w-4 mr-2" />
-                    Agregar al pedido
-                  </Button>
+                  <div className="mt-auto w-full">
+                    <AddProductDropdown
+                      product={{ ...product, listId }}
+                      mappingConfig={mappingConfig}
+                      onAddToRequest={onAddToRequest}
+                      showAddToStock={true}
+                    />
+                  </div>
                 )}
               </CardContent>
             </Card>
