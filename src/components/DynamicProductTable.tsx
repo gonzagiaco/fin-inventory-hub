@@ -21,6 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { CardPreviewSettings } from "./CardPreviewSettings";
 import { List, LayoutGrid, Loader2 } from "lucide-react";
 import { QuantityCell } from "./stock/QuantityCell";
+import { AddProductDropdown } from "./stock/AddProductDropdown";
 import { normalizeRawPrice, formatARS } from "@/utils/numberParser";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useListProducts } from "@/hooks/useListProducts";
@@ -236,7 +237,6 @@ export const DynamicProductTable = ({
 
     // Columna de acciones (agregar a pedido / Mi Stock)
     if (showStockActions && onAddToRequest) {
-      const { AddProductDropdown } = require("./stock/AddProductDropdown");
       dataColumns.unshift({
         id: "actions",
         header: "Acciones",
