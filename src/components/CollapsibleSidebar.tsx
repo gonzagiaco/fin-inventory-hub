@@ -10,6 +10,7 @@ import {
   ChevronRight,
   FileText,
   CircleHelp,
+  Package,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -33,6 +34,7 @@ const CollapsibleSidebar = () => {
 
   const navigation = [
     { name: "Listas", href: "/", icon: Package2 },
+    { name: "Mi Stock", href: "/mi-stock", icon: Package },
     { name: "Proveedores", href: "/proveedores", icon: Warehouse },
     { name: "Remitos", href: "/remitos", icon: FileText },
     { name: "Ayuda", href: "/ayuda", icon: CircleHelp },
