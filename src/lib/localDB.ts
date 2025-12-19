@@ -1467,10 +1467,15 @@ export async function updateProductQuantityOffline(
   // Actualizar en dynamic_products_index
   const indexRecord = await localDB.dynamic_products_index.where({ product_id: productId, list_id: listId }).first();
 
+  // Determinar si debe agregarse a Mi Stock (quantity > 0)
+  const shouldAddToMyStock = newQuantity > 0;
+
   if (indexRecord) {
     await localDB.dynamic_products_index.put({
       ...indexRecord,
       quantity: newQuantity,
+      // Si quantity > 0, agregar a Mi Stock automáticamente
+      in_my_stock: shouldAddToMyStock ? true : indexRecord.in_my_stock,
       updated_at: new Date().toISOString(),
     });
   }
@@ -1485,8 +1490,12 @@ export async function updateProductQuantityOffline(
     });
   }
 
-  // Encolar operación para sincronizar
-  await queueOperation("dynamic_products_index", "UPDATE", productId, { quantity: newQuantity });
+  // Encolar operación para sincronizar (incluir in_my_stock si corresponde)
+  const updateData: { quantity: number; in_my_stock?: boolean } = { quantity: newQuantity };
+  if (shouldAddToMyStock) {
+    updateData.in_my_stock = true;
+  }
+  await queueOperation("dynamic_products_index", "UPDATE", productId, updateData);
 }
 
 export async function getProductsForListOffline(
