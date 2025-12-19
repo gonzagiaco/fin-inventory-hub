@@ -1286,8 +1286,14 @@ export async function updateDeliveryNoteOffline(
 
   const now = new Date().toISOString();
 
+  // Calcular nuevo total si se proporcionan items
+  let newTotal = existing.total_amount;
+  
   // Si se proporcionan items, reemplazarlos con reversión de stock
   if (items !== undefined) {
+    // Recalcular total basado en nuevos items
+    newTotal = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
+    
     // PASO 1: Obtener items antiguos para revertir stock
     const oldItems = await localDB.delivery_note_items
       .where("delivery_note_id")
@@ -1297,6 +1303,7 @@ export async function updateDeliveryNoteOffline(
     console.log(`🔄 Actualizando remito offline ${id}:`);
     console.log(`  Items antiguos: ${oldItems.length}`);
     console.log(`  Items nuevos: ${items.length}`);
+    console.log(`  Total anterior: ${existing.total_amount}, Nuevo total: ${newTotal}`);
 
     // PASO 2: Revertir stock de items antiguos
     for (const oldItem of oldItems) {
@@ -1338,17 +1345,32 @@ export async function updateDeliveryNoteOffline(
     }
   }
 
-  // PASO 5: Actualizar nota principal
-  const updated = {
-    ...existing,
+  // PASO 5: Calcular campos financieros consistentes
+  const newPaidAmount = updates.paid_amount ?? existing.paid_amount;
+  const newRemainingBalance = newTotal - newPaidAmount;
+  const newStatus = newPaidAmount >= newTotal ? "paid" : "pending";
+
+  console.log(`  💰 Financiero: pagado=${newPaidAmount}, restante=${newRemainingBalance}, status=${newStatus}`);
+
+  // PASO 6: Preparar actualizaciones completas
+  const completeUpdates: Partial<DeliveryNoteDB> = {
     ...updates,
+    total_amount: newTotal,
+    remaining_balance: newRemainingBalance,
+    status: newStatus,
     updated_at: now,
   };
 
-  await localDB.delivery_notes.put(updated);
-  await queueOperation("delivery_notes", "UPDATE", id, updates);
+  // PASO 7: Actualizar nota principal
+  const updated: DeliveryNoteDB = {
+    ...existing,
+    ...completeUpdates,
+  };
 
-  console.log(`✅ Remito ${id} actualizado offline con reversión de stock`);
+  await localDB.delivery_notes.put(updated);
+  await queueOperation("delivery_notes", "UPDATE", id, completeUpdates);
+
+  console.log(`✅ Remito ${id} actualizado offline con campos financieros consistentes`);
 }
 
 export async function deleteDeliveryNoteOffline(id: string): Promise<void> {
