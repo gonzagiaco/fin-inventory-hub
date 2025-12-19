@@ -321,7 +321,7 @@ export const useDeliveryNotes = () => {
           paid_amount: newPaidAmount,
           notes: updates.notes,
           status: newStatus,
-          remaining_balance: newTotal - newPaidAmount,
+          // remaining_balance es columna generada, no se actualiza directamente
         })
         .eq("id", id);
 
