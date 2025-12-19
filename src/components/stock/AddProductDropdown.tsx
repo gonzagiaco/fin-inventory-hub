@@ -1,16 +1,15 @@
-import { Plus, ShoppingCart, Package, Trash2 } from "lucide-react";
+import { ShoppingCart, Package, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { addToMyStock, removeFromMyStock } from "@/hooks/useMyStockProducts";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface AddProductDropdownProps {
   product: any;
@@ -62,59 +61,111 @@ export function AddProductDropdown({
   const isInMyStock = product.in_my_stock === true;
   const shouldShowAddToStock = showAddToStock && !isInMyStock;
 
-  // If we're in MyStock page and showing remove option
+  // Página Mi Stock: mostrar botones para agregar al pedido y quitar del stock
   if (showRemoveFromStock) {
     return (
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button size="sm" variant="outline" className="w-full">
-            <Plus className="h-4 w-4 mr-1" />
-            Agregar
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="bg-background">
-          <DropdownMenuItem onClick={() => onAddToRequest(product, mappingConfig)}>
-            <ShoppingCart className="h-4 w-4 mr-2" />
-            Agregar al pedido
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={handleRemoveFromStock} className="text-destructive focus:text-destructive">
-            <Trash2 className="h-4 w-4 mr-2" />
-            Quitar de Mi Stock
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      <TooltipProvider delayDuration={300}>
+        <div className="flex gap-1">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={() => onAddToRequest(product, mappingConfig)}
+                className="flex-1"
+              >
+                <ShoppingCart className="h-4 w-4" />
+                <span className="sr-only">Agregar al pedido</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p>Agregar al pedido</p>
+            </TooltipContent>
+          </Tooltip>
+          
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={handleRemoveFromStock}
+                className="text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span className="sr-only">Quitar de Mi Stock</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p>Quitar de Mi Stock</p>
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      </TooltipProvider>
     );
   }
 
-  // If we don't need to show dropdown, just show simple button
+  // Producto ya en Mi Stock: solo mostrar botón de agregar al pedido
   if (!shouldShowAddToStock) {
     return (
-      <Button size="sm" variant="outline" onClick={() => onAddToRequest(product, mappingConfig)} className="w-full">
-        <Plus className="h-4 w-4 mr-1" />
-        Agregar
-      </Button>
+      <TooltipProvider delayDuration={300}>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => onAddToRequest(product, mappingConfig)} 
+              className="w-full"
+            >
+              <ShoppingCart className="h-4 w-4 mr-1" />
+              Pedido
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <p>Agregar al pedido</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     );
   }
 
+  // Lista de productos: mostrar dos botones separados
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button size="sm" variant="outline" className="w-full">
-          <Plus className="h-4 w-4 mr-1" />
-          Agregar
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="bg-background">
-        <DropdownMenuItem onClick={() => onAddToRequest(product, mappingConfig)}>
-          <ShoppingCart className="h-4 w-4 mr-2" />
-          Agregar al pedido
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={handleAddToStock}>
-          <Package className="h-4 w-4 mr-2" />
-          Agregar a Mi Stock
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <TooltipProvider delayDuration={300}>
+      <div className="flex gap-1">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => onAddToRequest(product, mappingConfig)}
+              className="flex-1"
+            >
+              <ShoppingCart className="h-4 w-4" />
+              <span className="sr-only">Agregar al pedido</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <p>Agregar al pedido</p>
+          </TooltipContent>
+        </Tooltip>
+        
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={handleAddToStock}
+              className="text-primary hover:text-primary"
+            >
+              <Package className="h-4 w-4" />
+              <span className="sr-only">Agregar a Mi Stock</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="top">
+            <p>Agregar a Mi Stock</p>
+          </TooltipContent>
+        </Tooltip>
+      </div>
+    </TooltipProvider>
   );
 }
