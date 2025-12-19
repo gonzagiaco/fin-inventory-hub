@@ -48,6 +48,8 @@ interface DynamicProductIndexDB {
   name?: string;
   price?: number;
   quantity?: number;
+  in_my_stock: boolean;
+  calculated_data?: any;
   created_at: string;
   updated_at: string;
 }
@@ -194,6 +196,23 @@ class LocalDatabase extends Dexie {
       request_items: "id, user_id, product_id",
       stock_items: "id, user_id, code, name, category, supplier_id",
       pending_operations: "++id, table_name, timestamp, record_id",
+      tokens: "userId, updatedAt",
+      id_mappings: "temp_id, real_id, table_name",
+      stock_compensations: "++id, operation_id, product_id",
+    });
+
+    // Versión 6: Agregar in_my_stock al índice de productos
+    this.version(6).stores({
+      suppliers: "id, user_id, name",
+      product_lists: "id, user_id, supplier_id, name",
+      dynamic_products_index: "id, user_id, list_id, product_id, code, name, in_my_stock",
+      dynamic_products: "id, user_id, list_id, code, name",
+      delivery_notes: "id, user_id, customer_name, status, issue_date",
+      delivery_note_items: "id, delivery_note_id, product_id",
+      settings: "key, updated_at",
+      request_items: "id, user_id, product_id",
+      stock_items: "id, user_id, code, name, category, supplier_id",
+      pending_operations: "++id, table_name, timestamp, record_id, product_id",
       tokens: "userId, updatedAt",
       id_mappings: "temp_id, real_id, table_name",
       stock_compensations: "++id, operation_id, product_id",
@@ -1005,6 +1024,7 @@ export async function updateProductListOffline(
     name: p.name,
     price: p.price,
     quantity: p.quantity,
+    in_my_stock: (p.quantity || 0) > 0, // Inicializar basado en cantidad
     created_at: p.created_at,
     updated_at: p.updated_at,
   }));

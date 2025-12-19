@@ -203,6 +203,7 @@ export type Database = {
           code: string | null
           created_at: string | null
           id: string
+          in_my_stock: boolean
           list_id: string
           name: string | null
           price: number | null
@@ -217,6 +218,7 @@ export type Database = {
           code?: string | null
           created_at?: string | null
           id?: string
+          in_my_stock?: boolean
           list_id: string
           name?: string | null
           price?: number | null
@@ -231,6 +233,7 @@ export type Database = {
           code?: string | null
           created_at?: string | null
           id?: string
+          in_my_stock?: boolean
           list_id?: string
           name?: string | null
           price?: number | null
@@ -676,6 +679,7 @@ export type Database = {
         Args: { base_price: number; dollar_rate: number }
         Returns: number
       }
+      bulk_adjust_stock: { Args: { p_adjustments: Json }; Returns: Json }
       calculate_price_with_modifiers: {
         Args: {
           add_vat?: boolean
