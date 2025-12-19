@@ -75,6 +75,7 @@ async function updateProductStock(productId: string, quantityDelta: number, quer
  */
 function invalidateProductQueries(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
+  queryClient.invalidateQueries({ queryKey: ["my-stock"], refetchType: "all" });
   queryClient.invalidateQueries({ queryKey: ["list-products"], refetchType: "all" });
   queryClient.invalidateQueries({ queryKey: ["global-search"], refetchType: "all" });
   queryClient.invalidateQueries({ queryKey: ["product-lists-index"], refetchType: "all" });
@@ -84,6 +85,10 @@ function invalidateProductQueries(queryClient: QueryClient) {
   // Forzar refetch inmediato
   queryClient.refetchQueries({ 
     queryKey: ["list-products"], 
+    type: "active" 
+  });
+  queryClient.refetchQueries({ 
+    queryKey: ["my-stock"], 
     type: "active" 
   });
 }

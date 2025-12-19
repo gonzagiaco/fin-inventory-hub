@@ -16,6 +16,8 @@ interface MyStockSupplierSectionProps {
     products: any[];
   }>;
   onAddToRequest: (product: any, mappingConfig?: any) => void;
+  onQuantityChange?: (productId: string, newQuantity: number) => void;
+  onRemoveProduct?: (productId: string) => void;
   isMobile: boolean;
 }
 
@@ -24,6 +26,8 @@ export function MyStockSupplierSection({
   supplierLogo,
   lists,
   onAddToRequest,
+  onQuantityChange,
+  onRemoveProduct,
   isMobile,
 }: MyStockSupplierSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
@@ -83,6 +87,8 @@ export function MyStockSupplierSection({
                     columnSchema={list.columnSchema}
                     mappingConfig={list.mappingConfig}
                     onAddToRequest={onAddToRequest}
+                    onQuantityChange={onQuantityChange}
+                    onRemoveProduct={onRemoveProduct}
                     isMobile={isMobile}
                   />
                 </CollapsibleContent>

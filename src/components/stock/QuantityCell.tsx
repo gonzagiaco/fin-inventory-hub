@@ -11,6 +11,8 @@ type Props = {
   value: number | null | undefined;
   /** Opcional: para actualizar inmediatamente la UI del padre (ej. row.original.quantity) */
   onLocalUpdate?: (newQty: number) => void;
+  /** Callback para actualización optimista inmediata */
+  onOptimisticUpdate?: (newQty: number) => void;
   visibleSpan: boolean;
 };
 
@@ -19,6 +21,7 @@ export const QuantityCell: React.FC<Props> = ({
   listId,
   value,
   onLocalUpdate,
+  onOptimisticUpdate,
   visibleSpan
 }) => {
   const queryClient = useQueryClient();
@@ -29,36 +32,34 @@ export const QuantityCell: React.FC<Props> = ({
     const newQty = Number(raw);
     if (Number.isNaN(newQty) || newQty === current) return;
 
-    try {
-      if (isOnline) {
-        // Modo online: actualizar Supabase directamente
-        const { error } = await supabase
-          .from("dynamic_products_index")
-          .update({ quantity: newQty })
-          .eq("product_id", productId);
+    // 1. Actualización optimista INMEDIATA
+    onOptimisticUpdate?.(newQty);
+    onLocalUpdate?.(newQty);
 
-        if (error) throw error;
+    // 2. Toast
+    toast.success(isOnline ? "Stock actualizado" : "Stock actualizado (se sincronizará al reconectar)");
+
+    // 3. Backend en segundo plano
+    queueMicrotask(async () => {
+      try {
+        if (isOnline) {
+          const { error } = await supabase
+            .from("dynamic_products_index")
+            .update({ quantity: newQty })
+            .eq("product_id", productId);
+
+          if (error) throw error;
+        }
         
-        // También actualizar IndexedDB para mantener sincronizado
         await updateProductQuantityOffline(productId, listId, newQty);
-        toast.success("Stock actualizado");
-      } else {
-        // Modo offline: guardar en IndexedDB y encolar
-        await updateProductQuantityOffline(productId, listId, newQty);
-        toast.success("Stock actualizado (se sincronizará al reconectar)");
+        queryClient.invalidateQueries({ queryKey: ["global-search"] });
+        queryClient.invalidateQueries({ queryKey: ["list-products", listId] });
+        queryClient.invalidateQueries({ queryKey: ["my-stock"] });
+      } catch (error: any) {
+        console.error("Error al actualizar stock:", error);
+        toast.error(`Error al actualizar stock: ${error.message}`);
       }
-
-      // Actualización optimista de UI
-      onLocalUpdate?.(newQty);
-
-      // Invalidar queries (tanto online como offline)
-      queryClient.invalidateQueries({ queryKey: ["global-search"] });
-      queryClient.invalidateQueries({ queryKey: ["list-products", listId] });
-      queryClient.invalidateQueries({ queryKey: ["my-stock"] });
-    } catch (error: any) {
-      console.error("Error al actualizar stock:", error);
-      toast.error(`Error al actualizar stock: ${error.message}`);
-    }
+    });
   };
 
   const onKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
