@@ -9,6 +9,7 @@ import CollapsibleSidebar from "./components/CollapsibleSidebar";
 import { ConnectionBadge } from "./components/ConnectionBadge";
 
 import Stock from "./pages/Stock";
+import MiStock from "./pages/MiStock";
 import Proveedores from "./pages/Proveedores";
 import Remitos from "./pages/Remitos";
 import Ayuda from "./pages/Ayuda";
@@ -34,6 +35,17 @@ const App = () => (
                   <div className="flex min-h-screen w-full safe-top">
                     <CollapsibleSidebar />
                     <Stock />
+                  </div>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/mi-stock"
+              element={
+                <ProtectedRoute>
+                  <div className="flex min-h-screen w-full safe-top">
+                    <CollapsibleSidebar />
+                    <MiStock />
                   </div>
                 </ProtectedRoute>
               }

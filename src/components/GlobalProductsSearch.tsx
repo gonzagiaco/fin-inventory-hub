@@ -311,22 +311,24 @@ export function GlobalProductSearch({
                 return (
                   <TableRow key={item.product_id}>
                     <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          onAddToRequest({
-                            id: item.product_id,
-                            code: item.code,
-                            name: item.name,
-                            price: Number(item.price) || 0,
-                            quantity: 1,
-                            supplierId: supplierInfo ? supplierInfo.id : "",
-                          })
-                        }
-                      >
-                        <Plus className="h-4 w-4 mr-1" /> Agregar
-                      </Button>
+                      {(() => {
+                        const { AddProductDropdown } = require("./stock/AddProductDropdown");
+                        return (
+                          <AddProductDropdown
+                            product={{
+                              id: item.product_id,
+                              listId: item.list_id,
+                              code: item.code,
+                              name: item.name,
+                              price: Number(item.price) || 0,
+                              quantity: item.quantity || 0,
+                              supplierId: supplierInfo ? supplierInfo.id : "",
+                            }}
+                            onAddToRequest={onAddToRequest}
+                            showAddToStock={true}
+                          />
+                        );
+                      })()}
                     </TableCell>
 
                     <TableCell>
