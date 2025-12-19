@@ -59,7 +59,7 @@ export function AddProductDropdown({
   };
 
   // If product already has stock, don't show "Add to My Stock" option
-  const hasStock = (product.quantity || 0) > 0;
+  const isInMyStock = product.in_my_stock === true;
   const shouldShowAddToStock = showAddToStock && !hasStock;
 
   // If we're in MyStock page and showing remove option

@@ -72,16 +72,19 @@ export const DynamicProductTable = ({
   const searchProducts = useMemo(() => {
     if (!isSearchActive || !searchData?.pages) return [];
     return searchData.pages.flatMap((page: any) =>
-      (page.data || []).map((item: any) => ({
-        id: item.product_id,
-        listId: item.list_id,
-        code: item.code,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        data: item?.dynamic_products?.data ?? item?.data ?? {},
-        calculated_data: item.calculated_data ?? {},
-      } as DynamicProduct))
+      (page.data || []).map(
+        (item: any) =>
+          ({
+            id: item.product_id,
+            listId: item.list_id,
+            code: item.code,
+            name: item.name,
+            price: item.price,
+            quantity: item.quantity,
+            data: item?.dynamic_products?.data ?? item?.data ?? {},
+            calculated_data: item.calculated_data ?? {},
+          }) as DynamicProduct,
+      ),
     );
   }, [searchData, isSearchActive]);
 
@@ -90,18 +93,20 @@ export const DynamicProductTable = ({
   const effectiveHasMore = isSearchActive ? hasNextSearchPage : hasMore;
   const effectiveIsLoadingMore = isSearchActive ? isFetchingNextSearchPage : isLoadingMore;
   const effectiveOnLoadMore = isSearchActive
-    ? () => { void fetchNextSearchPage(); }
+    ? () => {
+        void fetchNextSearchPage();
+      }
     : onLoadMore;
 
   // Estado compartido de ordenamiento para cards
   const sortColumn = sorting.length > 0 ? sorting[0].id : null;
-  const sortDirection = sorting.length > 0 ? (sorting[0].desc ? 'desc' : 'asc') : null;
+  const sortDirection = sorting.length > 0 ? (sorting[0].desc ? "desc" : "asc") : null;
 
-  const handleSortChange = (columnKey: string | null, direction: 'asc' | 'desc' | null) => {
+  const handleSortChange = (columnKey: string | null, direction: "asc" | "desc" | null) => {
     if (columnKey === null || direction === null) {
       setSorting([]);
     } else {
-      setSorting([{ id: columnKey, desc: direction === 'desc' }]);
+      setSorting([{ id: columnKey, desc: direction === "desc" }]);
     }
   };
 
@@ -242,7 +247,7 @@ export const DynamicProductTable = ({
         header: "Acciones",
         cell: ({ row }) => (
           <AddProductDropdown
-            product={{ ...row.original, listId }}
+            product={{ ...row.original, listId, in_my_stock: row.original.in_my_stock }}
             mappingConfig={mappingConfig}
             onAddToRequest={onAddToRequest}
             showAddToStock={true}
@@ -299,35 +304,35 @@ export const DynamicProductTable = ({
           {/* Indicador de resultados de búsqueda */}
           {isSearchActive && !isSearchLoading && (
             <div className="text-sm text-muted-foreground flex items-center gap-1 whitespace-nowrap">
-              {searchProducts.length} resultado{searchProducts.length !== 1 ? 's' : ''}
+              {searchProducts.length} resultado{searchProducts.length !== 1 ? "s" : ""}
             </div>
           )}
           <div className="flex gap-1.5 flex-wrap justify-end">
-          {shouldUseCardView && (
-            <>
-              { !isMobile && 
+            {shouldUseCardView && (
+              <>
+                {!isMobile && (
+                  <Button
+                    variant={effectiveViewMode === "table" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setViewMode(listId, "table")}
+                    className="flex-shrink-0"
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                )}
                 <Button
-                  variant={effectiveViewMode === "table" ? "default" : "outline"}
+                  variant={effectiveViewMode === "cards" ? "default" : "outline"}
                   size="sm"
-                  onClick={() => setViewMode(listId, "table")}
+                  onClick={() => setViewMode(listId, "cards")}
                   className="flex-shrink-0"
                 >
-                  <List className="h-4 w-4" />
+                  <LayoutGrid className="h-4 w-4" />
                 </Button>
-              }
-              <Button
-                variant={effectiveViewMode === "cards" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setViewMode(listId, "cards")}
-                className="flex-shrink-0"
-              >
-                <LayoutGrid className="h-4 w-4" />
-              </Button>
-              <CardPreviewSettings listId={listId} columnSchema={columnSchema} />
-            </>
-          )}
-          <ColumnSettingsDrawer listId={listId} columnSchema={columnSchema} />
-        </div>
+                <CardPreviewSettings listId={listId} columnSchema={columnSchema} />
+              </>
+            )}
+            <ColumnSettingsDrawer listId={listId} columnSchema={columnSchema} />
+          </div>
         </div>
       </div>
 
