@@ -9,71 +9,54 @@ import {
   deleteDeliveryNoteOffline,
   markDeliveryNoteAsPaidOffline,
   getOfflineData,
-  syncDeliveryNoteById
+  syncDeliveryNoteById,
+  localDB
 } from '@/lib/localDB';
+import { bulkAdjustStock, prepareDeliveryNoteAdjustments } from '@/services/bulkStockService';
+
+// F) Logging helper para observabilidad
+const logDelivery = (action: string, details?: any) => {
+  const timestamp = new Date().toISOString();
+  console.log(`[DeliveryNotes ${timestamp}] ${action}`, details || '');
+};
 
 /**
- * Actualiza el stock de un producto
- * @param productId - ID del producto
- * @param quantityDelta - Delta de cantidad (positivo = aumentar, negativo = disminuir)
- * @param queryClient - QueryClient para invalidar cache
+ * C) OPTIMIZADO: Actualiza stock usando bulk RPC
+ * Una sola llamada para múltiples productos
  */
-async function updateProductStock(productId: string, quantityDelta: number, queryClient: QueryClient) {
-  console.log(`📦 Actualizando stock: productId=${productId}, delta=${quantityDelta}`);
+async function updateProductStockBulk(
+  items: Array<{ productId?: string; quantity: number }>,
+  operation: 'create' | 'delete' | 'revert',
+  isOnline: boolean,
+  queryClient: QueryClient
+) {
+  const startTime = performance.now();
+  const adjustments = prepareDeliveryNoteAdjustments(items, operation);
+  
+  if (adjustments.length === 0) return;
 
-  const { data: indexProduct, error: fetchError } = await (supabase as any)
-    .from("dynamic_products_index")
-    .select("quantity, list_id")
-    .eq("product_id", productId)
-    .maybeSingle();
-  
-  if (fetchError) {
-    console.error("❌ Error al obtener producto del índice:", fetchError);
-    throw fetchError;
-  }
-  
-  if (!indexProduct) {
-    console.warn(`⚠️ Producto ${productId} no encontrado en índice`);
-    return;
-  }
-  
-  const currentQuantity = indexProduct.quantity || 0;
-  const newQuantity = Math.max(0, currentQuantity + quantityDelta);
+  logDelivery(`Bulk stock ${operation}`, { 
+    items: adjustments.length,
+    isOnline 
+  });
 
-  console.log(`  Cantidad actual: ${currentQuantity}`);
-  console.log(`  Delta: ${quantityDelta}`);
-  console.log(`  Nueva cantidad: ${newQuantity}`);
+  const result = await bulkAdjustStock(adjustments, isOnline);
   
-  const { error: updateIndexError } = await (supabase as any)
-    .from("dynamic_products_index")
-    .update({ quantity: newQuantity })
-    .eq("product_id", productId);
-  
-  if (updateIndexError) {
-    console.error("❌ Error al actualizar índice:", updateIndexError);
-    throw updateIndexError;
-  }
+  const endTime = performance.now();
+  logDelivery(`Bulk stock completed in ${(endTime - startTime).toFixed(2)}ms`, {
+    processed: result.processed,
+    success: result.success
+  });
 
-  const { error: updateProductError } = await supabase
-    .from("dynamic_products")
-    .update({ quantity: newQuantity })
-    .eq("id", productId);
-  
-  if (updateProductError) {
-    console.error("❌ Error al actualizar producto:", updateProductError);
-    throw updateProductError;
-  }
-
-  console.log(`✅ Stock actualizado correctamente: ${productId} -> ${newQuantity}`);
-  
-  queryClient.invalidateQueries({ queryKey: ['list-products', indexProduct.list_id] });
-  queryClient.invalidateQueries({ queryKey: ['global-search'] });
+  // Invalidar queries relevantes
+  invalidateProductQueries(queryClient);
 }
 
 /**
  * Invalida todas las queries relacionadas con productos
  */
 function invalidateProductQueries(queryClient: QueryClient) {
+  logDelivery('Invalidating product queries');
   queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
   queryClient.invalidateQueries({ queryKey: ["my-stock"], refetchType: "all" });
   queryClient.invalidateQueries({ queryKey: ["list-products"], refetchType: "all" });
@@ -253,11 +236,8 @@ export const useDeliveryNotes = () => {
 
       if (itemsError) throw itemsError;
 
-      for (const item of input.items) {
-        if (item.productId) {
-          await updateProductStock(item.productId, -item.quantity, queryClient);
-        }
-      }
+      // C) OPTIMIZADO: Usar bulk adjust en lugar de N llamadas individuales
+      await updateProductStockBulk(input.items, 'create', isOnline, queryClient);
 
       // 🆕 SINCRONIZAR A INDEXEDDB DESPUÉS DE CREAR
       if (note?.id) {
@@ -315,15 +295,13 @@ export const useDeliveryNotes = () => {
 
       if (fetchError) throw fetchError;
 
-      // PASO 2: Revertir stock de items originales
-      console.log("🔄 Revirtiendo stock de items originales...");
-      for (const item of originalNote.items) {
-        if (item.product_id) {
-          // Devolver al stock (delta positivo)
-          await updateProductStock(item.product_id, item.quantity, queryClient);
-          console.log(`  ✅ Revertido: ${item.product_name} (+${item.quantity})`);
-        }
-      }
+      // PASO 2: Revertir stock de items originales usando bulk
+      logDelivery('Reverting original items stock');
+      const originalItems = originalNote.items.map((item: any) => ({
+        productId: item.product_id,
+        quantity: item.quantity
+      }));
+      await updateProductStockBulk(originalItems, 'revert', isOnline, queryClient);
 
       // PASO 3: Calcular nuevo total
       let newTotal = originalNote.total_amount;
@@ -384,15 +362,9 @@ export const useDeliveryNotes = () => {
 
         if (itemsError) throw itemsError;
 
-        // PASO 6: Descontar stock de nuevos items
-        console.log("🔄 Descontando stock de nuevos items...");
-        for (const item of updates.items) {
-          if (item.productId) {
-            // Descontar del stock (delta negativo)
-            await updateProductStock(item.productId, -item.quantity, queryClient);
-            console.log(`  ✅ Descontado: ${item.productName} (-${item.quantity})`);
-          }
-        }
+        // PASO 6: Descontar stock de nuevos items usando bulk
+        logDelivery('Deducting new items stock');
+        await updateProductStockBulk(updates.items, 'create', isOnline, queryClient);
       }
 
       // 🆕 SINCRONIZAR A INDEXEDDB DESPUÉS DE ACTUALIZAR
@@ -436,11 +408,12 @@ export const useDeliveryNotes = () => {
 
       if (fetchError) throw fetchError;
 
-      for (const item of note.items) {
-        if (item.product_id) {
-          await updateProductStock(item.product_id, item.quantity, queryClient);
-        }
-      }
+      // Revertir stock usando bulk
+      const deleteItems = note.items.map((item: any) => ({
+        productId: item.product_id,
+        quantity: item.quantity
+      }));
+      await updateProductStockBulk(deleteItems, 'delete', isOnline, queryClient);
 
       const { error: deleteError } = await supabase
         .from("delivery_notes")
