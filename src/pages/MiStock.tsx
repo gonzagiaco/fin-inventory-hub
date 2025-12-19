@@ -44,13 +44,16 @@ export default function MiStock() {
       {
         supplierName: string;
         supplierLogo: string | null;
-        lists: Map<string, {
-          listId: string;
-          listName: string;
-          mappingConfig: any;
-          columnSchema: any[];
-          products: any[];
-        }>;
+        lists: Map<
+          string,
+          {
+            listId: string;
+            listName: string;
+            mappingConfig: any;
+            columnSchema: any[];
+            products: any[];
+          }
+        >;
       }
     >();
 
@@ -94,6 +97,7 @@ export default function MiStock() {
         price: product.price,
         quantity: product.quantity,
         calculated_data: product.calculated_data,
+        data: product.data,
         supplierId: supplier.id,
       });
     });
@@ -105,16 +109,16 @@ export default function MiStock() {
     if (supplierFilter === "all") {
       return Array.from(supplierSections.entries());
     }
-    return Array.from(supplierSections.entries()).filter(
-      ([supplierId]) => supplierId === supplierFilter
-    );
+    return Array.from(supplierSections.entries()).filter(([supplierId]) => supplierId === supplierFilter);
   }, [supplierSections, supplierFilter]);
 
   // Parse price for request list
   function parsePriceValue(value: any): number | null {
     if (value == null) return null;
     if (typeof value === "number") return isFinite(value) ? value : null;
-    const cleaned = String(value).replace(/[^0-9.,-]/g, "").replace(",", ".");
+    const cleaned = String(value)
+      .replace(/[^0-9.,-]/g, "")
+      .replace(",", ".");
     const parsed = parseFloat(cleaned);
     return !isNaN(parsed) && isFinite(parsed) ? parsed : null;
   }
@@ -124,11 +128,7 @@ export default function MiStock() {
     const effectiveSupplierId = product.supplierId || "";
 
     if (existingItem) {
-      setRequestList((prev) =>
-        prev.map((r) =>
-          r.productId === product.id ? { ...r, quantity: r.quantity + 1 } : r
-        )
-      );
+      setRequestList((prev) => prev.map((r) => (r.productId === product.id ? { ...r, quantity: r.quantity + 1 } : r)));
       toast.success("Cantidad actualizada en la lista de pedidos");
     } else {
       let finalPrice = parsePriceValue(product.price) ?? 0;
@@ -214,11 +214,7 @@ export default function MiStock() {
               </Select>
 
               <div className="flex items-center gap-2 px-3 py-2 border rounded-md bg-background">
-                <Switch
-                  id="only-with-stock"
-                  checked={onlyWithStock}
-                  onCheckedChange={setOnlyWithStock}
-                />
+                <Switch id="only-with-stock" checked={onlyWithStock} onCheckedChange={setOnlyWithStock} />
                 <Label htmlFor="only-with-stock" className="text-sm whitespace-nowrap cursor-pointer">
                   Sólo con stock
                 </Label>
@@ -231,7 +227,9 @@ export default function MiStock() {
             <span>•</span>
             <span>{productsWithStock} con stock disponible</span>
             <span>•</span>
-            <span>{visibleSupplierSections.length} {visibleSupplierSections.length === 1 ? "proveedor" : "proveedores"}</span>
+            <span>
+              {visibleSupplierSections.length} {visibleSupplierSections.length === 1 ? "proveedor" : "proveedores"}
+            </span>
             {!isOnline && <span className="text-amber-500">(modo offline)</span>}
           </div>
         </div>

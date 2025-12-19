@@ -34,22 +34,26 @@ export function AddProductDropdown({
   const listId = product.list_id || product.listId;
 
   const handleAddToStock = async () => {
-    // Immediate feedback
-    toast.success("Producto agregado a Mi Stock");
-    
-    // Background operation
-    try {
-      await addToMyStock(productId, listId, isOnline);
-      queryClient.invalidateQueries({ queryKey: ["my-stock"] });
-    } catch (error: any) {
-      console.error("Error adding to stock:", error);
-      toast.error("Error al agregar a Mi Stock");
-    }
+    // 1. Feedback inmediato al usuario
+    toast.success("Agregado a Mi Stock");
+    setOpen(false);
+
+    // 2. Invalidar la query ANTES de las operaciones para refrescar la UI
+    queryClient.invalidateQueries({ queryKey: ["my-stock"] });
+
+    // 3. Ejecutar operaciones de BD en el siguiente tick del event loop
+    queueMicrotask(async () => {
+      try {
+        await addToMyStock(productId, productListId, isOnline);
+      } catch (error) {
+        console.error("Error al agregar a Mi Stock:", error);
+      }
+    });
   };
 
   const handleRemoveFromStock = async () => {
     toast.success("Producto quitado de Mi Stock");
-    
+
     try {
       await removeFromMyStock(productId, listId, isOnline);
       queryClient.invalidateQueries({ queryKey: ["my-stock"] });
@@ -79,10 +83,7 @@ export function AddProductDropdown({
             Agregar al pedido
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem 
-            onClick={handleRemoveFromStock}
-            className="text-destructive focus:text-destructive"
-          >
+          <DropdownMenuItem onClick={handleRemoveFromStock} className="text-destructive focus:text-destructive">
             <Trash2 className="h-4 w-4 mr-2" />
             Quitar de Mi Stock
           </DropdownMenuItem>
@@ -94,11 +95,7 @@ export function AddProductDropdown({
   // If we don't need to show dropdown, just show simple button
   if (!shouldShowAddToStock) {
     return (
-      <Button
-        size="sm"
-        variant="outline"
-        onClick={() => onAddToRequest(product, mappingConfig)}
-      >
+      <Button size="sm" variant="outline" onClick={() => onAddToRequest(product, mappingConfig)}>
         <Plus className="h-4 w-4 mr-1" />
         Agregar
       </Button>
