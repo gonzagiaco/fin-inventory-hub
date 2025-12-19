@@ -1352,23 +1352,25 @@ export async function updateDeliveryNoteOffline(
 
   console.log(`  💰 Financiero: pagado=${newPaidAmount}, restante=${newRemainingBalance}, status=${newStatus}`);
 
-  // PASO 6: Preparar actualizaciones completas
-  const completeUpdates: Partial<DeliveryNoteDB> = {
+  // PASO 6: Preparar actualizaciones para Supabase (sin remaining_balance que es generada)
+  const supabaseUpdates: Partial<DeliveryNoteDB> = {
     ...updates,
     total_amount: newTotal,
-    remaining_balance: newRemainingBalance,
     status: newStatus,
     updated_at: now,
   };
+  // Remover remaining_balance de la cola (es columna generada en Supabase)
+  delete (supabaseUpdates as any).remaining_balance;
 
-  // PASO 7: Actualizar nota principal
+  // PASO 7: Actualizar nota principal en IndexedDB (incluir remaining_balance para UI)
   const updated: DeliveryNoteDB = {
     ...existing,
-    ...completeUpdates,
+    ...supabaseUpdates,
+    remaining_balance: newRemainingBalance, // Solo para IndexedDB/UI
   };
 
   await localDB.delivery_notes.put(updated);
-  await queueOperation("delivery_notes", "UPDATE", id, completeUpdates);
+  await queueOperation("delivery_notes", "UPDATE", id, supabaseUpdates);
 
   console.log(`✅ Remito ${id} actualizado offline con campos financieros consistentes`);
 }
@@ -1417,18 +1419,26 @@ export async function markDeliveryNoteAsPaidOffline(id: string, paidAmount: numb
   const remainingBalance = note.total_amount - paidAmount;
   const status = remainingBalance <= 0 ? "paid" : "pending";
 
-  const updates = {
+  // Actualizaciones para IndexedDB (incluye remaining_balance para UI)
+  const localUpdates = {
     paid_amount: paidAmount,
     remaining_balance: remainingBalance,
     status,
     updated_at: new Date().toISOString(),
   };
 
+  // Actualizaciones para Supabase (sin remaining_balance que es columna generada)
+  const supabaseUpdates = {
+    paid_amount: paidAmount,
+    status,
+    updated_at: new Date().toISOString(),
+  };
+
   await localDB.delivery_notes.put({
     ...note,
-    ...updates,
+    ...localUpdates,
   });
-  await queueOperation("delivery_notes", "UPDATE", id, updates);
+  await queueOperation("delivery_notes", "UPDATE", id, supabaseUpdates);
 }
 
 // PRODUCTOS - Actualizar cantidad (privada, usa delta)
