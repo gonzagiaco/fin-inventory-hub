@@ -234,16 +234,19 @@ export const DynamicProductTable = ({
       };
     });
 
-    // Columna de acciones (agregar a pedido)
+    // Columna de acciones (agregar a pedido / Mi Stock)
     if (showStockActions && onAddToRequest) {
+      const { AddProductDropdown } = require("./stock/AddProductDropdown");
       dataColumns.unshift({
         id: "actions",
         header: "Acciones",
         cell: ({ row }) => (
-          <Button size="sm" variant="outline" onClick={() => onAddToRequest(row.original, mappingConfig)}>
-            <Plus className="h-4 w-4 mr-1" />
-            Agregar
-          </Button>
+          <AddProductDropdown
+            product={{ ...row.original, listId }}
+            mappingConfig={mappingConfig}
+            onAddToRequest={onAddToRequest}
+            showAddToStock={true}
+          />
         ),
         meta: { visible: true },
       } as any);
