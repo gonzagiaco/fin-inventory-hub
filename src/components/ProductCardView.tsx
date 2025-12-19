@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { ChevronDown, ChevronUp, ShoppingCart, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { ChevronDown, ChevronUp, ShoppingCart, ArrowUpDown, ArrowUp, ArrowDown, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,8 @@ interface ProductCardViewProps {
   mappingConfig?: ProductList["mapping_config"];
   onAddToRequest?: (product: any, mappingConfig?: ProductList["mapping_config"]) => void;
   showActions?: boolean;
+  showRemoveFromStock?: boolean;
+  onRemoveFromStock?: (product: any) => void;
   onLoadMore?: () => void;
   hasMore?: boolean;
   isLoadingMore?: boolean;
@@ -40,6 +42,8 @@ export function ProductCardView({
   mappingConfig,
   onAddToRequest,
   showActions = false,
+  showRemoveFromStock = false,
+  onRemoveFromStock,
   onLoadMore,
   hasMore = false,
   isLoadingMore = false,
@@ -311,7 +315,20 @@ export function ProductCardView({
           const isLowStock = quantity < lowStockThreshold;
 
           return (
-            <Card key={product.id} className="flex flex-col">
+            <Card key={product.id} className="flex flex-col relative group">
+              {showRemoveFromStock && onRemoveFromStock && (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="absolute top-2 right-2 h-7 w-7 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-70 group-hover:opacity-100"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemoveFromStock(product);
+                  }}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
               <CardHeader className="pb-3">
                 <div className="space-y-2">
                   {keyFields.map((field) => {

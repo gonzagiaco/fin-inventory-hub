@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { List, LayoutGrid, ChevronUp, ChevronDown } from "lucide-react";
+import { List, LayoutGrid, ChevronUp, ChevronDown, Trash2, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -7,7 +7,10 @@ import { QuantityCell } from "./QuantityCell";
 import { ProductCardView } from "@/components/ProductCardView";
 import { ColumnSchema, DynamicProduct } from "@/types/productList";
 import { normalizeRawPrice, formatARS } from "@/utils/numberParser";
-import { AddProductDropdown } from "./AddProductDropdown";
+import { removeFromMyStock } from "@/hooks/useMyStockProducts";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { ColumnSettingsDrawer } from "@/components/ColumnSettingsDrawer";
 import { CardPreviewSettings } from "@/components/CardPreviewSettings";
 import { useProductListStore } from "@/stores/productListStore";
@@ -39,10 +42,29 @@ export function MyStockListProducts({
 }: MyStockListProductsProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const { columnVisibility, columnOrder, viewMode: storeViewMode, setViewMode } = useProductListStore();
+  const isOnline = useOnlineStatus();
+  const queryClient = useQueryClient();
 
   // Default view mode
   const defaultViewMode = isMobile ? "cards" : "table";
   const currentViewMode = storeViewMode[listId] || defaultViewMode;
+
+  // Handler para quitar de Mi Stock
+  const handleRemoveFromStock = (product: any) => {
+    const productId = product.product_id || product.id;
+    const productListId = product.list_id || listId;
+    
+    toast.success("Producto quitado de Mi Stock");
+    queryClient.invalidateQueries({ queryKey: ["my-stock"] });
+    
+    queueMicrotask(async () => {
+      try {
+        await removeFromMyStock(productId, productListId, isOnline);
+      } catch (error) {
+        console.error("Error al quitar de Mi Stock:", error);
+      }
+    });
+  };
 
   // Process schema: only mark quantity as isStandard (fixed)
   const processedSchema: ColumnSchema[] = useMemo(() => {
@@ -171,18 +193,36 @@ export function MyStockListProducts({
       } as ColumnDef<any>;
     });
 
-    // Actions column at the start
+    // Remove column at the start
     dataColumns.unshift({
+      id: "remove",
+      header: "Quitar de stock",
+      cell: ({ row }: any) => (
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+          onClick={() => handleRemoveFromStock(row.original)}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      ),
+      meta: { visible: true },
+    } as any);
+
+    // Actions column (add to cart)
+    dataColumns.push({
       id: "actions",
       header: "Acciones",
       cell: ({ row }: any) => (
-        <AddProductDropdown
-          product={row.original}
-          mappingConfig={mappingConfig}
-          onAddToRequest={onAddToRequest}
-          showAddToStock={false}
-          showRemoveFromStock={true}
-        />
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => onAddToRequest(row.original, mappingConfig)}
+        >
+          <ShoppingCart className="h-4 w-4 mr-1" />
+          Agregar al carrito
+        </Button>
       ),
       meta: { visible: true },
     } as any);
@@ -268,6 +308,8 @@ export function MyStockListProducts({
           mappingConfig={mappingConfig}
           onAddToRequest={(product) => onAddToRequest(product, mappingConfig)}
           showActions={true}
+          showRemoveFromStock={true}
+          onRemoveFromStock={handleRemoveFromStock}
           sortColumn={sortColumn}
           sortDirection={sortDirection}
           onSortChange={handleSortChange}
