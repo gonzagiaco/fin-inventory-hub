@@ -1,13 +1,13 @@
-import Dexie, { Table } from 'dexie';
-import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import Dexie, { Table } from "dexie";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 // ==================== INTERFACES ====================
 
 export interface PendingOperation {
   id?: number;
   table_name: string;
-  operation_type: 'INSERT' | 'UPDATE' | 'DELETE';
+  operation_type: "INSERT" | "UPDATE" | "DELETE";
   record_id: string;
   data: any;
   timestamp: number;
@@ -114,17 +114,17 @@ class LocalDatabase extends Dexie {
   pending_operations!: Table<PendingOperation, number>;
 
   constructor() {
-    super('ProveedoresLocalDB');
-    
+    super("ProveedoresLocalDB");
+
     this.version(1).stores({
-      suppliers: 'id, user_id, name',
-      product_lists: 'id, user_id, supplier_id, name',
-      dynamic_products_index: 'id, user_id, list_id, product_id, code, name',
-      dynamic_products: 'id, user_id, list_id, code, name',
-      delivery_notes: 'id, user_id, customer_name, status, issue_date',
-      delivery_note_items: 'id, delivery_note_id, product_id',
-      request_items: 'id, user_id, product_id',
-      pending_operations: '++id, table_name, timestamp, record_id'
+      suppliers: "id, user_id, name",
+      product_lists: "id, user_id, supplier_id, name",
+      dynamic_products_index: "id, user_id, list_id, product_id, code, name",
+      dynamic_products: "id, user_id, list_id, code, name",
+      delivery_notes: "id, user_id, customer_name, status, issue_date",
+      delivery_note_items: "id, delivery_note_id, product_id",
+      request_items: "id, user_id, product_id",
+      pending_operations: "++id, table_name, timestamp, record_id",
     });
   }
 }
@@ -134,13 +134,13 @@ export const localDB = new LocalDatabase();
 // ==================== CONSTANTES ====================
 
 const SYNC_ORDER = [
-  'suppliers',
-  'product_lists',
-  'dynamic_products',
-  'dynamic_products_index',
-  'delivery_notes',
-  'delivery_note_items',
-  'request_items'
+  "suppliers",
+  "product_lists",
+  "dynamic_products",
+  "dynamic_products_index",
+  "delivery_notes",
+  "delivery_note_items",
+  "request_items",
 ];
 
 // ==================== UTILIDADES ====================
@@ -154,7 +154,7 @@ function generateTempId(): string {
 }
 
 function isTempId(id: string): boolean {
-  return id.startsWith('offline-');
+  return id.startsWith("offline-");
 }
 
 // ==================== INICIALIZACIÓN ====================
@@ -162,9 +162,9 @@ function isTempId(id: string): boolean {
 export async function initDB(): Promise<void> {
   try {
     await localDB.open();
-    console.log('✅ IndexedDB inicializada correctamente');
+    console.log("✅ IndexedDB inicializada correctamente");
   } catch (error) {
-    console.error('❌ Error al inicializar IndexedDB:', error);
+    console.error("❌ Error al inicializar IndexedDB:", error);
     throw error;
   }
 }
@@ -173,23 +173,25 @@ export async function initDB(): Promise<void> {
 
 export async function syncFromSupabase(): Promise<void> {
   if (!isOnline()) {
-    console.warn('⚠️ No hay conexión. No se puede sincronizar desde Supabase');
+    console.warn("⚠️ No hay conexión. No se puede sincronizar desde Supabase");
     return;
   }
 
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (!user) {
-      throw new Error('Usuario no autenticado');
+      throw new Error("Usuario no autenticado");
     }
 
-    console.log('🔄 Iniciando sincronización desde Supabase...');
+    console.log("🔄 Iniciando sincronización desde Supabase...");
 
     // Sincronizar suppliers
     const { data: suppliers, error: suppliersError } = await supabase
-      .from('suppliers')
-      .select('*')
-      .eq('user_id', user.id);
+      .from("suppliers")
+      .select("*")
+      .eq("user_id", user.id);
     if (suppliersError) throw suppliersError;
     if (suppliers && suppliers.length > 0) {
       await localDB.suppliers.bulkPut(suppliers as SupplierDB[]);
@@ -198,9 +200,9 @@ export async function syncFromSupabase(): Promise<void> {
 
     // Sincronizar product_lists
     const { data: productLists, error: listsError } = await supabase
-      .from('product_lists')
-      .select('*')
-      .eq('user_id', user.id);
+      .from("product_lists")
+      .select("*")
+      .eq("user_id", user.id);
     if (listsError) throw listsError;
     if (productLists && productLists.length > 0) {
       await localDB.product_lists.bulkPut(productLists as ProductListDB[]);
@@ -209,9 +211,9 @@ export async function syncFromSupabase(): Promise<void> {
 
     // Sincronizar dynamic_products_index
     const { data: productsIndex, error: indexError } = await supabase
-      .from('dynamic_products_index')
-      .select('*')
-      .eq('user_id', user.id);
+      .from("dynamic_products_index")
+      .select("*")
+      .eq("user_id", user.id);
     if (indexError) throw indexError;
     if (productsIndex && productsIndex.length > 0) {
       await localDB.dynamic_products_index.bulkPut(productsIndex as DynamicProductIndexDB[]);
@@ -220,9 +222,9 @@ export async function syncFromSupabase(): Promise<void> {
 
     // Sincronizar dynamic_products
     const { data: products, error: productsError } = await supabase
-      .from('dynamic_products')
-      .select('*')
-      .eq('user_id', user.id);
+      .from("dynamic_products")
+      .select("*")
+      .eq("user_id", user.id);
     if (productsError) throw productsError;
     if (products && products.length > 0) {
       await localDB.dynamic_products.bulkPut(products as DynamicProductDB[]);
@@ -231,9 +233,9 @@ export async function syncFromSupabase(): Promise<void> {
 
     // Sincronizar delivery_notes
     const { data: deliveryNotes, error: notesError } = await supabase
-      .from('delivery_notes')
-      .select('*')
-      .eq('user_id', user.id);
+      .from("delivery_notes")
+      .select("*")
+      .eq("user_id", user.id);
     if (notesError) throw notesError;
     if (deliveryNotes && deliveryNotes.length > 0) {
       await localDB.delivery_notes.bulkPut(deliveryNotes as DeliveryNoteDB[]);
@@ -241,9 +243,7 @@ export async function syncFromSupabase(): Promise<void> {
     }
 
     // Sincronizar delivery_note_items
-    const { data: noteItems, error: itemsError } = await supabase
-      .from('delivery_note_items')
-      .select('*');
+    const { data: noteItems, error: itemsError } = await supabase.from("delivery_note_items").select("*");
     if (itemsError) throw itemsError;
     if (noteItems && noteItems.length > 0) {
       await localDB.delivery_note_items.bulkPut(noteItems as DeliveryNoteItemDB[]);
@@ -252,20 +252,20 @@ export async function syncFromSupabase(): Promise<void> {
 
     // Sincronizar request_items
     const { data: requestItems, error: requestError } = await supabase
-      .from('request_items')
-      .select('*')
-      .eq('user_id', user.id);
+      .from("request_items")
+      .select("*")
+      .eq("user_id", user.id);
     if (requestError) throw requestError;
     if (requestItems && requestItems.length > 0) {
       await localDB.request_items.bulkPut(requestItems as RequestItemDB[]);
       console.log(`✅ ${requestItems.length} items del carrito sincronizados`);
     }
 
-    console.log('✅ Sincronización completa desde Supabase');
-    toast.success('Datos sincronizados correctamente');
+    console.log("✅ Sincronización completa desde Supabase");
+    toast.success("Datos sincronizados correctamente");
   } catch (error) {
-    console.error('❌ Error al sincronizar desde Supabase:', error);
-    toast.error('Error al sincronizar datos');
+    console.error("❌ Error al sincronizar desde Supabase:", error);
+    toast.error("Error al sincronizar datos");
     throw error;
   }
 }
@@ -274,9 +274,9 @@ export async function syncFromSupabase(): Promise<void> {
 
 export async function queueOperation(
   tableName: string,
-  operationType: 'INSERT' | 'UPDATE' | 'DELETE',
+  operationType: "INSERT" | "UPDATE" | "DELETE",
   recordId: string,
-  data: any
+  data: any,
 ): Promise<void> {
   const operation: PendingOperation = {
     table_name: tableName,
@@ -284,7 +284,7 @@ export async function queueOperation(
     record_id: recordId,
     data,
     timestamp: Date.now(),
-    retry_count: 0
+    retry_count: 0,
   };
 
   await localDB.pending_operations.add(operation);
@@ -293,22 +293,22 @@ export async function queueOperation(
 
 export async function syncPendingOperations(): Promise<void> {
   if (!isOnline()) {
-    console.warn('⚠️ No hay conexión. No se pueden sincronizar operaciones pendientes');
+    console.warn("⚠️ No hay conexión. No se pueden sincronizar operaciones pendientes");
     return;
   }
 
   const operations = await localDB.pending_operations.toArray();
-  
+
   if (operations.length === 0) {
-    console.log('✅ No hay operaciones pendientes');
+    console.log("✅ No hay operaciones pendientes");
     return;
   }
 
   console.log(`🔄 Sincronizando ${operations.length} operaciones pendientes...`);
-  
+
   // Ordenar operaciones por timestamp
   const sortedOps = operations.sort((a, b) => a.timestamp - b.timestamp);
-  
+
   let successCount = 0;
   let errorCount = 0;
 
@@ -320,14 +320,14 @@ export async function syncPendingOperations(): Promise<void> {
     } catch (error: any) {
       errorCount++;
       console.error(`❌ Error al sincronizar operación ${op.id}:`, error);
-      
+
       // Actualizar contador de reintentos
       const updatedOp = await localDB.pending_operations.get(op.id!);
       if (updatedOp) {
         await localDB.pending_operations.put({
           ...updatedOp,
           retry_count: op.retry_count + 1,
-          error: error.message
+          error: error.message,
         });
       }
 
@@ -340,13 +340,13 @@ export async function syncPendingOperations(): Promise<void> {
   }
 
   console.log(`✅ Sincronización completada: ${successCount} exitosas, ${errorCount} fallidas`);
-  
+
   if (successCount > 0) {
     toast.success(`${successCount} operaciones sincronizadas`);
     // Re-sincronizar desde Supabase para obtener IDs reales
     await syncFromSupabase();
   }
-  
+
   if (errorCount > 0) {
     toast.error(`${errorCount} operaciones fallaron`);
   }
@@ -359,46 +359,38 @@ async function executeOperation(op: PendingOperation): Promise<void> {
   const isTemp = isTempId(record_id);
 
   switch (operation_type) {
-    case 'INSERT':
+    case "INSERT":
       // Para INSERT, no enviamos el ID temporal
       const insertData = { ...data };
       if (isTemp) {
         delete insertData.id;
       }
-      
-      const { error: insertError } = await (supabase as any)
-        .from(table_name)
-        .insert(insertData);
-      
+
+      const { error: insertError } = await (supabase as any).from(table_name).insert(insertData);
+
       if (insertError) throw insertError;
       break;
 
-    case 'UPDATE':
+    case "UPDATE":
       // Para UPDATE, si tiene ID temporal, intentamos buscar por otros campos
       if (isTemp) {
         console.warn(`⚠️ No se puede actualizar registro con ID temporal: ${record_id}`);
         return;
       }
-      
-      const { error: updateError } = await (supabase as any)
-        .from(table_name)
-        .update(data)
-        .eq('id', record_id);
-      
+
+      const { error: updateError } = await (supabase as any).from(table_name).update(data).eq("id", record_id);
+
       if (updateError) throw updateError;
       break;
 
-    case 'DELETE':
+    case "DELETE":
       if (isTemp) {
         console.warn(`⚠️ No se puede eliminar registro con ID temporal: ${record_id}`);
         return;
       }
-      
-      const { error: deleteError } = await (supabase as any)
-        .from(table_name)
-        .delete()
-        .eq('id', record_id);
-      
+
+      const { error: deleteError } = await (supabase as any).from(table_name).delete().eq("id", record_id);
+
       if (deleteError) throw deleteError;
       break;
   }
@@ -407,67 +399,73 @@ async function executeOperation(op: PendingOperation): Promise<void> {
 // ==================== OPERACIONES CRUD OFFLINE ====================
 
 // SUPPLIERS
-export async function createSupplierOffline(supplier: Omit<SupplierDB, 'id' | 'created_at' | 'updated_at'>): Promise<string> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Usuario no autenticado');
+export async function createSupplierOffline(
+  supplier: Omit<SupplierDB, "id" | "created_at" | "updated_at">,
+): Promise<string> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Usuario no autenticado");
 
   const tempId = generateTempId();
   const now = new Date().toISOString();
-  
+
   const newSupplier: SupplierDB = {
     id: tempId,
     ...supplier,
     user_id: user.id,
     created_at: now,
-    updated_at: now
+    updated_at: now,
   };
 
   await localDB.suppliers.add(newSupplier);
-  await queueOperation('suppliers', 'INSERT', tempId, newSupplier);
-  
+  await queueOperation("suppliers", "INSERT", tempId, newSupplier);
+
   return tempId;
 }
 
 export async function updateSupplierOffline(id: string, updates: Partial<SupplierDB>): Promise<void> {
   const existing = await localDB.suppliers.get(id);
-  if (!existing) throw new Error('Proveedor no encontrado');
+  if (!existing) throw new Error("Proveedor no encontrado");
 
   const updated = {
     ...existing,
     ...updates,
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   };
 
   await localDB.suppliers.put(updated);
-  await queueOperation('suppliers', 'UPDATE', id, updates);
+  await queueOperation("suppliers", "UPDATE", id, updates);
 }
 
 export async function deleteSupplierOffline(id: string): Promise<void> {
   await localDB.suppliers.delete(id);
-  await queueOperation('suppliers', 'DELETE', id, {});
+  await queueOperation("suppliers", "DELETE", id, {});
 }
 
 // DELIVERY NOTES
 export async function createDeliveryNoteOffline(
-  note: Omit<DeliveryNoteDB, 'id' | 'created_at' | 'updated_at'>,
-  items: Omit<DeliveryNoteItemDB, 'id' | 'delivery_note_id' | 'created_at'>[]
+  note: Omit<DeliveryNoteDB, "id" | "created_at" | "updated_at">,
+  items: Omit<DeliveryNoteItemDB, "id" | "delivery_note_id" | "created_at">[],
 ): Promise<string> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Usuario no autenticado');
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Usuario no autenticado");
 
   const tempNoteId = generateTempId();
   const now = new Date().toISOString();
-  
+
   const newNote: DeliveryNoteDB = {
     id: tempNoteId,
     ...note,
     user_id: user.id,
     created_at: now,
-    updated_at: now
+    updated_at: now,
   };
 
   await localDB.delivery_notes.add(newNote);
-  await queueOperation('delivery_notes', 'INSERT', tempNoteId, newNote);
+  await queueOperation("delivery_notes", "INSERT", tempNoteId, newNote);
 
   // Crear items
   for (const item of items) {
@@ -476,62 +474,59 @@ export async function createDeliveryNoteOffline(
       id: tempItemId,
       delivery_note_id: tempNoteId,
       ...item,
-      created_at: now
+      created_at: now,
     };
-    
+
     await localDB.delivery_note_items.add(newItem);
-    await queueOperation('delivery_note_items', 'INSERT', tempItemId, newItem);
+    await queueOperation("delivery_note_items", "INSERT", tempItemId, newItem);
 
     // Actualizar stock localmente
     if (item.product_id) {
       await updateProductQuantityOffline(item.product_id, -item.quantity);
     }
   }
-  
+
   return tempNoteId;
 }
 
 export async function updateDeliveryNoteOffline(
   id: string,
   updates: Partial<DeliveryNoteDB>,
-  items?: Omit<DeliveryNoteItemDB, 'id' | 'delivery_note_id' | 'created_at'>[]
+  items?: Omit<DeliveryNoteItemDB, "id" | "delivery_note_id" | "created_at">[],
 ): Promise<void> {
   const existing = await localDB.delivery_notes.get(id);
-  if (!existing) throw new Error('Remito no encontrado');
+  if (!existing) throw new Error("Remito no encontrado");
 
   const updated = {
     ...existing,
     ...updates,
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   };
 
   await localDB.delivery_notes.put(updated);
   // Recalcular total, paid, remaining y status offline antes de guardar
-+  let newTotal = existing.total_amount;
-+  if (items) {
-+    newTotal = items.reduce((sum, it) => sum + it.subtotal, 0);
-+  }
-+  const newPaid = updates.paid_amount !== undefined ? updates.paid_amount : existing.paid_amount;
-+  const newStatus = newPaid >= newTotal ? 'paid' : 'pending';
-+  const updatedNote = {
-+    ...existing,
-+    ...updates,
-+    total_amount: newTotal,
-+    paid_amount: newPaid,
-+    remaining_balance: newTotal - newPaid,
-+    status: newStatus,
-+    updated_at: new Date().toISOString()
-+  };
-+  await localDB.delivery_notes.put(updatedNote);
-  await queueOperation('delivery_notes', 'UPDATE', id, updates);
+  let newTotal = existing.total_amount;
+  if (items) {
+    newTotal = items.reduce((sum, it) => sum + it.subtotal, 0);
+  }
+  const newPaid = updates.paid_amount !== undefined ? updates.paid_amount : existing.paid_amount;
+  const newStatus = newPaid >= newTotal ? "paid" : "pending";
+  const updatedNote = {
+    ...existing,
+    ...updates,
+    total_amount: newTotal,
+    paid_amount: newPaid,
+    remaining_balance: newTotal - newPaid,
+    status: newStatus,
+    updated_at: new Date().toISOString(),
+  };
+  await localDB.delivery_notes.put(updatedNote);
+  await queueOperation("delivery_notes", "UPDATE", id, updates);
 
   // Si se proporcionan items, reemplazarlos
   if (items) {
     // Obtener items antiguos para revertir stock
-    const oldItems = await localDB.delivery_note_items
-      .where('delivery_note_id')
-      .equals(id)
-      .toArray();
+    const oldItems = await localDB.delivery_note_items.where("delivery_note_id").equals(id).toArray();
 
     // Revertir stock de items antiguos
     for (const oldItem of oldItems) {
@@ -539,7 +534,7 @@ export async function updateDeliveryNoteOffline(
         await updateProductQuantityOffline(oldItem.product_id, oldItem.quantity);
       }
       await localDB.delivery_note_items.delete(oldItem.id);
-      await queueOperation('delivery_note_items', 'DELETE', oldItem.id, {});
+      await queueOperation("delivery_note_items", "DELETE", oldItem.id, {});
     }
 
     // Agregar nuevos items
@@ -549,11 +544,11 @@ export async function updateDeliveryNoteOffline(
         id: tempItemId,
         delivery_note_id: id,
         ...item,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
       };
-      
+
       await localDB.delivery_note_items.add(newItem);
-      await queueOperation('delivery_note_items', 'INSERT', tempItemId, newItem);
+      await queueOperation("delivery_note_items", "INSERT", tempItemId, newItem);
 
       // Actualizar stock
       if (item.product_id) {
@@ -565,10 +560,7 @@ export async function updateDeliveryNoteOffline(
 
 export async function deleteDeliveryNoteOffline(id: string): Promise<void> {
   // Obtener items para revertir stock
-  const items = await localDB.delivery_note_items
-    .where('delivery_note_id')
-    .equals(id)
-    .toArray();
+  const items = await localDB.delivery_note_items.where("delivery_note_id").equals(id).toArray();
 
   // Revertir stock
   for (const item of items) {
@@ -576,32 +568,32 @@ export async function deleteDeliveryNoteOffline(id: string): Promise<void> {
       await updateProductQuantityOffline(item.product_id, item.quantity);
     }
     await localDB.delivery_note_items.delete(item.id);
-    await queueOperation('delivery_note_items', 'DELETE', item.id, {});
+    await queueOperation("delivery_note_items", "DELETE", item.id, {});
   }
 
   await localDB.delivery_notes.delete(id);
-  await queueOperation('delivery_notes', 'DELETE', id, {});
+  await queueOperation("delivery_notes", "DELETE", id, {});
 }
 
 export async function markDeliveryNoteAsPaidOffline(id: string, paidAmount: number): Promise<void> {
   const note = await localDB.delivery_notes.get(id);
-  if (!note) throw new Error('Remito no encontrado');
+  if (!note) throw new Error("Remito no encontrado");
 
   const remainingBalance = note.total_amount - paidAmount;
-  const status = remainingBalance <= 0 ? 'paid' : 'pending';
+  const status = remainingBalance <= 0 ? "paid" : "pending";
 
   const updates = {
     paid_amount: paidAmount,
     remaining_balance: remainingBalance,
     status,
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   };
 
   await localDB.delivery_notes.put({
     ...note,
-    ...updates
+    ...updates,
   });
-  await queueOperation('delivery_notes', 'UPDATE', id, updates);
+  await queueOperation("delivery_notes", "UPDATE", id, updates);
 }
 
 // PRODUCTOS - Actualizar cantidad
@@ -613,10 +605,10 @@ async function updateProductQuantityOffline(productId: string, quantityDelta: nu
     await localDB.dynamic_products_index.put({
       ...indexProduct,
       quantity: newQuantity,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     });
-    await queueOperation('dynamic_products_index', 'UPDATE', productId, {
-      quantity: newQuantity
+    await queueOperation("dynamic_products_index", "UPDATE", productId, {
+      quantity: newQuantity,
     });
   }
 
@@ -627,29 +619,28 @@ async function updateProductQuantityOffline(productId: string, quantityDelta: nu
     await localDB.dynamic_products.put({
       ...product,
       quantity: newQuantity,
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
     });
-    await queueOperation('dynamic_products', 'UPDATE', productId, {
-      quantity: newQuantity
+    await queueOperation("dynamic_products", "UPDATE", productId, {
+      quantity: newQuantity,
     });
   }
 }
 
 // REQUEST ITEMS (Carrito)
 export async function addToCartOffline(productId: string, quantity: number = 1): Promise<string> {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error('Usuario no autenticado');
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Usuario no autenticado");
 
   // Verificar si ya existe
-  const existing = await localDB.request_items
-    .where('product_id')
-    .equals(productId)
-    .first();
+  const existing = await localDB.request_items.where("product_id").equals(productId).first();
 
   if (existing) {
     const newQuantity = existing.quantity + quantity;
     await localDB.request_items.put({ ...existing, quantity: newQuantity });
-    await queueOperation('request_items', 'UPDATE', existing.id, { quantity: newQuantity });
+    await queueOperation("request_items", "UPDATE", existing.id, { quantity: newQuantity });
     return existing.id;
   }
 
@@ -659,12 +650,12 @@ export async function addToCartOffline(productId: string, quantity: number = 1):
     user_id: user.id,
     product_id: productId,
     quantity,
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
   };
 
   await localDB.request_items.add(newItem);
-  await queueOperation('request_items', 'INSERT', tempId, newItem);
-  
+  await queueOperation("request_items", "INSERT", tempId, newItem);
+
   return tempId;
 }
 
@@ -672,20 +663,20 @@ export async function updateCartItemOffline(id: string, quantity: number): Promi
   const existing = await localDB.request_items.get(id);
   if (existing) {
     await localDB.request_items.put({ ...existing, quantity });
-    await queueOperation('request_items', 'UPDATE', id, { quantity });
+    await queueOperation("request_items", "UPDATE", id, { quantity });
   }
 }
 
 export async function removeFromCartOffline(id: string): Promise<void> {
   await localDB.request_items.delete(id);
-  await queueOperation('request_items', 'DELETE', id, {});
+  await queueOperation("request_items", "DELETE", id, {});
 }
 
 export async function clearCartOffline(): Promise<void> {
   const items = await localDB.request_items.toArray();
   for (const item of items) {
     await localDB.request_items.delete(item.id);
-    await queueOperation('request_items', 'DELETE', item.id, {});
+    await queueOperation("request_items", "DELETE", item.id, {});
   }
 }
 
@@ -693,19 +684,19 @@ export async function clearCartOffline(): Promise<void> {
 
 export async function getOfflineData<T>(tableName: string): Promise<T[]> {
   switch (tableName) {
-    case 'suppliers':
+    case "suppliers":
       return (await localDB.suppliers.toArray()) as any;
-    case 'product_lists':
+    case "product_lists":
       return (await localDB.product_lists.toArray()) as any;
-    case 'dynamic_products_index':
+    case "dynamic_products_index":
       return (await localDB.dynamic_products_index.toArray()) as any;
-    case 'dynamic_products':
+    case "dynamic_products":
       return (await localDB.dynamic_products.toArray()) as any;
-    case 'delivery_notes':
+    case "delivery_notes":
       return (await localDB.delivery_notes.toArray()) as any;
-    case 'delivery_note_items':
+    case "delivery_note_items":
       return (await localDB.delivery_note_items.toArray()) as any;
-    case 'request_items':
+    case "request_items":
       return (await localDB.request_items.toArray()) as any;
     default:
       throw new Error(`Tabla no soportada: ${tableName}`);
@@ -715,21 +706,21 @@ export async function getOfflineData<T>(tableName: string): Promise<T[]> {
 // ==================== AUTO-SINCRONIZACIÓN ====================
 
 // Escuchar eventos de conexión
-if (typeof window !== 'undefined') {
-  window.addEventListener('online', async () => {
-    console.log('🌐 Conexión restaurada. Iniciando sincronización...');
-    toast.info('Conexión restaurada. Sincronizando datos...');
-    
+if (typeof window !== "undefined") {
+  window.addEventListener("online", async () => {
+    console.log("🌐 Conexión restaurada. Iniciando sincronización...");
+    toast.info("Conexión restaurada. Sincronizando datos...");
+
     try {
       await syncPendingOperations();
       await syncFromSupabase();
     } catch (error) {
-      console.error('Error en sincronización automática:', error);
+      console.error("Error en sincronización automática:", error);
     }
   });
 
-  window.addEventListener('offline', () => {
-    console.log('📡 Sin conexión. Trabajando en modo offline');
-    toast.warning('Sin conexión. Los cambios se sincronizarán automáticamente');
+  window.addEventListener("offline", () => {
+    console.log("📡 Sin conexión. Trabajando en modo offline");
+    toast.warning("Sin conexión. Los cambios se sincronizarán automáticamente");
   });
 }
