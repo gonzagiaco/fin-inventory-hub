@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient, QueryClient } from "@tanstack/re
 import { supabase } from "@/integrations/supabase/client";
 import { DeliveryNote, CreateDeliveryNoteInput, UpdateDeliveryNoteInput } from "@/types";
 import { toast } from "sonner";
-import { useOnlineStatus } from './useOnlineStatus';
+import { useOnlineStatus } from "./useOnlineStatus";
 import {
   createDeliveryNoteOffline,
   updateDeliveryNoteOffline,
@@ -10,14 +10,14 @@ import {
   markDeliveryNoteAsPaidOffline,
   getOfflineData,
   syncDeliveryNoteById,
-  localDB
-} from '@/lib/localDB';
-import { bulkAdjustStock, prepareDeliveryNoteAdjustments } from '@/services/bulkStockService';
+  localDB,
+} from "@/lib/localDB";
+import { bulkAdjustStock, prepareDeliveryNoteAdjustments } from "@/services/bulkStockService";
 
 // F) Logging helper para observabilidad
 const logDelivery = (action: string, details?: any) => {
   const timestamp = new Date().toISOString();
-  console.log(`[DeliveryNotes ${timestamp}] ${action}`, details || '');
+  console.log(`[DeliveryNotes ${timestamp}] ${action}`, details || "");
 };
 
 /**
@@ -26,26 +26,26 @@ const logDelivery = (action: string, details?: any) => {
  */
 async function updateProductStockBulk(
   items: Array<{ productId?: string; quantity: number }>,
-  operation: 'create' | 'delete' | 'revert',
+  operation: "create" | "delete" | "revert",
   isOnline: boolean,
-  queryClient: QueryClient
+  queryClient: QueryClient,
 ) {
   const startTime = performance.now();
   const adjustments = prepareDeliveryNoteAdjustments(items, operation);
-  
+
   if (adjustments.length === 0) return;
 
-  logDelivery(`Bulk stock ${operation}`, { 
+  logDelivery(`Bulk stock ${operation}`, {
     items: adjustments.length,
-    isOnline 
+    isOnline,
   });
 
   const result = await bulkAdjustStock(adjustments, isOnline);
-  
+
   const endTime = performance.now();
   logDelivery(`Bulk stock completed in ${(endTime - startTime).toFixed(2)}ms`, {
     processed: result.processed,
-    success: result.success
+    success: result.success,
   });
 
   // Invalidar queries relevantes
@@ -56,7 +56,7 @@ async function updateProductStockBulk(
  * Invalida todas las queries relacionadas con productos
  */
 function invalidateProductQueries(queryClient: QueryClient) {
-  logDelivery('Invalidating product queries');
+  logDelivery("Invalidating product queries");
   queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
   queryClient.invalidateQueries({ queryKey: ["my-stock"], refetchType: "all" });
   queryClient.invalidateQueries({ queryKey: ["list-products"], refetchType: "all" });
@@ -64,15 +64,15 @@ function invalidateProductQueries(queryClient: QueryClient) {
   queryClient.invalidateQueries({ queryKey: ["product-lists-index"], refetchType: "all" });
   queryClient.invalidateQueries({ queryKey: ["product-lists"], refetchType: "all" });
   queryClient.invalidateQueries({ queryKey: ["dynamic-products"], refetchType: "all" });
-  
+
   // Forzar refetch inmediato
-  queryClient.refetchQueries({ 
-    queryKey: ["list-products"], 
-    type: "active" 
+  queryClient.refetchQueries({
+    queryKey: ["list-products"],
+    type: "active",
   });
-  queryClient.refetchQueries({ 
-    queryKey: ["my-stock"], 
-    type: "active" 
+  queryClient.refetchQueries({
+    queryKey: ["my-stock"],
+    type: "active",
   });
 }
 
@@ -84,10 +84,10 @@ export const useDeliveryNotes = () => {
     queryKey: ["delivery-notes"],
     queryFn: async () => {
       if (!isOnline) {
-        const offlineNotes = await getOfflineData('delivery_notes') as any[];
-        const offlineItems = await getOfflineData('delivery_note_items') as any[];
-        
-        return (offlineNotes || []).map(note => ({
+        const offlineNotes = (await getOfflineData("delivery_notes")) as any[];
+        const offlineItems = (await getOfflineData("delivery_note_items")) as any[];
+
+        return (offlineNotes || []).map((note) => ({
           id: note.id,
           userId: note.user_id,
           customerName: note.customer_name,
@@ -97,7 +97,7 @@ export const useDeliveryNotes = () => {
           totalAmount: Number(note.total_amount),
           paidAmount: Number(note.paid_amount),
           remainingBalance: Number(note.remaining_balance),
-          status: note.status as 'pending' | 'paid',
+          status: note.status as "pending" | "paid",
           extraFields: note.extra_fields,
           notes: note.notes,
           createdAt: note.created_at,
@@ -120,15 +120,17 @@ export const useDeliveryNotes = () => {
 
       const { data, error } = await supabase
         .from("delivery_notes")
-        .select(`
+        .select(
+          `
           *,
           items:delivery_note_items(*)
-        `)
+        `,
+        )
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      return data.map(note => ({
+      return data.map((note) => ({
         id: note.id,
         userId: note.user_id,
         customerName: note.customer_name,
@@ -138,7 +140,7 @@ export const useDeliveryNotes = () => {
         totalAmount: Number(note.total_amount),
         paidAmount: Number(note.paid_amount),
         remainingBalance: Number(note.remaining_balance),
-        status: note.status as 'pending' | 'paid',
+        status: note.status as "pending" | "paid",
         extraFields: note.extra_fields,
         notes: note.notes,
         createdAt: note.created_at,
@@ -163,11 +165,9 @@ export const useDeliveryNotes = () => {
       const { data: user } = await supabase.auth.getUser();
       if (!user.user) throw new Error("No autenticado");
 
-      const total = input.items.reduce((sum, item) => 
-        sum + (item.quantity * item.unitPrice), 0
-      );
+      const total = input.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
 
-      const status = (input.paidAmount || 0) >= total ? 'paid' : 'pending';
+      const status = (input.paidAmount || 0) >= total ? "paid" : "pending";
 
       if (!isOnline) {
         const noteData = {
@@ -184,7 +184,7 @@ export const useDeliveryNotes = () => {
           status,
         };
 
-        const items = input.items.map(item => ({
+        const items = input.items.map((item) => ({
           product_id: item.productId,
           product_code: item.productCode,
           product_name: item.productName,
@@ -198,9 +198,7 @@ export const useDeliveryNotes = () => {
       }
 
       // 🔧 Convertir fecha a mediodía UTC para evitar problemas de timezone
-      const issueDate = input.issueDate 
-        ? `${input.issueDate}T12:00:00.000Z` 
-        : new Date().toISOString();
+      const issueDate = input.issueDate ? `${input.issueDate}T12:00:00.000Z` : new Date().toISOString();
 
       const { data: note, error: noteError } = await supabase
         .from("delivery_notes")
@@ -221,23 +219,21 @@ export const useDeliveryNotes = () => {
 
       if (noteError) throw noteError;
 
-      const { error: itemsError } = await supabase
-        .from("delivery_note_items")
-        .insert(
-          input.items.map(item => ({
-            delivery_note_id: note.id,
-            product_id: item.productId,
-            product_code: item.productCode,
-            product_name: item.productName,
-            quantity: item.quantity,
-            unit_price: item.unitPrice,
-          }))
-        );
+      const { error: itemsError } = await supabase.from("delivery_note_items").insert(
+        input.items.map((item) => ({
+          delivery_note_id: note.id,
+          product_id: item.productId,
+          product_code: item.productCode,
+          product_name: item.productName,
+          quantity: item.quantity,
+          unit_price: item.unitPrice,
+        })),
+      );
 
       if (itemsError) throw itemsError;
 
       // C) OPTIMIZADO: Usar bulk adjust en lugar de N llamadas individuales
-      await updateProductStockBulk(input.items, 'create', isOnline, queryClient);
+      await updateProductStockBulk(input.items, "create", isOnline, queryClient);
 
       // 🆕 SINCRONIZAR A INDEXEDDB DESPUÉS DE CREAR
       if (note?.id) {
@@ -252,16 +248,14 @@ export const useDeliveryNotes = () => {
     },
     onSuccess: async () => {
       // Forzar refetch completo desde IndexedDB
-      await queryClient.refetchQueries({ 
+      await queryClient.refetchQueries({
         queryKey: ["delivery-notes"],
-        type: 'active'
+        type: "active",
       });
-      
+
       invalidateProductQueries(queryClient);
       toast.success(
-        isOnline
-          ? "Remito creado exitosamente y stock actualizado"
-          : "Remito creado (se sincronizará al conectar)"
+        isOnline ? "Remito creado exitosamente y stock actualizado" : "Remito creado (se sincronizará al conectar)",
       );
     },
     onError: (error: any) => {
@@ -273,7 +267,7 @@ export const useDeliveryNotes = () => {
     mutationFn: async ({ id, ...updates }: UpdateDeliveryNoteInput) => {
       if (!isOnline) {
         // Asegurar que se pasen los items para la reversión offline
-        const mappedItems = updates.items?.map(item => ({
+        const mappedItems = updates.items?.map((item) => ({
           product_id: item.productId,
           product_code: item.productCode,
           product_name: item.productName,
@@ -281,7 +275,7 @@ export const useDeliveryNotes = () => {
           unit_price: item.unitPrice,
           subtotal: item.quantity * item.unitPrice,
         }));
-        
+
         await updateDeliveryNoteOffline(id, updates, mappedItems);
         return;
       }
@@ -296,29 +290,25 @@ export const useDeliveryNotes = () => {
       if (fetchError) throw fetchError;
 
       // PASO 2: Revertir stock de items originales usando bulk
-      logDelivery('Reverting original items stock');
+      logDelivery("Reverting original items stock");
       const originalItems = originalNote.items.map((item: any) => ({
         productId: item.product_id,
-        quantity: item.quantity
+        quantity: item.quantity,
       }));
-      await updateProductStockBulk(originalItems, 'revert', isOnline, queryClient);
+      await updateProductStockBulk(originalItems, "revert", isOnline, queryClient);
 
       // PASO 3: Calcular nuevo total
       let newTotal = originalNote.total_amount;
       if (updates.items) {
-        newTotal = updates.items.reduce((sum, item) => 
-          sum + (item.quantity * item.unitPrice), 0
-        );
+        newTotal = updates.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
       }
 
       const newPaidAmount = updates.paidAmount ?? originalNote.paid_amount;
-      const newStatus = newPaidAmount >= newTotal ? 'paid' : 'pending';
+      const newStatus = newPaidAmount >= newTotal ? "paid" : "pending";
 
       // PASO 4: Actualizar nota principal
       // 🔧 Convertir fecha a mediodía UTC si se proporciona
-      const issueDate = updates.issueDate 
-        ? `${updates.issueDate}T12:00:00.000Z` 
-        : undefined;
+      const issueDate = updates.issueDate ? `${updates.issueDate}T12:00:00.000Z` : undefined;
 
       const { error: noteError } = await supabase
         .from("delivery_notes")
@@ -331,6 +321,7 @@ export const useDeliveryNotes = () => {
           paid_amount: newPaidAmount,
           notes: updates.notes,
           status: newStatus,
+          remaining_balance: newTotal - newPaidAmount,
         })
         .eq("id", id);
 
@@ -339,32 +330,27 @@ export const useDeliveryNotes = () => {
       // PASO 5: Reemplazar items si se proporcionaron
       if (updates.items) {
         // Eliminar items antiguos
-        const { error: deleteError } = await supabase
-          .from("delivery_note_items")
-          .delete()
-          .eq("delivery_note_id", id);
+        const { error: deleteError } = await supabase.from("delivery_note_items").delete().eq("delivery_note_id", id);
 
         if (deleteError) throw deleteError;
 
         // Insertar nuevos items
-        const { error: itemsError } = await supabase
-          .from("delivery_note_items")
-          .insert(
-            updates.items.map(item => ({
-              delivery_note_id: id,
-              product_id: item.productId,
-              product_code: item.productCode,
-              product_name: item.productName,
-              quantity: item.quantity,
-              unit_price: item.unitPrice,
-            }))
-          );
+        const { error: itemsError } = await supabase.from("delivery_note_items").insert(
+          updates.items.map((item) => ({
+            delivery_note_id: id,
+            product_id: item.productId,
+            product_code: item.productCode,
+            product_name: item.productName,
+            quantity: item.quantity,
+            unit_price: item.unitPrice,
+          })),
+        );
 
         if (itemsError) throw itemsError;
 
         // PASO 6: Descontar stock de nuevos items usando bulk
-        logDelivery('Deducting new items stock');
-        await updateProductStockBulk(updates.items, 'create', isOnline, queryClient);
+        logDelivery("Deducting new items stock");
+        await updateProductStockBulk(updates.items, "create", isOnline, queryClient);
       }
 
       // 🆕 SINCRONIZAR A INDEXEDDB DESPUÉS DE ACTUALIZAR
@@ -376,17 +362,13 @@ export const useDeliveryNotes = () => {
     },
     onSuccess: async () => {
       // Forzar refetch completo desde IndexedDB
-      await queryClient.refetchQueries({ 
+      await queryClient.refetchQueries({
         queryKey: ["delivery-notes"],
-        type: 'active'
+        type: "active",
       });
-      
+
       invalidateProductQueries(queryClient);
-      toast.success(
-        isOnline
-          ? "Remito actualizado exitosamente"
-          : "Remito actualizado localmente"
-      );
+      toast.success(isOnline ? "Remito actualizado exitosamente" : "Remito actualizado localmente");
     },
     onError: (error: any) => {
       toast.error(`Error al actualizar remito: ${error.message}`);
@@ -411,14 +393,11 @@ export const useDeliveryNotes = () => {
       // Revertir stock usando bulk
       const deleteItems = note.items.map((item: any) => ({
         productId: item.product_id,
-        quantity: item.quantity
+        quantity: item.quantity,
       }));
-      await updateProductStockBulk(deleteItems, 'delete', isOnline, queryClient);
+      await updateProductStockBulk(deleteItems, "delete", isOnline, queryClient);
 
-      const { error: deleteError } = await supabase
-        .from("delivery_notes")
-        .delete()
-        .eq("id", id);
+      const { error: deleteError } = await supabase.from("delivery_notes").delete().eq("id", id);
 
       if (deleteError) throw deleteError;
 
@@ -431,17 +410,13 @@ export const useDeliveryNotes = () => {
     },
     onSuccess: async () => {
       // Forzar refetch completo desde IndexedDB
-      await queryClient.refetchQueries({ 
+      await queryClient.refetchQueries({
         queryKey: ["delivery-notes"],
-        type: 'active'
+        type: "active",
       });
-      
+
       invalidateProductQueries(queryClient);
-      toast.success(
-        isOnline
-          ? "Remito eliminado y stock revertido"
-          : "Remito eliminado (se sincronizará al conectar)"
-      );
+      toast.success(isOnline ? "Remito eliminado y stock revertido" : "Remito eliminado (se sincronizará al conectar)");
     },
     onError: (error: any) => {
       toast.error(`Error al eliminar remito: ${error.message}`);
@@ -452,20 +427,16 @@ export const useDeliveryNotes = () => {
     mutationFn: async (id: string) => {
       if (!isOnline) {
         // Obtener el remito desde IndexedDB
-        const offlineNotes = await getOfflineData('delivery_notes') as any[];
+        const offlineNotes = (await getOfflineData("delivery_notes")) as any[];
         const note = offlineNotes.find((n: any) => n.id === id);
-        
+
         if (!note) throw new Error("Remito no encontrado");
-        
+
         await markDeliveryNoteAsPaidOffline(id, note.total_amount);
         return;
       }
 
-      const { data: note } = await supabase
-        .from("delivery_notes")
-        .select("total_amount")
-        .eq("id", id)
-        .single();
+      const { data: note } = await supabase.from("delivery_notes").select("total_amount").eq("id", id).single();
 
       if (!note) throw new Error("Remito no encontrado");
 
@@ -473,7 +444,7 @@ export const useDeliveryNotes = () => {
         .from("delivery_notes")
         .update({
           paid_amount: note.total_amount,
-          status: 'paid',
+          status: "paid",
         })
         .eq("id", id);
 
@@ -488,15 +459,13 @@ export const useDeliveryNotes = () => {
     },
     onSuccess: async () => {
       // Forzar refetch completo desde IndexedDB
-      await queryClient.refetchQueries({ 
+      await queryClient.refetchQueries({
         queryKey: ["delivery-notes"],
-        type: 'active'
+        type: "active",
       });
-      
+
       toast.success(
-        isOnline
-          ? "Remito marcado como pagado"
-          : "Remito marcado como pagado (se sincronizará al conectar)"
+        isOnline ? "Remito marcado como pagado" : "Remito marcado como pagado (se sincronizará al conectar)",
       );
     },
   });
