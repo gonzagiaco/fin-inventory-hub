@@ -42,10 +42,20 @@ export const QuantityCell: React.FC<Props> = ({
     // 3. Backend en segundo plano
     queueMicrotask(async () => {
       try {
+        // Preparar datos de actualización - si quantity > 0, agregar a Mi Stock
+        const updateData: { quantity: number; in_my_stock?: boolean; updated_at: string } = {
+          quantity: newQty,
+          updated_at: new Date().toISOString(),
+        };
+        
+        if (newQty > 0) {
+          updateData.in_my_stock = true;
+        }
+
         if (isOnline) {
           const { error } = await supabase
             .from("dynamic_products_index")
-            .update({ quantity: newQty })
+            .update(updateData)
             .eq("product_id", productId);
 
           if (error) throw error;
