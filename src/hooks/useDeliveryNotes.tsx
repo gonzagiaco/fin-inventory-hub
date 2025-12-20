@@ -54,26 +54,23 @@ async function updateProductStockBulk(
 
 /**
  * Invalida todas las queries relacionadas con productos
+ * Usa resetQueries para forzar re-fetch desde IndexedDB
  */
 function invalidateProductQueries(queryClient: QueryClient) {
   logDelivery("Invalidating product queries");
+  
+  // Invalidar todas las queries relacionadas
   queryClient.invalidateQueries({ queryKey: ["delivery-notes"] });
-  queryClient.invalidateQueries({ queryKey: ["my-stock"], refetchType: "all" });
-  queryClient.invalidateQueries({ queryKey: ["list-products"], refetchType: "all" });
+  
+  // Usar resetQueries para my-stock y list-products
+  // Esto fuerza que se re-ejecute el queryFn desde cero
+  queryClient.resetQueries({ queryKey: ["my-stock"] });
+  queryClient.resetQueries({ queryKey: ["list-products"] });
+  queryClient.resetQueries({ queryKey: ["dynamic-products"] });
+  
   queryClient.invalidateQueries({ queryKey: ["global-search"], refetchType: "all" });
   queryClient.invalidateQueries({ queryKey: ["product-lists-index"], refetchType: "all" });
   queryClient.invalidateQueries({ queryKey: ["product-lists"], refetchType: "all" });
-  queryClient.invalidateQueries({ queryKey: ["dynamic-products"], refetchType: "all" });
-
-  // Forzar refetch inmediato
-  queryClient.refetchQueries({
-    queryKey: ["list-products"],
-    type: "active",
-  });
-  queryClient.refetchQueries({
-    queryKey: ["my-stock"],
-    type: "active",
-  });
 }
 
 export const useDeliveryNotes = () => {
