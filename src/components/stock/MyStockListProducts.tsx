@@ -307,6 +307,7 @@ export function MyStockListProducts({
       price: p.price,
       quantity: p.quantity,
       stock_threshold: p.stock_threshold ?? 0,
+      in_my_stock: true,
       data: p.data || {},
       calculated_data: p.calculated_data || {},
       supplierId: p.supplierId,

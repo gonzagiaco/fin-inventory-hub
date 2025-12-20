@@ -508,9 +508,8 @@ function sanitizeDataForSync(tableName: string, operationType: string, data: any
     if (cleanData.unit_price !== undefined) {
       cleanData.unit_price = Number(cleanData.unit_price);
     }
-    if (cleanData.subtotal !== undefined) {
-      cleanData.subtotal = Number(cleanData.subtotal);
-    }
+    // subtotal es columna generada en Supabase
+    delete cleanData.subtotal;
   }
   
   return cleanData;
@@ -719,6 +718,14 @@ async function executeOperation(op: PendingOperation): Promise<'success' | 'skip
   const realId = await resolveRecordId(op.table_name, op.record_id);
   
   if (op.operation_type === "INSERT") {
+    if (!isTempId(op.record_id) && op.record_id === realId) {
+      console.log(`✅ Skip INSERT: registro ya existe (${realId})`);
+      return 'success';
+    }
+    if (!isTempId(realId) && op.record_id !== realId) {
+      console.log(`✅ Skip INSERT: ID temporal ya mapeado (${realId})`);
+      return 'success';
+    }
     // Para INSERTs, preparar datos sin el ID temporal
     let insertData = { ...op.data };
     delete insertData.id; // Supabase genera el UUID
@@ -798,7 +805,32 @@ async function executeOperation(op: PendingOperation): Promise<'success' | 'skip
   }
 
   console.log(`✅ Operación completada: ${op.operation_type} ${op.table_name}`);
+  try {
+    await syncDeliveryNoteAfterOperation(op, realId);
+  } catch (error) {
+    console.warn("⚠️ Error al sincronizar remito post-operación:", error);
+  }
   return 'success';
+}
+
+async function syncDeliveryNoteAfterOperation(
+  op: PendingOperation,
+  realId: string,
+): Promise<void> {
+  if (op.table_name === "delivery_notes") {
+    await syncDeliveryNoteById(realId);
+    return;
+  }
+
+  if (op.table_name === "delivery_note_items") {
+    const noteId =
+      typeof op.data?.delivery_note_id === "string"
+        ? await resolveRecordId("delivery_notes", op.data.delivery_note_id)
+        : null;
+    if (noteId && !isTempId(noteId)) {
+      await syncDeliveryNoteById(noteId);
+    }
+  }
 }
 
 /**
@@ -850,7 +882,6 @@ async function executeDeliveryNoteUpdateWithItems(noteId: string, data: any): Pr
       product_name: item.product_name,
       quantity: item.quantity,
       unit_price: item.unit_price,
-      subtotal: item.subtotal || item.quantity * item.unit_price,
     }));
 
     const { error: insertError } = await supabase
@@ -1931,10 +1962,6 @@ export async function updateProductThresholdOffline(
       ...productRecord,
       stock_threshold: normalizedThreshold,
       updated_at: new Date().toISOString(),
-    });
-
-    await queueOperation("dynamic_products", "UPDATE", productRecord.id, {
-      stock_threshold: normalizedThreshold,
     });
   }
 }

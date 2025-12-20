@@ -366,7 +366,10 @@ export function ProductCardView({
                       const q = product.quantity || 0;
                       const stockThresholdField = product.stock_threshold ?? 0;
                       const isLowStockField =
-                        showLowStockBadge && stockThresholdField > 0 && q < stockThresholdField;
+                        showLowStockBadge &&
+                        product.in_my_stock === true &&
+                        stockThresholdField > 0 &&
+                        q < stockThresholdField;
 
                       return (
                         <div

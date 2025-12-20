@@ -46,20 +46,26 @@ export const StockThresholdCell: React.FC<Props> = ({
         };
 
         if (isOnline) {
-          const [{ error: indexError }, { error: productError }] =
-            await Promise.all([
-              supabase
-                .from("dynamic_products_index")
-                .update(updateData)
-                .eq("product_id", productId),
-              supabase
-                .from("dynamic_products")
-                .update(updateData)
-                .eq("id", productId),
-            ]);
+          const { error: indexError } = await supabase
+            .from("dynamic_products_index")
+            .update(updateData)
+            .eq("product_id", productId);
 
           if (indexError) throw indexError;
-          if (productError) throw productError;
+
+          const { error: productError } = await supabase
+            .from("dynamic_products")
+            .update(updateData)
+            .eq("id", productId);
+
+          if (
+            productError &&
+            !productError.message
+              ?.toLowerCase()
+              .includes("stock_threshold")
+          ) {
+            throw productError;
+          }
         }
 
         await updateProductThresholdOffline(productId, listId, next);
