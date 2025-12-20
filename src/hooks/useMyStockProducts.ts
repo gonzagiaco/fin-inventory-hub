@@ -12,6 +12,7 @@ export interface MyStockProduct {
   price: number | null;
   quantity: number | null;
   in_my_stock: boolean;
+  stock_threshold: number;
   calculated_data?: Record<string, any>;
   data?: Record<string, any>;
   created_at: string;
@@ -268,7 +269,7 @@ export async function syncProductMyStockState(productId: string): Promise<void> 
   
   const { data, error } = await supabase
     .from("dynamic_products_index")
-    .select("in_my_stock, quantity, updated_at")
+    .select("in_my_stock, quantity, stock_threshold, updated_at")
     .eq("product_id", productId)
     .maybeSingle();
   
@@ -287,8 +288,67 @@ export async function syncProductMyStockState(productId: string): Promise<void> 
     await localDB.dynamic_products_index.update(indexRecord.id!, {
       in_my_stock: data.in_my_stock,
       quantity: data.quantity,
+      stock_threshold: data.stock_threshold ?? 0,
       updated_at: data.updated_at,
     });
     logSync('Synced product state from Supabase', data);
+  }
+}
+
+/**
+ * Update the stock_threshold for a product
+ * This is the per-product low stock threshold
+ */
+export async function updateStockThreshold(
+  productId: string,
+  threshold: number,
+  isOnline: boolean
+): Promise<void> {
+  logSync('updateStockThreshold', { productId, threshold, isOnline });
+  
+  // Clamp to non-negative
+  const validThreshold = Math.max(0, Math.floor(threshold));
+  const now = new Date().toISOString();
+  
+  if (isOnline) {
+    const { error } = await supabase
+      .from("dynamic_products_index")
+      .update({ 
+        stock_threshold: validThreshold,
+        updated_at: now
+      })
+      .eq("product_id", productId);
+    
+    if (error) {
+      logSync('ERROR updateStockThreshold Supabase', error);
+      throw error;
+    }
+    logSync('Supabase updated stock_threshold successfully');
+  }
+  
+  // Update IndexedDB (always, for consistency)
+  const indexRecord = await localDB.dynamic_products_index
+    .where({ product_id: productId })
+    .first();
+    
+  if (indexRecord) {
+    await localDB.dynamic_products_index.update(indexRecord.id!, {
+      stock_threshold: validThreshold,
+      updated_at: now,
+    });
+    logSync('IndexedDB updated stock_threshold successfully');
+  }
+  
+  // Queue for offline sync if not online
+  if (!isOnline) {
+    await localDB.pending_operations.add({
+      table_name: 'dynamic_products_index',
+      operation_type: 'UPDATE',
+      record_id: productId,
+      data: { stock_threshold: validThreshold },
+      timestamp: Date.now(),
+      retry_count: 0,
+    });
+    logSync('Queued stock_threshold update for offline sync');
   }
 }

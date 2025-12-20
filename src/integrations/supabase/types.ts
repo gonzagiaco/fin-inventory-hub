@@ -210,6 +210,7 @@ export type Database = {
           product_id: string
           quantity: number | null
           search_vector: unknown
+          stock_threshold: number
           updated_at: string | null
           user_id: string
         }
@@ -225,6 +226,7 @@ export type Database = {
           product_id: string
           quantity?: number | null
           search_vector?: unknown
+          stock_threshold?: number
           updated_at?: string | null
           user_id: string
         }
@@ -240,6 +242,7 @@ export type Database = {
           product_id?: string
           quantity?: number | null
           search_vector?: unknown
+          stock_threshold?: number
           updated_at?: string | null
           user_id?: string
         }
