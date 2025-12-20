@@ -569,20 +569,34 @@ async function updateLocalRecordId(tableName: string, tempId: string, realId: st
   if (tableName === "delivery_notes") {
     const note = await localDB.delivery_notes.get(tempId);
     if (note) {
+      // Eliminar el registro con ID temporal
       await localDB.delivery_notes.delete(tempId);
+      // Insertar con el ID real
       await localDB.delivery_notes.put({ ...note, id: realId });
       
+      // Actualizar delivery_note_id en los items asociados
       const items = await localDB.delivery_note_items
         .where("delivery_note_id")
         .equals(tempId)
         .toArray();
       
       for (const item of items) {
+        // Eliminar item con referencia temporal y reinsertarlo con referencia real
+        await localDB.delivery_note_items.delete(item.id);
         await localDB.delivery_note_items.put({
           ...item,
           delivery_note_id: realId
         });
       }
+    }
+  } else if (tableName === "delivery_note_items") {
+    // Para items, actualizar el ID del item en IndexedDB
+    const item = await localDB.delivery_note_items.get(tempId);
+    if (item) {
+      // Eliminar el registro con ID temporal
+      await localDB.delivery_note_items.delete(tempId);
+      // Insertar con el ID real
+      await localDB.delivery_note_items.put({ ...item, id: realId });
     }
   }
 }
@@ -642,7 +656,8 @@ export async function syncPendingOperations(): Promise<void> {
           console.error(`❌ Operación ${op.id} descartada después de 3 intentos`);
           await rollbackStockCompensation(op.id!);
           await localDB.pending_operations.delete(op.id!);
-          toast.error(`Operación fallida: ${op.table_name} - Stock revertido`);
+          // Solo mostrar toast de error crítico
+          toast.error(`Operación fallida: ${op.table_name}`);
         }
       }
     }
@@ -657,11 +672,12 @@ export async function syncPendingOperations(): Promise<void> {
     return;
   }
 
-  if (successCount > 0) {
-    toast.success(`${successCount} operaciones sincronizadas`);
-  }
-
-  if (errorCount > 0) {
+  // Mostrar UN SOLO toast resumen al final (reduce spam)
+  if (successCount > 0 && errorCount === 0) {
+    toast.success(`${successCount} cambios sincronizados`);
+  } else if (errorCount > 0 && successCount > 0) {
+    toast.warning(`${successCount} sincronizados, ${errorCount} fallidos`);
+  } else if (errorCount > 0) {
     toast.error(`${errorCount} operaciones fallaron`);
   }
 }
@@ -1693,6 +1709,7 @@ export async function getProductsForListOffline(
         name: indexRecord.name,
         price: indexRecord.price,
         quantity: indexRecord.quantity,
+        in_my_stock: indexRecord.in_my_stock,
         calculated_data: (indexRecord as any).calculated_data ?? {},
         dynamic_products: fullProduct ? { data: fullProduct.data } : null,
       };
