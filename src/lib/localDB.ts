@@ -1389,7 +1389,7 @@ async function rollbackStockCompensation(operationId: number): Promise<void> {
   console.log(`🔄 Revirtiendo ${compensations.length} cambios de stock...`);
   
   for (const comp of compensations) {
-    await updateProductQuantityDelta(comp.product_id, -comp.quantity_delta);
+    await updateProductQuantityDelta(comp.product_id, -comp.quantity_delta, { enqueue: false });
     console.log(`  ✅ Revertido: producto=${comp.product_id}, delta=${-comp.quantity_delta}`);
   }
   
@@ -1438,7 +1438,7 @@ async function rollbackDeliveryNoteDelete(snapshot: {
       for (const item of snapshot.items) {
         if (item.product_id) {
           console.log(`    ⬇️ Restando: ${item.product_name} (-${item.quantity})`);
-          await updateProductQuantityDelta(item.product_id, -item.quantity);
+          await updateProductQuantityDelta(item.product_id, -item.quantity, { enqueue: false });
         }
       }
     }
@@ -1487,7 +1487,7 @@ async function rollbackDeliveryNoteUpdate(snapshot: {
         if (adj.delta !== 0) {
           // Invertir el delta para revertir el cambio
           console.log(`    📦 Revirtiendo: ${adj.id} (${adj.delta > 0 ? '-' : '+'}${Math.abs(adj.delta)})`);
-          await updateProductQuantityDelta(adj.id, -adj.delta);
+          await updateProductQuantityDelta(adj.id, -adj.delta, { enqueue: false });
         }
       }
     }
@@ -1783,13 +1783,18 @@ export async function markDeliveryNoteAsPaidOffline(id: string, paidAmount: numb
  * Actualiza la cantidad de un producto en modo offline
  * Delta positivo = aumentar stock, Delta negativo = reducir stock
  */
-async function updateProductQuantityDelta(productId: string, quantityDelta: number): Promise<void> {
-  console.log(`📦 Actualizando stock offline: productId=${productId}, delta=${quantityDelta}`);
+async function updateProductQuantityDelta(
+  productId: string,
+  quantityDelta: number,
+  options: { enqueue?: boolean } = {},
+): Promise<void> {
+  const enqueue = options.enqueue !== false;
+  const now = new Date().toISOString();
+
+  console.log(`📦 Actualizando stock offline: productId=${productId}, delta=${quantityDelta}, enqueue=${enqueue}`);
 
   // PASO 1: Buscar en dynamic_products_index usando product_id
-  const indexRecord = await localDB.dynamic_products_index
-    .where({ product_id: productId })
-    .first();
+  const indexRecord = await localDB.dynamic_products_index.where({ product_id: productId }).first();
 
   if (!indexRecord) {
     console.warn(`⚠️ Producto ${productId} no encontrado en índice local`);
@@ -1805,21 +1810,32 @@ async function updateProductQuantityDelta(productId: string, quantityDelta: numb
   // PASO 3: Actualizar en dynamic_products_index
   await localDB.dynamic_products_index.update(indexRecord.id!, {
     quantity: newQuantity,
-    updated_at: new Date().toISOString(),
+    updated_at: now,
   });
+
+  if (enqueue) {
+    // IMPORTANT: dynamic_products_index se actualiza por su PK (id), NO por product_id
+    await queueOperation("dynamic_products_index", "UPDATE", indexRecord.id!, {
+      quantity: newQuantity,
+      updated_at: now,
+    });
+  }
 
   // PASO 4: Actualizar en dynamic_products (tabla principal)
   const fullProduct = await localDB.dynamic_products.get(productId);
   if (fullProduct) {
     await localDB.dynamic_products.update(productId, {
       quantity: newQuantity,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     });
 
-    // PASO 5: Encolar operación para sincronizar cuando haya conexión
-    await queueOperation("dynamic_products", "UPDATE", productId, {
-      quantity: newQuantity,
-    });
+    if (enqueue) {
+      // PASO 5: Encolar operación para sincronizar cuando haya conexión
+      await queueOperation("dynamic_products", "UPDATE", productId, {
+        quantity: newQuantity,
+        updated_at: now,
+      });
+    }
 
     console.log(`✅ Stock actualizado offline: ${productId} -> ${newQuantity}`);
   } else {
@@ -1860,11 +1876,13 @@ export async function updateProductQuantityOffline(
   }
 
   // Encolar operación para sincronizar (incluir in_my_stock si corresponde)
-  const updateData: { quantity: number; in_my_stock?: boolean } = { quantity: newQuantity };
-  if (shouldAddToMyStock) {
-    updateData.in_my_stock = true;
+  if (indexRecord) {
+    const updateData: { quantity: number; in_my_stock?: boolean } = { quantity: newQuantity };
+    if (shouldAddToMyStock) {
+      updateData.in_my_stock = true;
+    }
+    await queueOperation("dynamic_products_index", "UPDATE", indexRecord.id!, updateData);
   }
-  await queueOperation("dynamic_products_index", "UPDATE", productId, updateData);
 }
 
 export async function getProductsForListOffline(
