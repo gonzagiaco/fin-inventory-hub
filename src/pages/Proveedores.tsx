@@ -92,8 +92,10 @@ const Proveedores = () => {
       .reduce((sum, list: any) => sum + (list.product_count || 0), 0);
   };
 
-  const getBreadcrumbSteps = () => {
-    const steps = [{ label: 'Proveedores', onClick: () => setCurrentView({ type: 'suppliers' }) }];
+  const getBreadcrumbSteps = (): { label: string; onClick?: () => void }[] => {
+    const steps: { label: string; onClick?: () => void }[] = [
+      { label: 'Proveedores', onClick: () => setCurrentView({ type: 'suppliers' }) }
+    ];
     
     if (currentView.type === 'supplier-lists' || currentView.type === 'list-config') {
       steps.push({ 
