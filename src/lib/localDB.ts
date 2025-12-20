@@ -453,10 +453,18 @@ export async function syncFromSupabase(): Promise<void> {
  */
 function sanitizeDataForSync(tableName: string, operationType: string, data: any): any {
   const cleanData = { ...data };
-  delete cleanData.id;
+  
+  // Siempre eliminar id para INSERTs (Supabase genera el UUID)
+  if (operationType === "INSERT") {
+    delete cleanData.id;
+  }
+  
   delete cleanData.items;
   
   if (tableName === "delivery_notes") {
+    // Eliminar remaining_balance - es columna generada en Supabase
+    delete cleanData.remaining_balance;
+    
     if (cleanData.issue_date) {
       cleanData.issue_date = new Date(cleanData.issue_date).toISOString();
     }
@@ -467,12 +475,14 @@ function sanitizeDataForSync(tableName: string, operationType: string, data: any
     if (cleanData.paid_amount !== undefined) {
       cleanData.paid_amount = Number(cleanData.paid_amount);
     }
-    if (cleanData.remaining_balance !== undefined) {
-      cleanData.remaining_balance = Number(cleanData.remaining_balance);
-    }
   }
   
   if (tableName === "delivery_note_items") {
+    // Para items, reemplazar delivery_note_id temporal por el real si existe
+    if (cleanData.delivery_note_id && isTempId(cleanData.delivery_note_id)) {
+      // Se resolverá en executeOperation
+    }
+    
     if (cleanData.quantity !== undefined) {
       cleanData.quantity = Number(cleanData.quantity);
     }
@@ -592,19 +602,28 @@ export async function syncPendingOperations(): Promise<void> {
 
   console.log(`🔄 Sincronizando ${operations.length} operaciones pendientes...`);
 
+  // Ordenar por timestamp para respetar orden de creación
   const sortedOps = operations.sort((a, b) => a.timestamp - b.timestamp);
 
   let successCount = 0;
   let errorCount = 0;
+  let skippedCount = 0;
 
   for (const op of sortedOps) {
     try {
-      await executeOperation(op);
+      const result = await executeOperation(op);
+      
+      if (result === 'skipped') {
+        // La operación fue saltada porque depende de un ID temporal no resuelto aún
+        skippedCount++;
+        console.log(`⏭️ Operación ${op.id} saltada (depende de ID temporal)`);
+        continue;
+      }
+      
       await localDB.pending_operations.delete(op.id!);
-      
       await clearStockCompensation(op.id!);
-      
       successCount++;
+      
     } catch (error: any) {
       errorCount++;
       console.error(`❌ Error al sincronizar operación ${op.id}:`, error);
@@ -621,23 +640,25 @@ export async function syncPendingOperations(): Promise<void> {
 
         if (newRetryCount >= 3) {
           console.error(`❌ Operación ${op.id} descartada después de 3 intentos`);
-          
           await rollbackStockCompensation(op.id!);
-          
           await localDB.pending_operations.delete(op.id!);
-          
           toast.error(`Operación fallida: ${op.table_name} - Stock revertido`);
         }
       }
     }
   }
 
-  console.log(`✅ Sincronización completada: ${successCount} exitosas, ${errorCount} fallidas`);
+  console.log(`✅ Sincronización completada: ${successCount} exitosas, ${errorCount} fallidas, ${skippedCount} saltadas`);
+
+  // Si hubo operaciones saltadas, hacer otra pasada después de un momento
+  if (skippedCount > 0 && successCount > 0) {
+    console.log(`🔄 Re-ejecutando sincronización para operaciones saltadas...`);
+    setTimeout(() => syncPendingOperations(), 500);
+    return;
+  }
 
   if (successCount > 0) {
     toast.success(`${successCount} operaciones sincronizadas`);
-    // Re-sincronizar desde Supabase para obtener IDs reales
-    //await syncFromSupabase();
   }
 
   if (errorCount > 0) {
@@ -645,41 +666,73 @@ export async function syncPendingOperations(): Promise<void> {
   }
 }
 
-async function executeOperation(op: PendingOperation): Promise<void> {
+async function executeOperation(op: PendingOperation): Promise<'success' | 'skipped'> {
   console.log(`🔄 Ejecutando: ${op.operation_type} ${op.table_name} ${op.record_id}`);
 
+  // Resolver ID temporal a ID real si existe mapeo
   const realId = await resolveRecordId(op.table_name, op.record_id);
   
   if (op.operation_type === "INSERT") {
+    // Para INSERTs, preparar datos sin el ID temporal
+    let insertData = { ...op.data };
+    delete insertData.id; // Supabase genera el UUID
+    
+    // Para delivery_note_items, resolver delivery_note_id temporal
+    if (op.table_name === "delivery_note_items" && insertData.delivery_note_id) {
+      const realNoteId = await resolveRecordId("delivery_notes", insertData.delivery_note_id);
+      
+      if (isTempId(realNoteId)) {
+        // El remito padre aún no se ha sincronizado, saltar esta operación
+        console.log(`⏭️ Item depende de remito no sincronizado: ${insertData.delivery_note_id}`);
+        return 'skipped';
+      }
+      
+      insertData.delivery_note_id = realNoteId;
+    }
+    
     const { data, error } = await supabase
       .from(op.table_name as any)
-      .insert([op.data])
+      .insert([insertData])
       .select()
       .single();
 
     if (error) throw error;
     
+    // Mapear ID temporal al ID real generado por Supabase
     if (data && isTempId(op.record_id)) {
       await updateLocalRecordId(op.table_name, op.record_id, (data as any).id);
     }
     
   } else if (op.operation_type === "UPDATE") {
     if (isTempId(realId)) {
-      console.warn(`⚠️ No se puede actualizar registro con ID temporal: ${realId}`);
-      throw new Error(`ID temporal no resuelto: ${realId}`);
+      // El registro aún no existe en Supabase, saltar hasta que se sincronice el INSERT
+      console.log(`⏭️ UPDATE depende de INSERT pendiente: ${realId}`);
+      return 'skipped';
+    }
+    
+    // Preparar datos de actualización
+    let updateData = { ...op.data };
+    
+    // Para delivery_note_items, resolver delivery_note_id temporal
+    if (op.table_name === "delivery_note_items" && updateData.delivery_note_id) {
+      const realNoteId = await resolveRecordId("delivery_notes", updateData.delivery_note_id);
+      if (!isTempId(realNoteId)) {
+        updateData.delivery_note_id = realNoteId;
+      }
     }
     
     const { error } = await supabase
       .from(op.table_name as any)
-      .update(op.data)
+      .update(updateData)
       .eq("id", realId);
 
     if (error) throw error;
     
   } else if (op.operation_type === "DELETE") {
     if (isTempId(realId)) {
-      console.log(`✅ Skip DELETE de registro temporal: ${realId}`);
-      return;
+      // El registro nunca existió en Supabase, simplemente marcar como completado
+      console.log(`✅ Skip DELETE de registro que nunca existió en servidor: ${realId}`);
+      return 'success';
     }
     
     const { error } = await supabase
@@ -691,6 +744,7 @@ async function executeOperation(op: PendingOperation): Promise<void> {
   }
 
   console.log(`✅ Operación completada: ${op.operation_type} ${op.table_name}`);
+  return 'success';
 }
 
 /**
