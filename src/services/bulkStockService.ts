@@ -21,10 +21,18 @@ export interface BulkAdjustResult {
   error?: string;
 }
 
+const NIL_UUID = "00000000-0000-0000-0000-000000000000";
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function ensureUuid(value: unknown): string {
+  if (typeof value === "string" && UUID_RE.test(value)) return value;
+  return NIL_UUID;
+}
+
 // Logging helper con métricas
 const logBulk = (action: string, details?: any) => {
   const timestamp = new Date().toISOString();
-  console.log(`[BulkStock ${timestamp}] ${action}`, details || '');
+  console.log(`[BulkStock ${timestamp}] ${action}`, details || "");
 };
 
 /**
@@ -32,15 +40,12 @@ const logBulk = (action: string, details?: any) => {
  * Una sola llamada RPC para múltiples productos
  * Incluye idempotencia via op_id
  */
-export async function bulkAdjustStock(
-  adjustments: StockAdjustment[],
-  isOnline: boolean
-): Promise<BulkAdjustResult> {
+export async function bulkAdjustStock(adjustments: StockAdjustment[], isOnline: boolean): Promise<BulkAdjustResult> {
   const startTime = performance.now();
-  logBulk('Starting bulk adjustment', { 
-    count: adjustments.length, 
+  logBulk("Starting bulk adjustment", {
+    count: adjustments.length,
     isOnline,
-    products: adjustments.map(a => ({ id: a.product_id, delta: a.delta }))
+    products: adjustments.map((a) => ({ id: a.product_id, delta: a.delta })),
   });
 
   if (adjustments.length === 0) {
@@ -48,65 +53,70 @@ export async function bulkAdjustStock(
   }
 
   // Generar op_id único para idempotencia si no existe
-  const adjustmentsWithOpId = adjustments.map(adj => ({
+  // + Asegurar list_id válido (bulk_adjust_stock castea a uuid)
+  const adjustmentsWithOpId = adjustments.map((adj) => ({
     ...adj,
-    op_id: adj.op_id || `op-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    list_id: ensureUuid(adj.list_id),
+    op_id: adj.op_id || `op-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
   }));
 
   if (isOnline) {
     try {
       // Usar RPC para operación atómica en servidor
-      const { data, error } = await supabase.rpc('bulk_adjust_stock', {
-        p_adjustments: adjustmentsWithOpId
+      const { data, error } = await supabase.rpc("bulk_adjust_stock", {
+        p_adjustments: adjustmentsWithOpId,
       });
 
       if (error) {
-        logBulk('ERROR RPC bulk_adjust_stock', error);
+        logBulk("ERROR RPC bulk_adjust_stock", error);
         throw error;
       }
 
       const result = data as unknown as BulkAdjustResult;
-      
+
+      // ⚠️ Importante: esta función puede devolver { success:false } sin tirar error SQL.
+      // En ese caso forzamos fallback offline para no quedar en estado inconsistente.
+      if (!result?.success) {
+        logBulk("RPC returned success=false", result);
+        throw new Error(result?.error || "bulk_adjust_stock returned success=false");
+      }
+
       const endTime = performance.now();
       logBulk(`RPC completed in ${(endTime - startTime).toFixed(2)}ms`, {
         processed: result.processed,
-        success: result.success
+        success: result.success,
       });
 
       // Sincronizar resultados a IndexedDB
-      if (result.success && result.results) {
+      if (result.results) {
         await syncBulkResultsToLocal(result.results);
       }
 
       return result;
     } catch (error: any) {
-      logBulk('ERROR online bulk adjustment, falling back to offline', error);
+      logBulk("ERROR online bulk adjustment, falling back to offline", error);
       // Fallback a modo offline
       return await bulkAdjustStockOffline(adjustmentsWithOpId);
     }
-  } else {
-    return await bulkAdjustStockOffline(adjustmentsWithOpId);
   }
+
+  return await bulkAdjustStockOffline(adjustmentsWithOpId);
 }
 
 /**
  * Versión offline de bulk adjust
  * Actualiza IndexedDB y encola operaciones
  */
-async function bulkAdjustStockOffline(
-  adjustments: StockAdjustment[]
-): Promise<BulkAdjustResult> {
+async function bulkAdjustStockOffline(adjustments: StockAdjustment[]): Promise<BulkAdjustResult> {
   const startTime = performance.now();
-  logBulk('Starting offline bulk adjustment', { count: adjustments.length });
+  logBulk("Starting offline bulk adjustment", { count: adjustments.length });
 
-  const results: BulkAdjustResult['results'] = [];
+  const results: BulkAdjustResult["results"] = [];
 
   for (const adj of adjustments) {
     try {
       // Buscar producto en índice
-      const indexRecord = await localDB.dynamic_products_index
-        .where({ product_id: adj.product_id })
-        .first();
+      const indexRecord = await localDB.dynamic_products_index.where("product_id").equals(adj.product_id).first();
 
       if (!indexRecord) {
         logBulk(`Product not found: ${adj.product_id}`);
@@ -134,12 +144,12 @@ async function bulkAdjustStockOffline(
 
       // Encolar para sincronización (con serialización por producto)
       await localDB.pending_operations.add({
-        table_name: 'dynamic_products_index',
-        operation_type: 'UPDATE',
+        table_name: "dynamic_products_index",
+        operation_type: "UPDATE",
         record_id: adj.product_id,
-        data: { 
+        data: {
           quantity: newQty,
-          op_id: adj.op_id // Para idempotencia
+          op_id: adj.op_id, // Para idempotencia
         },
         timestamp: Date.now(),
         retry_count: 0,
@@ -152,7 +162,6 @@ async function bulkAdjustStockOffline(
         delta: adj.delta,
         op_id: adj.op_id,
       });
-
     } catch (error) {
       logBulk(`ERROR adjusting product ${adj.product_id}`, error);
     }
@@ -160,7 +169,7 @@ async function bulkAdjustStockOffline(
 
   const endTime = performance.now();
   logBulk(`Offline bulk completed in ${(endTime - startTime).toFixed(2)}ms`, {
-    processed: results.length
+    processed: results.length,
   });
 
   return {
@@ -173,15 +182,11 @@ async function bulkAdjustStockOffline(
 /**
  * Sincroniza resultados del RPC a IndexedDB
  */
-async function syncBulkResultsToLocal(
-  results: BulkAdjustResult['results']
-): Promise<void> {
-  logBulk('Syncing bulk results to IndexedDB', { count: results.length });
+async function syncBulkResultsToLocal(results: BulkAdjustResult["results"]): Promise<void> {
+  logBulk("Syncing bulk results to IndexedDB", { count: results.length });
 
   for (const result of results) {
-    const indexRecord = await localDB.dynamic_products_index
-      .where({ product_id: result.product_id })
-      .first();
+    const indexRecord = await localDB.dynamic_products_index.where("product_id").equals(result.product_id).first();
 
     if (indexRecord) {
       await localDB.dynamic_products_index.update(indexRecord.id!, {
@@ -201,7 +206,7 @@ async function syncBulkResultsToLocal(
     }
   }
 
-  logBulk('IndexedDB sync completed');
+  logBulk("IndexedDB sync completed");
 }
 
 /**
@@ -209,16 +214,15 @@ async function syncBulkResultsToLocal(
  */
 export function prepareDeliveryNoteAdjustments(
   items: Array<{ productId?: string; quantity: number }>,
-  operation: 'create' | 'delete' | 'revert'
+  operation: "create" | "delete" | "revert",
 ): StockAdjustment[] {
   return items
-    .filter(item => item.productId)
-    .map(item => ({
+    .filter((item) => item.productId)
+    .map((item) => ({
       product_id: item.productId!,
-      list_id: '', // Se llenará desde el producto
-      delta: operation === 'delete' || operation === 'revert' 
-        ? item.quantity // Devolver al stock
-        : -item.quantity, // Descontar del stock
+      // bulk_adjust_stock castea list_id a uuid (aunque hoy no lo use). Evitamos "" que rompe el cast.
+      list_id: NIL_UUID,
+      delta: operation === "delete" || operation === "revert" ? item.quantity : -item.quantity,
     }));
 }
 
@@ -228,7 +232,7 @@ export function prepareDeliveryNoteAdjustments(
  */
 export function calculateNetStockAdjustments(
   originalItems: Array<{ productId?: string; quantity: number }>,
-  newItems: Array<{ productId?: string; quantity: number }>
+  newItems: Array<{ productId?: string; quantity: number }>,
 ): StockAdjustment[] {
   const adjustmentsMap = new Map<string, number>();
 
@@ -254,7 +258,7 @@ export function calculateNetStockAdjustments(
     if (delta !== 0) {
       adjustments.push({
         product_id: productId,
-        list_id: '',
+        list_id: NIL_UUID,
         delta,
       });
     }
@@ -262,3 +266,4 @@ export function calculateNetStockAdjustments(
 
   return adjustments;
 }
+
