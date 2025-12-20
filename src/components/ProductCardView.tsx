@@ -56,6 +56,10 @@ export function ProductCardView({
   const [displayCount, setDisplayCount] = useState(10);
   const { cardPreviewFields } = useProductListStore();
 
+  // Ocultar la opción de "Agregar a mi stock" cuando estamos en la ruta /mi-stock
+  const isMiStockRoute = typeof window !== "undefined" && window.location.pathname.includes("/mi-stock");
+  const shouldShowAddToStock = !isMiStockRoute;
+
   // Usar estado externo si está disponible, sino usar estado local
   const sortColumn = externalSortColumn !== undefined ? externalSortColumn : null;
   const sortDirection = externalSortDirection !== undefined ? externalSortDirection : null;
@@ -467,7 +471,7 @@ export function ProductCardView({
                       product={{ ...product, listId }}
                       mappingConfig={mappingConfig}
                       onAddToRequest={onAddToRequest}
-                      showAddToStock={true}
+                      showAddToStock={shouldShowAddToStock}
                     />
                   </div>
                 )}

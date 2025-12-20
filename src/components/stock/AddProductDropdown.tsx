@@ -127,24 +127,26 @@ export function AddProductDropdown({
             <p>Agregar al pedido</p>
           </TooltipContent>
         </Tooltip>
-        
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={handleAddToStock}
-              disabled={isInMyStock}
-              className={isInMyStock ? "opacity-50 cursor-not-allowed" : "text-primary hover:text-primary"}
-            >
-              <Package className="h-4 w-4" />
-              <span className="sr-only">Agregar a Mi Stock</span>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top">
-            <p>{isInMyStock ? "Ya está en Mi Stock" : "Agregar a Mi Stock"}</p>
-          </TooltipContent>
-        </Tooltip>
+
+        {showAddToStock && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                onClick={handleAddToStock}
+                disabled={isInMyStock}
+                className={isInMyStock ? "opacity-50 cursor-not-allowed" : "text-primary hover:text-primary"}
+              >
+                <Package className="h-4 w-4" />
+                <span className="sr-only">Agregar a Mi Stock</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p>{isInMyStock ? "Ya está en Mi Stock" : "Agregar a Mi Stock"}</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
       </div>
     </TooltipProvider>
   );
