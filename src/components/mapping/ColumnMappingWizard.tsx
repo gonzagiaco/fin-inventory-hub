@@ -66,7 +66,6 @@ type MappingConfig = {
   price_primary_key: string | null;
   price_alt_keys: string[];
   extra_index_keys: string[];
-  low_stock_threshold?: number;
   cart_price_column?: string | null;
   price_modifiers?: {
     general: { percentage: number; add_vat: boolean; vat_rate?: number };
@@ -117,7 +116,6 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
     price_primary_key: null,
     price_alt_keys: [],
     extra_index_keys: [],
-    low_stock_threshold: 0,
     cart_price_column: null,
     price_modifiers: {
       // Default: no percentage change, no agregar IVA y VAT rate por defecto 21%
@@ -174,17 +172,18 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
 
         if (configData?.mapping_config) {
           const loaded = configData.mapping_config as MappingConfig;
+          const { low_stock_threshold: _ignored, ...cleanedLoaded } = loaded as any;
           setMap((prev) => ({
             ...prev,
-            ...loaded,
+            ...cleanedLoaded,
             price_modifiers: {
               general: { percentage: 0, add_vat: false, vat_rate: 21 },
               overrides: {},
-              ...loaded.price_modifiers,
+              ...(cleanedLoaded as any).price_modifiers,
             },
             // Limpiar dollar_conversion.rate si existe (ahora es global)
             dollar_conversion: {
-              target_columns: loaded.dollar_conversion?.target_columns || [],
+              target_columns: (cleanedLoaded as any).dollar_conversion?.target_columns || [],
             },
           }));
         }
@@ -757,41 +756,6 @@ export function ColumnMappingWizard({ listId, onSaved }: Props) {
             </AlertDescription>
           </Alert>
         )}
-      </div>
-
-      {/* Umbral de Bajo Stock */}
-      <div className="space-y-2">
-        <Label htmlFor="low_stock_threshold">Umbral de Bajo Stock</Label>
-        <Input
-          id="low_stock_threshold"
-          type="number"
-          min={0}
-          value={map.low_stock_threshold?.toString() ?? ""}
-          onChange={(e) => {
-            const raw = e.target.value;
-
-            // Si está vacío, dejamos undefined para que el usuario termine de escribir
-            if (raw === "") {
-              setMap((prev) => ({
-                ...prev,
-                low_stock_threshold: undefined,
-              }));
-              return;
-            }
-
-            const parsed = Number(raw);
-            if (!Number.isNaN(parsed) && parsed >= 0) {
-              setMap((prev) => ({
-                ...prev,
-                low_stock_threshold: parsed,
-              }));
-            }
-          }}
-        />
-        <p className="text-xs text-muted-foreground">
-          Los productos con cantidad menor a este valor se marcarán como "Bajo
-          Stock" (por defecto: 0)
-        </p>
       </div>
 
       {/* Columna de precio para carrito */}

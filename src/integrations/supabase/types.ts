@@ -160,6 +160,7 @@ export type Database = {
           name: string | null
           price: number | null
           quantity: number | null
+          stock_threshold: number | null
           updated_at: string
           user_id: string
         }
@@ -172,6 +173,7 @@ export type Database = {
           name?: string | null
           price?: number | null
           quantity?: number | null
+          stock_threshold?: number | null
           updated_at?: string
           user_id: string
         }
@@ -184,6 +186,7 @@ export type Database = {
           name?: string | null
           price?: number | null
           quantity?: number | null
+          stock_threshold?: number | null
           updated_at?: string
           user_id?: string
         }
@@ -209,6 +212,7 @@ export type Database = {
           price: number | null
           product_id: string
           quantity: number | null
+          stock_threshold: number | null
           search_vector: unknown
           stock_threshold: number
           updated_at: string | null
@@ -225,6 +229,7 @@ export type Database = {
           price?: number | null
           product_id: string
           quantity?: number | null
+          stock_threshold?: number | null
           search_vector?: unknown
           stock_threshold?: number
           updated_at?: string | null
@@ -241,6 +246,7 @@ export type Database = {
           price?: number | null
           product_id?: string
           quantity?: number | null
+          stock_threshold?: number | null
           search_vector?: unknown
           stock_threshold?: number
           updated_at?: string | null

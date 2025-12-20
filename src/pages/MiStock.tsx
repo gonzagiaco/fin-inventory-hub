@@ -54,6 +54,14 @@ export default function MiStock() {
     );
   };
 
+  const handleUpdateThreshold = (productId: string, newThreshold: number) => {
+    setLocalProducts(prev =>
+      prev.map(p =>
+        (p.product_id === productId) ? { ...p, stock_threshold: newThreshold } : p
+      )
+    );
+  };
+
   // Handler para eliminar producto localmente (optimista)
   const handleRemoveProduct = (productId: string) => {
     setLocalProducts(prev => 
@@ -127,6 +135,7 @@ export default function MiStock() {
         name: product.name,
         price: product.price,
         quantity: product.quantity,
+        stock_threshold: product.stock_threshold ?? 0,
         calculated_data: product.calculated_data,
         data: product.data,
         supplierId: supplier.id,
@@ -298,16 +307,17 @@ export default function MiStock() {
           ) : (
             <div className="space-y-6">
               {visibleSupplierSections.map(([supplierId, section]) => (
-                <MyStockSupplierSection
-                  key={supplierId}
-                  supplierName={section.supplierName}
-                  supplierLogo={section.supplierLogo}
-                  lists={Array.from(section.lists.values())}
-                  onAddToRequest={handleAddToRequest}
-                  onQuantityChange={handleUpdateQuantity}
-                  onRemoveProduct={handleRemoveProduct}
-                  isMobile={isMobile}
-                />
+                  <MyStockSupplierSection
+                    key={supplierId}
+                    supplierName={section.supplierName}
+                    supplierLogo={section.supplierLogo}
+                    lists={Array.from(section.lists.values())}
+                    onAddToRequest={handleAddToRequest}
+                    onQuantityChange={handleUpdateQuantity}
+                    onThresholdChange={handleUpdateThreshold}
+                    onRemoveProduct={handleRemoveProduct}
+                    isMobile={isMobile}
+                  />
               ))}
             </div>
           )}

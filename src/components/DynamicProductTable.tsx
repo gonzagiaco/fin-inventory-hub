@@ -17,7 +17,6 @@ import { ColumnSettingsDrawer } from "./ColumnSettingsDrawer";
 import { cn } from "@/lib/utils";
 import { ProductCardView } from "./ProductCardView";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { CardPreviewSettings } from "./CardPreviewSettings";
 import { List, LayoutGrid, Loader2 } from "lucide-react";
 import { QuantityCell } from "./stock/QuantityCell";
@@ -156,17 +155,8 @@ export const DynamicProductTable = ({
           accessorKey: "quantity",
           header: schema.label,
           cell: ({ row }) => {
-            const quantity = row.original.quantity || 0;
-            const lowStockThreshold = mappingConfig?.low_stock_threshold || 0;
-            const isLowStock = quantity < lowStockThreshold;
-
             return (
               <div className="flex items-center gap-2">
-                {isLowStock && (
-                  <Badge variant="destructive" className="text-xs">
-                    Bajo Stock
-                  </Badge>
-                )}
                 <QuantityCell
                   productId={row.original.id}
                   listId={listId}

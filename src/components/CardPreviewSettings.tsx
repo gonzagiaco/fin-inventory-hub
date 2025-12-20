@@ -40,6 +40,7 @@ import { toast } from "sonner";
 interface CardPreviewSettingsProps {
   listId: string;
   columnSchema: ColumnSchema[];
+  fixedKeys?: string[];
 }
 
 interface SortablePreviewItemProps {
@@ -143,22 +144,28 @@ function SortablePreviewItem({
   );
 }
 
-export function CardPreviewSettings({ listId, columnSchema }: CardPreviewSettingsProps) {
+export function CardPreviewSettings({
+  listId,
+  columnSchema,
+  fixedKeys = ["quantity"],
+}: CardPreviewSettingsProps) {
   const { cardPreviewFields, setCardPreviewFields, updateColumnLabel } = useProductListStore();
   const { updateColumnSchema } = useProductLists();
   const [open, setOpen] = useState(false);
-  const STOCK_KEY = "quantity";
   
   const ensureIncludes = (arr: string[], key: string) =>
     arr.includes(key) ? arr : [key, ...arr];
 
-  const defaultFields = ensureIncludes(
+  const ensureFixedKeys = (arr: string[]) =>
+    fixedKeys.reduce((result, key) => ensureIncludes(result, key), arr);
+
+  const defaultFields = ensureFixedKeys(
     columnSchema.slice(0, 4).map(c => c.key),
-    STOCK_KEY
   );
 
   const stored = cardPreviewFields[listId];
-  const currentPreviewFields = stored && stored.length ? ensureIncludes(stored, STOCK_KEY) : defaultFields;
+  const currentPreviewFields =
+    stored && stored.length ? ensureFixedKeys(stored) : defaultFields;
   
   const [localPreviewFields, setLocalPreviewFields] = useState<string[]>(currentPreviewFields);
   const [localLabelEdits, setLocalLabelEdits] = useState<Record<string, string>>({});
@@ -192,7 +199,7 @@ export function CardPreviewSettings({ listId, columnSchema }: CardPreviewSetting
   };
 
   const handleToggle = (key: string, selected: boolean) => {
-    if (key === STOCK_KEY && !selected) {
+    if (fixedKeys.includes(key) && !selected) {
       return;
     }
     if (selected) {
@@ -243,7 +250,7 @@ export function CardPreviewSettings({ listId, columnSchema }: CardPreviewSetting
   };
 
   const handleReset = () => {
-    const resetFields = ensureIncludes(columnSchema.slice(0, 4).map(c => c.key), STOCK_KEY);
+    const resetFields = ensureFixedKeys(columnSchema.slice(0, 4).map(c => c.key));
     setLocalPreviewFields(resetFields);
     setLocalLabelEdits({});
     toast.success("Configuración restablecida");
@@ -295,7 +302,7 @@ export function CardPreviewSettings({ listId, columnSchema }: CardPreviewSetting
                 <div className="space-y-2">
                   {allOrderedColumns.map((column) => {
                     const isSelected = localPreviewFields.includes(column.key);
-                    const disableToggle = column.key === STOCK_KEY;
+                    const disableToggle = fixedKeys.includes(column.key);
                     return (
                       <SortablePreviewItem
                         key={column.key}

@@ -14,6 +14,7 @@ export interface DynamicProduct {
   name?: string;
   price?: number;
   quantity?: number;
+  stock_threshold?: number;
   supplierId?: string;
   supplierName?: string;
   listName?: string;
@@ -38,7 +39,6 @@ export interface ProductList {
     price_primary_key: string | null;
     price_alt_keys: string[];
     extra_index_keys: string[];
-    low_stock_threshold?: number;
     cart_price_column?: string | null;
     price_modifiers?: {
       general: { percentage: number; add_vat: boolean; vat_rate?: number };
