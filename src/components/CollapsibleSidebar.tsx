@@ -33,8 +33,8 @@ const CollapsibleSidebar = () => {
   };
 
   const navigation = [
-    { name: "Mi Stock", href: "/mi-stock", icon: Package },
-    { name: "Listas", href: "/", icon: Package2 },
+    { name: "Mi Stock", href: "/", icon: Package },
+    { name: "Listas", href: "/listas", icon: Package2 },
     { name: "Proveedores", href: "/proveedores", icon: Warehouse },
     { name: "Remitos", href: "/remitos", icon: FileText },
     { name: "Ayuda", href: "/ayuda", icon: CircleHelp },
