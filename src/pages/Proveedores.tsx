@@ -4,20 +4,26 @@ import { Button } from "@/components/ui/button";
 import { Plus, Pencil, Trash2, Building2 } from "lucide-react";
 import { Supplier } from "@/types";
 import SupplierDialog from "@/components/SupplierDialog";
-import SupplierDetailDialog from "@/components/SupplierDetailDialog";
 import DeleteConfirmDialog from "@/components/DeleteConfirmDialog";
 import { Card, CardFooter, CardHeader } from "@/components/ui/card";
 import { useSuppliers } from "@/hooks/useSuppliers";
 import { useProductListsIndex } from "@/hooks/useProductListsIndex";
+import { SupplierBreadcrumbs } from "@/components/suppliers/SupplierBreadcrumbs";
+import { SupplierListsView } from "@/components/suppliers/SupplierListsView";
+import { ListConfigurationView } from "@/components/suppliers/ListConfigurationView";
+
+type ViewState = 
+  | { type: 'suppliers' }
+  | { type: 'supplier-lists'; supplier: Supplier }
+  | { type: 'list-config'; supplier: Supplier; listId: string; listName: string };
 
 const Proveedores = () => {
+  const [currentView, setCurrentView] = useState<ViewState>({ type: 'suppliers' });
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null);
 
-  // Use Supabase hooks for data
   const { suppliers, isLoading: isLoadingSuppliers, createSupplier, updateSupplier, deleteSupplier } = useSuppliers();
   const { data: lists = [] } = useProductListsIndex();
 
@@ -46,23 +52,38 @@ const Proveedores = () => {
   const handleSaveSupplier = async (supplier: Omit<Supplier, "id"> & { id?: string }) => {
     try {
       if (supplier.id) {
-        // Edit existing
         await updateSupplier({ id: supplier.id, name: supplier.name, logo: supplier.logo });
       } else {
-        // Create new
         await createSupplier({ name: supplier.name, logo: supplier.logo });
       }
       setIsDialogOpen(false);
       setSelectedSupplier(null);
     } catch (error) {
-      // Error handling is done in the hooks with toast
       console.error("Error saving supplier:", error);
     }
   };
 
-  const handleViewDetails = (supplier: Supplier) => {
-    setSelectedSupplier(supplier);
-    setIsDetailDialogOpen(true);
+  const handleViewSupplier = (supplier: Supplier) => {
+    setCurrentView({ type: 'supplier-lists', supplier });
+  };
+
+  const handleConfigureList = (listId: string, listName: string) => {
+    if (currentView.type === 'supplier-lists') {
+      setCurrentView({ 
+        type: 'list-config', 
+        supplier: currentView.supplier, 
+        listId, 
+        listName 
+      });
+    }
+  };
+
+  const handleBack = () => {
+    if (currentView.type === 'list-config') {
+      setCurrentView({ type: 'supplier-lists', supplier: currentView.supplier });
+    } else if (currentView.type === 'supplier-lists') {
+      setCurrentView({ type: 'suppliers' });
+    }
   };
 
   const getProductCount = (supplierId: string) => {
@@ -70,94 +91,135 @@ const Proveedores = () => {
       .filter((list: any) => list.supplier_id === supplierId)
       .reduce((sum, list: any) => sum + (list.product_count || 0), 0);
   };
-  return (
-    <div
-      className="flex-1 w-full max-w-full overflow-hidden"
-      
-    >
-      <div className="p-4 lg:px-4 lg:py-10">
-        <Header title="Proveedores" subtitle="Gestiona tus proveedores y sus productos." showSearch={false} />
 
-        <div className="mb-6 flex justify-end">
+  const getBreadcrumbSteps = () => {
+    const steps = [{ label: 'Proveedores', onClick: () => setCurrentView({ type: 'suppliers' }) }];
+    
+    if (currentView.type === 'supplier-lists' || currentView.type === 'list-config') {
+      steps.push({ 
+        label: currentView.supplier.name, 
+        onClick: () => setCurrentView({ type: 'supplier-lists', supplier: currentView.supplier }) 
+      });
+    }
+    
+    if (currentView.type === 'list-config') {
+      steps.push({ label: currentView.listName });
+    }
+    
+    return steps;
+  };
+
+  // Render supplier grid view
+  const renderSuppliersView = () => (
+    <>
+      <Header title="Proveedores" subtitle="Gestiona tus proveedores y sus productos." showSearch={false} />
+
+      <div className="mb-6 flex justify-end">
+        <Button onClick={handleCreateSupplier} className="gap-2">
+          <Plus className="w-4 h-4" />
+          Nuevo Proveedor
+        </Button>
+      </div>
+
+      {isLoadingSuppliers ? (
+        <div className="glassmorphism rounded-xl shadow-lg p-12 text-center space-y-4">
+          <div className="flex justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          </div>
+          <p className="text-muted-foreground">Cargando proveedores...</p>
+        </div>
+      ) : suppliers.length === 0 ? (
+        <div className="glassmorphism rounded-xl shadow-lg p-12 text-center">
+          <Building2 className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+          <h2 className="text-2xl font-bold text-foreground mb-2">No hay proveedores</h2>
+          <p className="text-muted-foreground mb-6">Comienza agregando tu primer proveedor</p>
           <Button onClick={handleCreateSupplier} className="gap-2">
             <Plus className="w-4 h-4" />
-            Nuevo Proveedor
+            Agregar Proveedor
           </Button>
         </div>
-
-        {isLoadingSuppliers ? (
-          <div className="glassmorphism rounded-xl shadow-lg p-12 text-center space-y-4">
-            <div className="flex justify-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-            </div>
-            <p className="text-muted-foreground">Cargando proveedores...</p>
-            <p className="text-xs text-muted-foreground">Esto puede tardar unos segundos para listas grandes</p>
-          </div>
-        ) : suppliers.length === 0 ? (
-          <div className="glassmorphism rounded-xl shadow-lg p-12 text-center">
-            <Building2 className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-            <h2 className="text-2xl font-bold text-foreground mb-2">No hay proveedores</h2>
-            <p className="text-muted-foreground mb-6">Comienza agregando tu primer proveedor</p>
-            <Button onClick={handleCreateSupplier} className="gap-2">
-              <Plus className="w-4 h-4" />
-              Agregar Proveedor
-            </Button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {suppliers.map((supplier) => {
-              const productCount = getProductCount(supplier.id);
-
-              return (
-                <Card
-                  key={supplier.id}
-                  className="glassmorphism border-primary/20 hover:border-primary/40 transition-all cursor-pointer"
-                  onClick={() => handleViewDetails(supplier)}
-                >
-                  <CardHeader>
-                    <div className="flex items-center gap-4">
-                      {supplier.logo ? (
-                        <img src={supplier.logo} alt={supplier.name} className="w-16 h-16 rounded-lg object-cover" />
-                      ) : (
-                        <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center">
-                          <Building2 className="w-8 h-8 text-primary" />
-                        </div>
-                      )}
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-foreground">{supplier.name}</h3>
-                        <p className="text-sm text-muted-foreground">{productCount} productos</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {suppliers.map((supplier) => {
+            const productCount = getProductCount(supplier.id);
+            return (
+              <Card
+                key={supplier.id}
+                className="glassmorphism border-primary/20 hover:border-primary/40 transition-all cursor-pointer"
+                onClick={() => handleViewSupplier(supplier)}
+              >
+                <CardHeader>
+                  <div className="flex items-center gap-4">
+                    {supplier.logo ? (
+                      <img src={supplier.logo} alt={supplier.name} className="w-16 h-16 rounded-lg object-cover" />
+                    ) : (
+                      <div className="w-16 h-16 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <Building2 className="w-8 h-8 text-primary" />
                       </div>
+                    )}
+                    <div className="flex-1">
+                      <h3 className="text-lg font-semibold text-foreground">{supplier.name}</h3>
+                      <p className="text-sm text-muted-foreground">{productCount} productos</p>
                     </div>
-                  </CardHeader>
-                  <CardFooter className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleEditSupplier(supplier);
-                      }}
-                      className="flex-1 gap-2"
-                    >
-                      <Pencil className="w-4 h-4" />
-                      Editar
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteClick(supplier);
-                      }}
-                      className="flex-1 gap-2 border-red-500/20 text-red-500 hover:bg-red-500/10"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      Eliminar
-                    </Button>
-                  </CardFooter>
-                </Card>
-              );
-            })}
+                  </div>
+                </CardHeader>
+                <CardFooter className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditSupplier(supplier);
+                    }}
+                    className="flex-1 gap-2"
+                  >
+                    <Pencil className="w-4 h-4" />
+                    Editar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteClick(supplier);
+                    }}
+                    className="flex-1 gap-2 border-red-500/20 text-red-500 hover:bg-red-500/10"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Eliminar
+                  </Button>
+                </CardFooter>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </>
+  );
+
+  return (
+    <div className="flex-1 w-full max-w-full overflow-hidden flex flex-col">
+      <div className="p-4 lg:px-4 lg:py-10 flex-1 flex flex-col">
+        {currentView.type !== 'suppliers' && (
+          <SupplierBreadcrumbs steps={getBreadcrumbSteps()} onBack={handleBack} />
+        )}
+
+        {currentView.type === 'suppliers' && renderSuppliersView()}
+
+        {currentView.type === 'supplier-lists' && (
+          <SupplierListsView
+            supplierId={currentView.supplier.id}
+            supplierName={currentView.supplier.name}
+            onConfigureList={handleConfigureList}
+          />
+        )}
+
+        {currentView.type === 'list-config' && (
+          <div className="flex-1 flex flex-col glassmorphism rounded-xl border border-primary/20 overflow-hidden">
+            <ListConfigurationView
+              listId={currentView.listId}
+              onSaved={handleBack}
+            />
           </div>
         )}
 
@@ -167,14 +229,6 @@ const Proveedores = () => {
           onSave={handleSaveSupplier}
           supplier={selectedSupplier}
         />
-
-        {selectedSupplier && (
-          <SupplierDetailDialog
-            open={isDetailDialogOpen}
-            onOpenChange={setIsDetailDialogOpen}
-            supplier={selectedSupplier}
-          />
-        )}
 
         <DeleteConfirmDialog
           open={isDeleteDialogOpen}
