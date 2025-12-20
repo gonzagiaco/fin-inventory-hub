@@ -661,6 +661,11 @@ export async function syncPendingOperations(): Promise<void> {
             await rollbackDeliveryNoteDelete(op.data._snapshot);
           }
           
+          // 🆕 Rollback especial para UPDATE de delivery_notes con snapshot
+          if (op.table_name === "delivery_notes" && op.operation_type === "UPDATE" && op.data?._snapshot) {
+            await rollbackDeliveryNoteUpdate(op.data._snapshot);
+          }
+          
           await localDB.pending_operations.delete(op.id!);
           // Solo mostrar toast de error crítico
           toast.error(`Operación fallida: ${op.table_name}`);
@@ -698,6 +703,7 @@ async function executeOperation(op: PendingOperation): Promise<'success' | 'skip
     // Para INSERTs, preparar datos sin el ID temporal
     let insertData = { ...op.data };
     delete insertData.id; // Supabase genera el UUID
+    delete insertData._snapshot; // Eliminar snapshot interno
     
     // Para delivery_note_items, resolver delivery_note_id temporal
     if (op.table_name === "delivery_note_items" && insertData.delivery_note_id) {
@@ -732,8 +738,15 @@ async function executeOperation(op: PendingOperation): Promise<'success' | 'skip
       return 'skipped';
     }
     
-    // Preparar datos de actualización
+    // 🆕 MANEJO ESPECIAL: delivery_notes con snapshot de items
+    if (op.table_name === "delivery_notes" && op.data?._snapshot?.newItems) {
+      await executeDeliveryNoteUpdateWithItems(realId, op.data);
+      return 'success';
+    }
+    
+    // Preparar datos de actualización (remover campos internos)
     let updateData = { ...op.data };
+    delete updateData._snapshot;
     
     // Para delivery_note_items, resolver delivery_note_id temporal
     if (op.table_name === "delivery_note_items" && updateData.delivery_note_id) {
@@ -767,6 +780,100 @@ async function executeOperation(op: PendingOperation): Promise<'success' | 'skip
 
   console.log(`✅ Operación completada: ${op.operation_type} ${op.table_name}`);
   return 'success';
+}
+
+/**
+ * Ejecuta actualización atómica de delivery_note con items
+ * Esto sincroniza la nota y reemplaza todos sus items en una transacción lógica
+ */
+async function executeDeliveryNoteUpdateWithItems(noteId: string, data: any): Promise<void> {
+  console.log(`🔄 Sincronización atómica de remito ${noteId} con items...`);
+  
+  const snapshot = data._snapshot;
+  const newItems = snapshot?.newItems;
+  
+  // PASO 1: Preparar datos de la nota (sin campos internos)
+  const noteUpdateData: any = { ...data };
+  delete noteUpdateData._snapshot;
+  delete noteUpdateData.remaining_balance; // Columna generada
+  
+  // PASO 2: Actualizar la nota principal
+  const { error: noteError } = await supabase
+    .from("delivery_notes")
+    .update(noteUpdateData)
+    .eq("id", noteId);
+
+  if (noteError) {
+    console.error(`❌ Error actualizando nota ${noteId}:`, noteError);
+    throw noteError;
+  }
+
+  // PASO 3: Si hay nuevos items, reemplazar los existentes
+  if (newItems && newItems.length > 0) {
+    console.log(`  📦 Reemplazando ${newItems.length} items...`);
+    
+    // Eliminar items existentes
+    const { error: deleteError } = await supabase
+      .from("delivery_note_items")
+      .delete()
+      .eq("delivery_note_id", noteId);
+
+    if (deleteError) {
+      console.error(`❌ Error eliminando items antiguos:`, deleteError);
+      throw deleteError;
+    }
+
+    // Insertar nuevos items (sin ID temporal)
+    const itemsToInsert = newItems.map((item: any) => ({
+      delivery_note_id: noteId,
+      product_id: item.product_id,
+      product_code: item.product_code,
+      product_name: item.product_name,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      subtotal: item.subtotal || item.quantity * item.unit_price,
+    }));
+
+    const { error: insertError } = await supabase
+      .from("delivery_note_items")
+      .insert(itemsToInsert);
+
+    if (insertError) {
+      console.error(`❌ Error insertando items nuevos:`, insertError);
+      throw insertError;
+    }
+
+    console.log(`  ✅ ${itemsToInsert.length} items sincronizados`);
+  }
+  
+  // PASO 4: Sincronizar stock en Supabase usando bulk_adjust_stock
+  if (snapshot?.stockAdjustments && snapshot.stockAdjustments.length > 0) {
+    const adjustments = snapshot.stockAdjustments
+      .filter((adj: any) => adj.delta !== 0)
+      .map((adj: any) => ({
+        product_id: adj.id,
+        delta: adj.delta,
+        op_id: `sync-${noteId}-${adj.id}`,
+      }));
+    
+    if (adjustments.length > 0) {
+      console.log(`  📊 Sincronizando ${adjustments.length} ajustes de stock...`);
+      
+      const { error: stockError } = await supabase.rpc("bulk_adjust_stock", {
+        p_adjustments: adjustments,
+      });
+      
+      if (stockError) {
+        console.error(`❌ Error sincronizando stock:`, stockError);
+        // No lanzar error aquí para no fallar toda la operación
+        // El stock local ya está correcto
+      } else {
+        console.log(`  ✅ Stock sincronizado`);
+      }
+    }
+  }
+
+  console.log(`✅ Remito ${noteId} sincronizado atómicamente`);
 }
 
 /**
@@ -1343,6 +1450,55 @@ async function rollbackDeliveryNoteDelete(snapshot: {
   }
 }
 
+/**
+ * Rollback para UPDATE de delivery_notes fallido
+ * Restaura el estado anterior del remito y sus items desde el snapshot
+ * Revierte los ajustes de stock aplicados
+ */
+async function rollbackDeliveryNoteUpdate(snapshot: {
+  previousNote: DeliveryNoteDB;
+  previousItems: DeliveryNoteItemDB[];
+  newItems: any[] | null;
+  stockAdjustments: Array<{ id: string; delta: number }>;
+}): Promise<void> {
+  const noteId = snapshot.previousNote.id;
+  console.log(`🔄 Rollback de actualización de remito: ${noteId}`);
+  
+  try {
+    // PASO 1: Restaurar el remito al estado anterior
+    await localDB.delivery_notes.put(snapshot.previousNote);
+    console.log(`  ✅ Remito restaurado al estado anterior`);
+    
+    // PASO 2: Eliminar items actuales y restaurar los anteriores
+    await localDB.delivery_note_items
+      .where("delivery_note_id")
+      .equals(noteId)
+      .delete();
+    
+    for (const item of snapshot.previousItems) {
+      await localDB.delivery_note_items.put(item);
+    }
+    console.log(`  ✅ ${snapshot.previousItems.length} items restaurados`);
+    
+    // PASO 3: Revertir ajustes de stock (invertir los deltas)
+    if (snapshot.stockAdjustments && snapshot.stockAdjustments.length > 0) {
+      console.log(`  🔄 Revirtiendo ${snapshot.stockAdjustments.length} ajustes de stock...`);
+      for (const adj of snapshot.stockAdjustments) {
+        if (adj.delta !== 0) {
+          // Invertir el delta para revertir el cambio
+          console.log(`    📦 Revirtiendo: ${adj.id} (${adj.delta > 0 ? '-' : '+'}${Math.abs(adj.delta)})`);
+          await updateProductQuantityDelta(adj.id, -adj.delta);
+        }
+      }
+    }
+    
+    console.log(`✅ Rollback de actualización completado para remito ${noteId}`);
+    toast.info("Cambios del remito revertidos debido a error de sincronización");
+  } catch (error) {
+    console.error(`❌ Error en rollback de actualización de remito:`, error);
+  }
+}
+
 // DELIVERY NOTES
 export async function createDeliveryNoteOffline(
   note: Omit<DeliveryNoteDB, "id" | "created_at" | "updated_at">,
@@ -1403,106 +1559,139 @@ export async function updateDeliveryNoteOffline(
 
   const now = new Date().toISOString();
 
+  // PASO 1: Obtener items ANTERIORES para snapshot (antes de cualquier cambio)
+  const oldItems = await localDB.delivery_note_items
+    .where("delivery_note_id")
+    .equals(id)
+    .toArray();
+
+  // PASO 2: Crear snapshot del estado anterior para posible rollback
+  const snapshot = {
+    note: { ...existing },
+    items: [...oldItems],
+    newItems: [] as DeliveryNoteItemDB[],
+  };
+
+  console.log(`🔄 Actualizando remito offline ${id}:`);
+  console.log(`  Items antiguos: ${oldItems.length}`);
+  console.log(`  Items nuevos: ${items?.length ?? "sin cambios"}`);
+
   // Calcular nuevo total si se proporcionan items
   let newTotal = existing.total_amount;
-  
+  const stockAdjustmentsMap = new Map<string, number>();
+
   // Si se proporcionan items, calcular ajustes netos de stock
   if (items !== undefined) {
     // Recalcular total basado en nuevos items
     newTotal = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
-    
-    // PASO 1: Obtener items antiguos
-    const oldItems = await localDB.delivery_note_items
-      .where("delivery_note_id")
-      .equals(id)
-      .toArray();
 
-    console.log(`🔄 Actualizando remito offline ${id}:`);
-    console.log(`  Items antiguos: ${oldItems.length}`);
-    console.log(`  Items nuevos: ${items.length}`);
     console.log(`  Total anterior: ${existing.total_amount}, Nuevo total: ${newTotal}`);
 
-    // PASO 2: Calcular ajustes NETOS de stock (una sola operación)
-    const adjustmentsMap = new Map<string, number>();
-
+    // PASO 3: Calcular ajustes NETOS de stock (una sola operación atómica)
     // Sumar cantidades originales (devuelven stock = delta positivo)
     for (const oldItem of oldItems) {
       if (oldItem.product_id) {
-        const current = adjustmentsMap.get(oldItem.product_id) || 0;
-        adjustmentsMap.set(oldItem.product_id, current + oldItem.quantity);
+        const current = stockAdjustmentsMap.get(oldItem.product_id) || 0;
+        stockAdjustmentsMap.set(oldItem.product_id, current + oldItem.quantity);
       }
     }
 
     // Restar cantidades nuevas (descuentan stock = delta negativo)
     for (const newItem of items) {
       if (newItem.product_id) {
-        const current = adjustmentsMap.get(newItem.product_id) || 0;
-        adjustmentsMap.set(newItem.product_id, current - newItem.quantity);
+        const current = stockAdjustmentsMap.get(newItem.product_id) || 0;
+        stockAdjustmentsMap.set(newItem.product_id, current - newItem.quantity);
       }
     }
 
-    // PASO 3: Aplicar solo los deltas netos (evita problemas de validación)
-    for (const [productId, delta] of adjustmentsMap.entries()) {
+    // PASO 4: Aplicar solo los deltas netos en IndexedDB
+    for (const [productId, delta] of stockAdjustmentsMap.entries()) {
       if (delta !== 0) {
         console.log(`  📦 Ajuste neto: ${productId} (${delta > 0 ? '+' : ''}${delta})`);
         await updateProductQuantityDelta(productId, delta);
       }
     }
 
-    // PASO 4: Eliminar items antiguos
+    // PASO 5: Eliminar items antiguos de IndexedDB (sin encolar operaciones individuales)
     await localDB.delivery_note_items
       .where("delivery_note_id")
       .equals(id)
       .delete();
 
-    // Encolar eliminación de items antiguos
-    for (const oldItem of oldItems) {
-      await queueOperation("delivery_note_items", "DELETE", oldItem.id, {});
-    }
-
-    // PASO 5: Insertar nuevos items (sin ajuste de stock adicional)
+    // PASO 6: Insertar nuevos items en IndexedDB (sin encolar operaciones individuales)
+    const newItemsToSave: DeliveryNoteItemDB[] = [];
     for (const item of items) {
-      const itemId = crypto.randomUUID();
+      const itemId = generateTempId();
       const newItem: DeliveryNoteItemDB = {
         id: itemId,
         delivery_note_id: id,
         ...item,
         created_at: now,
       };
-
-      await localDB.delivery_note_items.add(newItem);
-      await queueOperation("delivery_note_items", "INSERT", itemId, newItem);
+      newItemsToSave.push(newItem);
     }
+    
+    if (newItemsToSave.length > 0) {
+      await localDB.delivery_note_items.bulkAdd(newItemsToSave);
+    }
+    
+    // Guardar nuevos items en snapshot para sincronización
+    snapshot.newItems = newItemsToSave;
   }
 
-  // PASO 5: Calcular campos financieros consistentes
+  // PASO 7: Calcular campos financieros consistentes
   const newPaidAmount = updates.paid_amount ?? existing.paid_amount;
   const newRemainingBalance = newTotal - newPaidAmount;
   const newStatus = newPaidAmount >= newTotal ? "paid" : "pending";
 
   console.log(`  💰 Financiero: pagado=${newPaidAmount}, restante=${newRemainingBalance}, status=${newStatus}`);
 
-  // PASO 6: Preparar actualizaciones para Supabase (sin remaining_balance que es generada)
-  const supabaseUpdates: Partial<DeliveryNoteDB> = {
+  // PASO 8: Actualizar nota principal en IndexedDB
+  const updated: DeliveryNoteDB = {
+    ...existing,
     ...updates,
     total_amount: newTotal,
+    paid_amount: newPaidAmount,
+    remaining_balance: newRemainingBalance,
     status: newStatus,
     updated_at: now,
   };
-  // Remover remaining_balance de la cola (es columna generada en Supabase)
-  delete (supabaseUpdates as any).remaining_balance;
-
-  // PASO 7: Actualizar nota principal en IndexedDB (incluir remaining_balance para UI)
-  const updated: DeliveryNoteDB = {
-    ...existing,
-    ...supabaseUpdates,
-    remaining_balance: newRemainingBalance, // Solo para IndexedDB/UI
-  };
 
   await localDB.delivery_notes.put(updated);
-  await queueOperation("delivery_notes", "UPDATE", id, supabaseUpdates);
 
-  console.log(`✅ Remito ${id} actualizado offline con campos financieros consistentes`);
+  // PASO 9: Encolar UNA SOLA operación atómica con snapshot completo
+  // Esta operación incluye la nota y todos los items para sincronización atómica
+  const syncData = {
+    // Datos para actualizar en Supabase
+    customer_name: updates.customer_name ?? existing.customer_name,
+    customer_address: updates.customer_address ?? existing.customer_address,
+    customer_phone: updates.customer_phone ?? existing.customer_phone,
+    issue_date: updates.issue_date ?? existing.issue_date,
+    total_amount: newTotal,
+    paid_amount: newPaidAmount,
+    status: newStatus,
+    notes: updates.notes ?? existing.notes,
+    extra_fields: updates.extra_fields ?? existing.extra_fields,
+    updated_at: now,
+    // Snapshot para sincronización atómica y rollback
+    _snapshot: {
+      previousNote: snapshot.note,
+      previousItems: snapshot.items,
+      newItems: items ? snapshot.newItems.map(item => ({
+        product_id: item.product_id,
+        product_code: item.product_code,
+        product_name: item.product_name,
+        quantity: item.quantity,
+        unit_price: item.unit_price,
+        subtotal: item.subtotal,
+      })) : null,
+      stockAdjustments: Array.from(stockAdjustmentsMap.entries()).map(([id, delta]) => ({ id, delta })),
+    },
+  };
+
+  await queueOperation("delivery_notes", "UPDATE", id, syncData);
+
+  console.log(`✅ Remito ${id} actualizado offline con operación atómica`);
 }
 
 export async function deleteDeliveryNoteOffline(id: string): Promise<void> {
