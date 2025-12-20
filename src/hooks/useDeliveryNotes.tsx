@@ -403,12 +403,26 @@ export const useDeliveryNotes = () => {
 
       if (fetchError) throw fetchError;
 
-      // Revertir stock usando bulk
-      const deleteItems = note.items.map((item: any) => ({
-        productId: item.product_id,
-        quantity: item.quantity,
-      }));
-      await updateProductStockBulk(deleteItems, "delete", isOnline, queryClient);
+      // 🆕 SOLO revertir stock si el remito NO está pagado
+      const shouldRevertStock = note.status !== "paid";
+      
+      logDelivery("Delete delivery note", {
+        id,
+        status: note.status,
+        shouldRevertStock,
+        itemCount: note.items.length,
+      });
+
+      if (shouldRevertStock) {
+        // Revertir stock usando bulk
+        const deleteItems = note.items.map((item: any) => ({
+          productId: item.product_id,
+          quantity: item.quantity,
+        }));
+        await updateProductStockBulk(deleteItems, "delete", isOnline, queryClient);
+      } else {
+        logDelivery("Skipping stock revert - delivery note is paid");
+      }
 
       const { error: deleteError } = await supabase.from("delivery_notes").delete().eq("id", id);
 
@@ -429,7 +443,7 @@ export const useDeliveryNotes = () => {
       });
 
       invalidateProductQueries(queryClient);
-      toast.success(isOnline ? "Remito eliminado y stock revertido" : "Remito eliminado (se sincronizará al conectar)");
+      toast.success(isOnline ? "Remito eliminado" : "Remito eliminado (se sincronizará al conectar)");
     },
     onError: (error: any) => {
       toast.error(`Error al eliminar remito: ${error.message}`);

@@ -655,6 +655,12 @@ export async function syncPendingOperations(): Promise<void> {
         if (newRetryCount >= 3) {
           console.error(`❌ Operación ${op.id} descartada después de 3 intentos`);
           await rollbackStockCompensation(op.id!);
+          
+          // 🆕 Rollback especial para DELETE de delivery_notes con snapshot
+          if (op.table_name === "delivery_notes" && op.operation_type === "DELETE" && op.data?._snapshot) {
+            await rollbackDeliveryNoteDelete(op.data._snapshot);
+          }
+          
           await localDB.pending_operations.delete(op.id!);
           // Solo mostrar toast de error crítico
           toast.error(`Operación fallida: ${op.table_name}`);
@@ -1296,6 +1302,47 @@ async function clearStockCompensation(operationId: number): Promise<void> {
     .delete();
 }
 
+/**
+ * Rollback para DELETE de delivery_notes fallido
+ * Restaura el remito y sus items desde el snapshot
+ * Si se había revertido stock, deshace esa reversión
+ */
+async function rollbackDeliveryNoteDelete(snapshot: {
+  note: DeliveryNoteDB;
+  items: DeliveryNoteItemDB[];
+  shouldRevertStock: boolean;
+}): Promise<void> {
+  console.log(`🔄 Rollback de eliminación de remito: ${snapshot.note.id}`);
+  
+  try {
+    // PASO 1: Restaurar el remito en IndexedDB
+    await localDB.delivery_notes.put(snapshot.note);
+    console.log(`  ✅ Remito restaurado: ${snapshot.note.id}`);
+    
+    // PASO 2: Restaurar los items
+    for (const item of snapshot.items) {
+      await localDB.delivery_note_items.put(item);
+    }
+    console.log(`  ✅ ${snapshot.items.length} items restaurados`);
+    
+    // PASO 3: Si se había revertido stock, deshacer esa reversión (restar cantidades)
+    if (snapshot.shouldRevertStock) {
+      console.log(`  🔄 Deshaciendo reversión de stock...`);
+      for (const item of snapshot.items) {
+        if (item.product_id) {
+          console.log(`    ⬇️ Restando: ${item.product_name} (-${item.quantity})`);
+          await updateProductQuantityDelta(item.product_id, -item.quantity);
+        }
+      }
+    }
+    
+    console.log(`✅ Rollback completado para remito ${snapshot.note.id}`);
+    toast.info("Remito restaurado debido a error de sincronización");
+  } catch (error) {
+    console.error(`❌ Error en rollback de remito:`, error);
+  }
+}
+
 // DELIVERY NOTES
 export async function createDeliveryNoteOffline(
   note: Omit<DeliveryNoteDB, "id" | "created_at" | "updated_at">,
@@ -1462,23 +1509,32 @@ export async function deleteDeliveryNoteOffline(id: string): Promise<void> {
   const note = await localDB.delivery_notes.get(id);
   if (!note) throw new Error("Remito no encontrado");
 
-  console.log(`🗑️ Eliminando remito offline: ${id}`);
+  console.log(`🗑️ Eliminando remito offline: ${id}, status: ${note.status}`);
 
-  // PASO 1: Obtener items para revertir stock
+  // PASO 1: Obtener items para snapshot y posible reversión de stock
   const items = await localDB.delivery_note_items
     .where("delivery_note_id")
     .equals(id)
     .toArray();
 
-  // PASO 2: Revertir stock antes de eliminar (delta POSITIVO)
-  for (const item of items) {
-    if (item.product_id) {
-      console.log(`  ⬆️ Revirtiendo: ${item.product_name} (+${item.quantity})`);
-      await updateProductQuantityDelta(item.product_id, item.quantity);
+  // PASO 2: Determinar si se debe revertir stock (SOLO si NO está pagado)
+  const shouldRevertStock = note.status !== "paid";
+  
+  console.log(`  shouldRevertStock: ${shouldRevertStock} (status=${note.status})`);
+
+  // PASO 3: Si corresponde, revertir stock (delta POSITIVO)
+  if (shouldRevertStock) {
+    for (const item of items) {
+      if (item.product_id) {
+        console.log(`  ⬆️ Revirtiendo: ${item.product_name} (+${item.quantity})`);
+        await updateProductQuantityDelta(item.product_id, item.quantity);
+      }
     }
+  } else {
+    console.log(`  ℹ️ Remito pagado: NO se revierte stock`);
   }
 
-  // PASO 3: Eliminar items de la base de datos
+  // PASO 4: Eliminar items de la base de datos
   await localDB.delivery_note_items
     .where("delivery_note_id")
     .equals(id)
@@ -1488,11 +1544,20 @@ export async function deleteDeliveryNoteOffline(id: string): Promise<void> {
     await queueOperation("delivery_note_items", "DELETE", item.id, {});
   }
 
-  // PASO 4: Eliminar nota
+  // PASO 5: Eliminar nota
   await localDB.delivery_notes.delete(id);
-  await queueOperation("delivery_notes", "DELETE", id, {});
+  
+  // PASO 6: Encolar DELETE con snapshot para posible rollback
+  // El snapshot incluye la nota, items y si se revirtió stock
+  const snapshot = {
+    note: note,
+    items: items,
+    shouldRevertStock: shouldRevertStock,
+  };
+  
+  await queueOperation("delivery_notes", "DELETE", id, { _snapshot: snapshot });
 
-  console.log(`✅ Remito ${id} eliminado offline con reversión de stock`);
+  console.log(`✅ Remito ${id} eliminado offline ${shouldRevertStock ? "con" : "sin"} reversión de stock`);
 }
 
 export async function markDeliveryNoteAsPaidOffline(id: string, paidAmount: number): Promise<void> {
