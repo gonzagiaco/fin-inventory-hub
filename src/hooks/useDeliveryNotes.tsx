@@ -289,33 +289,35 @@ export const useDeliveryNotes = () => {
 
       if (fetchError) throw fetchError;
 
-      // PASO 2: Preparar items originales y nuevos para cálculo neto
-      const originalItems = originalNote.items.map((item: any) => ({
-        productId: item.product_id,
-        quantity: item.quantity,
-      }));
+      // PASO 2: Solo ajustar stock si hay cambios en items
+      if (updates.items) {
+        const originalItems = originalNote.items.map((item: any) => ({
+          productId: item.product_id,
+          quantity: item.quantity,
+        }));
 
-      const newItems = updates.items?.map(item => ({
-        productId: item.productId,
-        quantity: item.quantity,
-      })) || originalItems;
+        const newItems = updates.items.map(item => ({
+          productId: item.productId,
+          quantity: item.quantity,
+        }));
 
-      // PASO 3: Calcular ajustes netos (una sola operación atómica)
-      const netAdjustments = calculateNetStockAdjustments(originalItems, newItems);
-      
-      logDelivery("Net stock adjustments calculated", {
-        originalCount: originalItems.length,
-        newCount: newItems.length,
-        adjustments: netAdjustments.map(a => ({ id: a.product_id, delta: a.delta })),
-      });
+        // Calcular ajustes netos (una sola operación atómica)
+        const netAdjustments = calculateNetStockAdjustments(originalItems, newItems);
+        
+        logDelivery("Net stock adjustments calculated", {
+          originalCount: originalItems.length,
+          newCount: newItems.length,
+          adjustments: netAdjustments.map(a => ({ id: a.product_id, delta: a.delta })),
+        });
 
-      // Aplicar ajustes netos (positivos devuelven stock, negativos descuentan)
-      if (netAdjustments.length > 0) {
-        await bulkAdjustStock(netAdjustments, isOnline);
-        invalidateProductQueries(queryClient);
+        // Aplicar ajustes netos (positivos devuelven stock, negativos descuentan)
+        if (netAdjustments.length > 0) {
+          await bulkAdjustStock(netAdjustments, isOnline);
+          invalidateProductQueries(queryClient);
+        }
       }
 
-      // PASO 4: Calcular nuevo total
+      // PASO 3: Calcular nuevo total
       let newTotal = originalNote.total_amount;
       if (updates.items) {
         newTotal = updates.items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
@@ -324,7 +326,7 @@ export const useDeliveryNotes = () => {
       const newPaidAmount = updates.paidAmount ?? originalNote.paid_amount;
       const newStatus = newPaidAmount >= newTotal ? "paid" : "pending";
 
-      // PASO 5: Actualizar nota principal
+      // PASO 4: Actualizar nota principal
       // 🔧 Convertir fecha a mediodía UTC si se proporciona
       const issueDate = updates.issueDate ? `${updates.issueDate}T12:00:00.000Z` : undefined;
 
@@ -345,7 +347,7 @@ export const useDeliveryNotes = () => {
 
       if (noteError) throw noteError;
 
-      // PASO 6: Reemplazar items si se proporcionaron
+      // PASO 5: Reemplazar items si se proporcionaron
       if (updates.items) {
         // Eliminar items antiguos
         const { error: deleteError } = await supabase.from("delivery_note_items").delete().eq("delivery_note_id", id);
