@@ -472,7 +472,6 @@ export function ProductCardView({
                       mappingConfig={mappingConfig}
                       onAddToRequest={onAddToRequest}
                       showAddToStock={shouldShowAddToStock}
-                      showRemoveFromStock={showRemoveFromStock}
                     />
                   </div>
                 )}

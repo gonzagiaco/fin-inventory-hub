@@ -61,15 +61,6 @@ export default function MiStock() {
     );
   };
 
-  // Handler para actualizar umbral localmente (optimista)
-  const handleUpdateThreshold = (productId: string, newThreshold: number) => {
-    setLocalProducts(prev => 
-      prev.map(p => 
-        (p.product_id === productId) ? { ...p, stock_threshold: newThreshold } : p
-      )
-    );
-  };
-
   const isLoading = isLoadingSuppliers || isLoadingLists || isLoadingProducts;
 
   // Usar localProducts en lugar de myStockProducts para UI
@@ -314,7 +305,6 @@ export default function MiStock() {
                   lists={Array.from(section.lists.values())}
                   onAddToRequest={handleAddToRequest}
                   onQuantityChange={handleUpdateQuantity}
-                  onThresholdChange={handleUpdateThreshold}
                   onRemoveProduct={handleRemoveProduct}
                   isMobile={isMobile}
                 />

@@ -49,7 +49,6 @@ interface DynamicProductIndexDB {
   price?: number;
   quantity?: number;
   in_my_stock: boolean;
-  stock_threshold: number;
   calculated_data?: any;
   created_at: string;
   updated_at: string;
@@ -217,30 +216,6 @@ class LocalDatabase extends Dexie {
       tokens: "userId, updatedAt",
       id_mappings: "temp_id, real_id, table_name",
       stock_compensations: "++id, operation_id, product_id",
-    });
-
-    // Versión 7: Agregar stock_threshold al índice de productos (umbral por producto)
-    this.version(7).stores({
-      suppliers: "id, user_id, name",
-      product_lists: "id, user_id, supplier_id, name",
-      dynamic_products_index: "id, user_id, list_id, product_id, code, name, in_my_stock, stock_threshold",
-      dynamic_products: "id, user_id, list_id, code, name",
-      delivery_notes: "id, user_id, customer_name, status, issue_date",
-      delivery_note_items: "id, delivery_note_id, product_id",
-      settings: "key, updated_at",
-      request_items: "id, user_id, product_id",
-      stock_items: "id, user_id, code, name, category, supplier_id",
-      pending_operations: "++id, table_name, timestamp, record_id, product_id",
-      tokens: "userId, updatedAt",
-      id_mappings: "temp_id, real_id, table_name",
-      stock_compensations: "++id, operation_id, product_id",
-    }).upgrade(tx => {
-      // Migrar registros existentes: agregar stock_threshold = 0 por defecto
-      return tx.table('dynamic_products_index').toCollection().modify(product => {
-        if (product.stock_threshold === undefined) {
-          product.stock_threshold = 0;
-        }
-      });
     });
   }
 }
@@ -1233,7 +1208,6 @@ export async function updateProductListOffline(
     price: p.price,
     quantity: p.quantity,
     in_my_stock: (p.quantity || 0) > 0, // Inicializar basado en cantidad
-    stock_threshold: 0, // Umbral por defecto
     created_at: p.created_at,
     updated_at: p.updated_at,
   }));
