@@ -17,6 +17,7 @@ interface MyStockSupplierSectionProps {
   }>;
   onAddToRequest: (product: any, mappingConfig?: any) => void;
   onQuantityChange?: (productId: string, newQuantity: number) => void;
+  onThresholdChange?: (productId: string, newThreshold: number) => void;
   onRemoveProduct?: (productId: string) => void;
   isMobile: boolean;
 }
@@ -27,6 +28,7 @@ export function MyStockSupplierSection({
   lists,
   onAddToRequest,
   onQuantityChange,
+  onThresholdChange,
   onRemoveProduct,
   isMobile,
 }: MyStockSupplierSectionProps) {
@@ -88,6 +90,7 @@ export function MyStockSupplierSection({
                     mappingConfig={list.mappingConfig}
                     onAddToRequest={onAddToRequest}
                     onQuantityChange={onQuantityChange}
+                    onThresholdChange={onThresholdChange}
                     onRemoveProduct={onRemoveProduct}
                     isMobile={isMobile}
                   />

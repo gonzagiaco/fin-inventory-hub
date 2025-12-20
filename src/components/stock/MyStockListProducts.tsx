@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { QuantityCell } from "./QuantityCell";
+import { StockThresholdCell } from "./StockThresholdCell";
 import { ProductCardView } from "@/components/ProductCardView";
 import { ColumnSchema, DynamicProduct } from "@/types/productList";
 import { normalizeRawPrice, formatARS } from "@/utils/numberParser";
@@ -30,6 +31,7 @@ interface MyStockListProductsProps {
   mappingConfig: any;
   onAddToRequest: (product: any, mappingConfig?: any) => void;
   onQuantityChange?: (productId: string, newQuantity: number) => void;
+  onThresholdChange?: (productId: string, newThreshold: number) => void;
   onRemoveProduct?: (productId: string) => void;
   isMobile: boolean;
 }
@@ -41,6 +43,7 @@ export function MyStockListProducts({
   mappingConfig,
   onAddToRequest,
   onQuantityChange,
+  onThresholdChange,
   onRemoveProduct,
   isMobile,
 }: MyStockListProductsProps) {
@@ -78,6 +81,11 @@ export function MyStockListProducts({
   // Handler para actualizar cantidad (optimista)
   const handleQuantityChange = (productId: string, newQuantity: number) => {
     onQuantityChange?.(productId, newQuantity);
+  };
+
+  // Handler para actualizar umbral (optimista)
+  const handleThresholdChange = (productId: string, newThreshold: number) => {
+    onThresholdChange?.(productId, newThreshold);
   };
 
   // Process schema: only mark quantity as isStandard (fixed)
@@ -160,7 +168,7 @@ export function MyStockListProducts({
     orderedSchema.forEach((schema) => {
       const isVisible = visibilityState[schema.key] !== false;
 
-      // Special case: quantity column with editable input
+      // Special case: quantity column with editable input and per-product low stock indicator
       if (schema.key === "quantity") {
         dataColumns.push({
           id: schema.key,
@@ -168,12 +176,13 @@ export function MyStockListProducts({
           header: schema.label,
           cell: ({ row }: any) => {
             const quantity = row.original.quantity || 0;
-            const lowStockThreshold = mappingConfig?.low_stock_threshold || 0;
-            const isLowStock = quantity < lowStockThreshold;
+            // Use per-product threshold (stock_threshold) instead of global
+            const stockThreshold = row.original.stock_threshold ?? 0;
+            const isLowStock = stockThreshold > 0 && quantity < stockThreshold;
 
             return (
               <div className="flex items-center gap-2">
-                {isLowStock && lowStockThreshold > 0 && (
+                {isLowStock && (
                   <Badge variant="destructive" className="text-xs">
                     Bajo Stock
                   </Badge>
@@ -239,6 +248,24 @@ export function MyStockListProducts({
       } as ColumnDef<any>);
     });
 
+    // Add stock_threshold column (fixed, always visible) after other columns
+    dataColumns.push({
+      id: "stock_threshold",
+      accessorKey: "stock_threshold",
+      header: "Stock Mínimo",
+      cell: ({ row }: any) => (
+        <StockThresholdCell
+          productId={row.original.product_id || row.original.id}
+          listId={row.original.list_id || listId}
+          value={row.original.stock_threshold ?? 0}
+          onOptimisticUpdate={(newThreshold) => 
+            handleThresholdChange(row.original.product_id || row.original.id, newThreshold)
+          }
+        />
+      ),
+      meta: { isStandard: true, visible: true },
+    } as ColumnDef<any>);
+
     return dataColumns;
   }, [processedSchema, currentOrder, visibilityState, mappingConfig, onAddToRequest, listId]);
 
@@ -258,6 +285,7 @@ export function MyStockListProducts({
       name: p.name,
       price: p.price,
       quantity: p.quantity,
+      stock_threshold: p.stock_threshold ?? 0,
       data: p.data || {},
       calculated_data: p.calculated_data || {},
       supplierId: p.supplierId,
