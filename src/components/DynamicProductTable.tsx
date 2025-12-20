@@ -81,6 +81,7 @@ export const DynamicProductTable = ({
             name: item.name,
             price: item.price,
             quantity: item.quantity,
+            in_my_stock: item.in_my_stock,
             data: item?.dynamic_products?.data ?? item?.data ?? {},
             calculated_data: item.calculated_data ?? {},
           }) as DynamicProduct,

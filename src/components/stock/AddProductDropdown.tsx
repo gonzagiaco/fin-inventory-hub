@@ -57,7 +57,12 @@ export function AddProductDropdown({
     }
   };
 
-  const isInMyStock = product.in_my_stock === true;
+  // Considerar en Mi Stock si:
+  // - in_my_stock === true explícitamente, O
+  // - in_my_stock es undefined (offline fallback) Y quantity > 0
+  const productQuantity = product.quantity ?? 0;
+  const isInMyStock = product.in_my_stock === true || 
+    (product.in_my_stock === undefined && productQuantity > 0);
 
   // Página Mi Stock: mostrar botones para agregar al pedido y quitar del stock
   if (showRemoveFromStock) {
