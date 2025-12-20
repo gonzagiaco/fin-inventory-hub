@@ -57,9 +57,7 @@ export function AddProductDropdown({
     }
   };
 
-  // If product is already in My Stock, don't show "Add to My Stock" option
   const isInMyStock = product.in_my_stock === true;
-  const shouldShowAddToStock = showAddToStock && !isInMyStock;
 
   // Página Mi Stock: mostrar botones para agregar al pedido y quitar del stock
   if (showRemoveFromStock) {
@@ -104,30 +102,6 @@ export function AddProductDropdown({
     );
   }
 
-  // Producto ya en Mi Stock: solo mostrar botón de agregar al pedido
-  if (!shouldShowAddToStock) {
-    return (
-      <TooltipProvider delayDuration={300}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={() => onAddToRequest(product, mappingConfig)} 
-              className="w-full"
-            >
-              <ShoppingCart className="h-4 w-4 mr-1" />
-              Pedido
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side="top">
-            <p>Agregar al pedido</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  }
-
   // Lista de productos: mostrar dos botones separados
   return (
     <TooltipProvider delayDuration={300}>
@@ -155,14 +129,15 @@ export function AddProductDropdown({
               size="sm" 
               variant="outline" 
               onClick={handleAddToStock}
-              className="text-primary hover:text-primary"
+              disabled={isInMyStock}
+              className={isInMyStock ? "opacity-50 cursor-not-allowed" : "text-primary hover:text-primary"}
             >
               <Package className="h-4 w-4" />
               <span className="sr-only">Agregar a Mi Stock</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top">
-            <p>Agregar a Mi Stock</p>
+            <p>{isInMyStock ? "Ya está en Mi Stock" : "Agregar a Mi Stock"}</p>
           </TooltipContent>
         </Tooltip>
       </div>
