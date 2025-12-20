@@ -1289,12 +1289,12 @@ export async function updateDeliveryNoteOffline(
   // Calcular nuevo total si se proporcionan items
   let newTotal = existing.total_amount;
   
-  // Si se proporcionan items, reemplazarlos con reversión de stock
+  // Si se proporcionan items, calcular ajustes netos de stock
   if (items !== undefined) {
     // Recalcular total basado en nuevos items
     newTotal = items.reduce((sum, item) => sum + item.quantity * item.unit_price, 0);
     
-    // PASO 1: Obtener items antiguos para revertir stock
+    // PASO 1: Obtener items antiguos
     const oldItems = await localDB.delivery_note_items
       .where("delivery_note_id")
       .equals(id)
@@ -1305,15 +1305,34 @@ export async function updateDeliveryNoteOffline(
     console.log(`  Items nuevos: ${items.length}`);
     console.log(`  Total anterior: ${existing.total_amount}, Nuevo total: ${newTotal}`);
 
-    // PASO 2: Revertir stock de items antiguos
+    // PASO 2: Calcular ajustes NETOS de stock (una sola operación)
+    const adjustmentsMap = new Map<string, number>();
+
+    // Sumar cantidades originales (devuelven stock = delta positivo)
     for (const oldItem of oldItems) {
       if (oldItem.product_id) {
-        console.log(`  ✅ Revirtiendo: ${oldItem.product_name} (+${oldItem.quantity})`);
-        await updateProductQuantityDelta(oldItem.product_id, oldItem.quantity); // Delta positivo
+        const current = adjustmentsMap.get(oldItem.product_id) || 0;
+        adjustmentsMap.set(oldItem.product_id, current + oldItem.quantity);
       }
     }
 
-    // PASO 3: Eliminar items antiguos
+    // Restar cantidades nuevas (descuentan stock = delta negativo)
+    for (const newItem of items) {
+      if (newItem.product_id) {
+        const current = adjustmentsMap.get(newItem.product_id) || 0;
+        adjustmentsMap.set(newItem.product_id, current - newItem.quantity);
+      }
+    }
+
+    // PASO 3: Aplicar solo los deltas netos (evita problemas de validación)
+    for (const [productId, delta] of adjustmentsMap.entries()) {
+      if (delta !== 0) {
+        console.log(`  📦 Ajuste neto: ${productId} (${delta > 0 ? '+' : ''}${delta})`);
+        await updateProductQuantityDelta(productId, delta);
+      }
+    }
+
+    // PASO 4: Eliminar items antiguos
     await localDB.delivery_note_items
       .where("delivery_note_id")
       .equals(id)
@@ -1324,7 +1343,7 @@ export async function updateDeliveryNoteOffline(
       await queueOperation("delivery_note_items", "DELETE", oldItem.id, {});
     }
 
-    // PASO 4: Insertar nuevos items y descontar stock
+    // PASO 5: Insertar nuevos items (sin ajuste de stock adicional)
     for (const item of items) {
       const itemId = crypto.randomUUID();
       const newItem: DeliveryNoteItemDB = {
@@ -1336,12 +1355,6 @@ export async function updateDeliveryNoteOffline(
 
       await localDB.delivery_note_items.add(newItem);
       await queueOperation("delivery_note_items", "INSERT", itemId, newItem);
-
-      // Descontar nuevo stock
-      if (item.product_id) {
-        console.log(`  ✅ Descontando: ${item.product_name} (-${item.quantity})`);
-        await updateProductQuantityDelta(item.product_id, -item.quantity); // Delta negativo
-      }
     }
   }
 

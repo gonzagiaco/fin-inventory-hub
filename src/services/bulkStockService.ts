@@ -221,3 +221,44 @@ export function prepareDeliveryNoteAdjustments(
         : -item.quantity, // Descontar del stock
     }));
 }
+
+/**
+ * Calcula ajustes netos de stock comparando items originales vs nuevos
+ * Devuelve solo los deltas necesarios (evita revert+create para productos sin cambios)
+ */
+export function calculateNetStockAdjustments(
+  originalItems: Array<{ productId?: string; quantity: number }>,
+  newItems: Array<{ productId?: string; quantity: number }>
+): StockAdjustment[] {
+  const adjustmentsMap = new Map<string, number>();
+
+  // Sumar cantidades originales (se devuelven al stock = delta positivo)
+  for (const item of originalItems) {
+    if (item.productId) {
+      const current = adjustmentsMap.get(item.productId) || 0;
+      adjustmentsMap.set(item.productId, current + item.quantity);
+    }
+  }
+
+  // Restar cantidades nuevas (se descuentan del stock = delta negativo)
+  for (const item of newItems) {
+    if (item.productId) {
+      const current = adjustmentsMap.get(item.productId) || 0;
+      adjustmentsMap.set(item.productId, current - item.quantity);
+    }
+  }
+
+  // Convertir a array de ajustes (solo los que tienen delta != 0)
+  const adjustments: StockAdjustment[] = [];
+  for (const [productId, delta] of adjustmentsMap.entries()) {
+    if (delta !== 0) {
+      adjustments.push({
+        product_id: productId,
+        list_id: '',
+        delta,
+      });
+    }
+  }
+
+  return adjustments;
+}
