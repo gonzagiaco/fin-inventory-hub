@@ -11,6 +11,7 @@ export interface MyStockProduct {
   name: string | null;
   price: number | null;
   quantity: number | null;
+  stock_threshold?: number | null;
   in_my_stock: boolean;
   calculated_data?: Record<string, any>;
   data?: Record<string, any>;
