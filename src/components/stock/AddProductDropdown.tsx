@@ -67,43 +67,17 @@ export function AddProductDropdown({
   // Página Mi Stock: mostrar botones para agregar al pedido y quitar del stock
   if (showRemoveFromStock) {
     return (
-      <TooltipProvider delayDuration={300}>
-        <div className="flex gap-1">
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                size="sm" 
-                variant="outline" 
-                onClick={() => onAddToRequest(product, mappingConfig)}
-                className="flex-1"
-              >
-                <ShoppingCart className="h-4 w-4" />
-                <span className="sr-only">Agregar al pedido</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              <p>Agregar al pedido</p>
-            </TooltipContent>
-          </Tooltip>
-          
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button 
-                size="sm" 
-                variant="outline" 
-                onClick={handleRemoveFromStock}
-                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-              >
-                <Trash2 className="h-4 w-4" />
-                <span className="sr-only">Quitar de Mi Stock</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              <p>Quitar de Mi Stock</p>
-            </TooltipContent>
-          </Tooltip>
-        </div>
-      </TooltipProvider>
+      <div className="flex justify-center">
+        <Button 
+          size="sm" 
+          variant="outline" 
+          onClick={() => onAddToRequest(product, mappingConfig)}
+          className="flex items-center justify-center px-3"
+        >
+          <ShoppingCart className="h-4 w-4 mr-2" />
+          <span>Agregar al carrito</span>
+        </Button>
+      </div>
     );
   }
 
