@@ -718,6 +718,14 @@ async function executeOperation(op: PendingOperation): Promise<'success' | 'skip
   const realId = await resolveRecordId(op.table_name, op.record_id);
   
   if (op.operation_type === "INSERT") {
+    if (!isTempId(op.record_id) && op.record_id === realId) {
+      console.log(`✅ Skip INSERT: registro ya existe (${realId})`);
+      return 'success';
+    }
+    if (!isTempId(realId) && op.record_id !== realId) {
+      console.log(`✅ Skip INSERT: ID temporal ya mapeado (${realId})`);
+      return 'success';
+    }
     // Para INSERTs, preparar datos sin el ID temporal
     let insertData = { ...op.data };
     delete insertData.id; // Supabase genera el UUID
@@ -797,7 +805,11 @@ async function executeOperation(op: PendingOperation): Promise<'success' | 'skip
   }
 
   console.log(`✅ Operación completada: ${op.operation_type} ${op.table_name}`);
-  await syncDeliveryNoteAfterOperation(op, realId);
+  try {
+    await syncDeliveryNoteAfterOperation(op, realId);
+  } catch (error) {
+    console.warn("⚠️ Error al sincronizar remito post-operación:", error);
+  }
   return 'success';
 }
 
