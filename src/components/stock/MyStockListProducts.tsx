@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { QuantityCell } from "./QuantityCell";
+import { StockThresholdCell } from "./StockThresholdCell";
 import { ProductCardView } from "@/components/ProductCardView";
 import { ColumnSchema, DynamicProduct } from "@/types/productList";
 import { normalizeRawPrice, formatARS } from "@/utils/numberParser";
@@ -30,9 +31,19 @@ interface MyStockListProductsProps {
   mappingConfig: any;
   onAddToRequest: (product: any, mappingConfig?: any) => void;
   onQuantityChange?: (productId: string, newQuantity: number) => void;
+  onThresholdChange?: (productId: string, newThreshold: number) => void;
   onRemoveProduct?: (productId: string) => void;
   isMobile: boolean;
 }
+
+const STOCK_THRESHOLD_COLUMN: ColumnSchema = {
+  key: "stock_threshold",
+  label: "Stock Mínimo",
+  type: "number",
+  visible: true,
+  order: 0,
+  isStandard: true,
+};
 
 export function MyStockListProducts({
   listId,
@@ -41,6 +52,7 @@ export function MyStockListProducts({
   mappingConfig,
   onAddToRequest,
   onQuantityChange,
+  onThresholdChange,
   onRemoveProduct,
   isMobile,
 }: MyStockListProductsProps) {
@@ -80,12 +92,26 @@ export function MyStockListProducts({
     onQuantityChange?.(productId, newQuantity);
   };
 
+  const handleThresholdChange = (productId: string, newThreshold: number) => {
+    onThresholdChange?.(productId, newThreshold);
+  };
+
   // Process schema: only mark quantity as isStandard (fixed)
   const processedSchema: ColumnSchema[] = useMemo(() => {
-    // Ensure quantity column is at a good default position and is the only fixed column
-    return columnSchema.map((col, index) => ({
+    const hasThreshold = columnSchema.some((col) => col.key === STOCK_THRESHOLD_COLUMN.key);
+    const baseSchema = hasThreshold
+      ? columnSchema
+      : (() => {
+          const quantityIndex = columnSchema.findIndex((col) => col.key === "quantity");
+          const insertAt = quantityIndex >= 0 ? quantityIndex + 1 : columnSchema.length;
+          const nextSchema = [...columnSchema];
+          nextSchema.splice(insertAt, 0, STOCK_THRESHOLD_COLUMN);
+          return nextSchema;
+        })();
+
+    return baseSchema.map((col, index) => ({
       ...col,
-      isStandard: col.key === "quantity", // Only quantity is fixed
+      isStandard: col.key === "quantity" || col.key === STOCK_THRESHOLD_COLUMN.key,
       order: col.order ?? index,
     }));
   }, [columnSchema]);
@@ -97,9 +123,11 @@ export function MyStockListProducts({
     const saved = columnOrder[listId];
     
     if (!saved || saved.length === 0) {
-      // Default order: quantity first, then the rest
-      const withoutQuantity = schemaKeys.filter(k => k !== "quantity");
-      return ["quantity", ...withoutQuantity];
+      // Default order: quantity, stock_threshold, then the rest
+      const withoutFixed = schemaKeys.filter(
+        (key) => key !== "quantity" && key !== STOCK_THRESHOLD_COLUMN.key,
+      );
+      return ["quantity", STOCK_THRESHOLD_COLUMN.key, ...withoutFixed];
     }
     
     // Add any new columns that aren't in saved order
@@ -168,12 +196,12 @@ export function MyStockListProducts({
           header: schema.label,
           cell: ({ row }: any) => {
             const quantity = row.original.quantity || 0;
-            const lowStockThreshold = mappingConfig?.low_stock_threshold || 0;
-            const isLowStock = quantity < lowStockThreshold;
+            const stockThreshold = row.original.stock_threshold ?? 0;
+            const isLowStock = stockThreshold > 0 && quantity < stockThreshold;
 
             return (
               <div className="flex items-center gap-2">
-                {isLowStock && lowStockThreshold > 0 && (
+                {isLowStock && (
                   <Badge variant="destructive" className="text-xs">
                     Bajo Stock
                   </Badge>
@@ -188,6 +216,26 @@ export function MyStockListProducts({
               </div>
             );
           },
+          meta: { isStandard: true, visible: isVisible },
+        } as ColumnDef<any>);
+        return;
+      }
+
+      if (schema.key === STOCK_THRESHOLD_COLUMN.key) {
+        dataColumns.push({
+          id: schema.key,
+          accessorKey: "stock_threshold",
+          header: schema.label,
+          cell: ({ row }: any) => (
+            <StockThresholdCell
+              productId={row.original.product_id || row.original.id}
+              listId={row.original.list_id || listId}
+              value={row.original.stock_threshold}
+              onOptimisticUpdate={(newThreshold) =>
+                handleThresholdChange(row.original.product_id || row.original.id, newThreshold)
+              }
+            />
+          ),
           meta: { isStandard: true, visible: isVisible },
         } as ColumnDef<any>);
         return;
@@ -258,6 +306,8 @@ export function MyStockListProducts({
       name: p.name,
       price: p.price,
       quantity: p.quantity,
+      stock_threshold: p.stock_threshold ?? 0,
+      in_my_stock: true,
       data: p.data || {},
       calculated_data: p.calculated_data || {},
       supplierId: p.supplierId,
@@ -308,7 +358,11 @@ export function MyStockListProducts({
       <div className="p-4 border-t">
         <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
           <div className="flex gap-1.5">
-            <CardPreviewSettings listId={listId} columnSchema={processedSchema} />
+            <CardPreviewSettings
+              listId={listId}
+              columnSchema={processedSchema}
+              fixedKeys={["quantity", STOCK_THRESHOLD_COLUMN.key]}
+            />
             <ColumnSettingsDrawer listId={listId} columnSchema={processedSchema} />
           </div>
           <ViewToggle />
@@ -325,6 +379,9 @@ export function MyStockListProducts({
           sortColumn={sortColumn}
           sortDirection={sortDirection}
           onSortChange={handleSortChange}
+          showLowStockBadge={true}
+          showStockThreshold={true}
+          onThresholdChange={handleThresholdChange}
         />
       </div>
     );
@@ -334,7 +391,11 @@ export function MyStockListProducts({
     <div className="p-4 border-t">
       <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
         <div className="flex gap-1.5">
-          <CardPreviewSettings listId={listId} columnSchema={processedSchema} />
+          <CardPreviewSettings
+            listId={listId}
+            columnSchema={processedSchema}
+            fixedKeys={["quantity", STOCK_THRESHOLD_COLUMN.key]}
+          />
           <ColumnSettingsDrawer listId={listId} columnSchema={processedSchema} />
         </div>
         <ViewToggle />

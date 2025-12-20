@@ -1,9 +1,8 @@
 import { useState, useMemo, useEffect } from "react";
 import { formatARS, normalizeRawPrice } from "@/utils/numberParser";
-import { List, LayoutGrid, Plus, Loader2 } from "lucide-react";
+import { List, LayoutGrid, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { QuantityCell } from "@/components/stock/QuantityCell";
 import { AddProductDropdown } from "@/components/stock/AddProductDropdown";
@@ -328,27 +327,14 @@ export function GlobalProductSearch({
                     </TableCell>
 
                     <TableCell>
-                      {(() => {
-                        const listInfo = lists.find((l: any) => l.id === item.list_id);
-                        const lowStockThreshold = listInfo?.mapping_config?.low_stock_threshold || 50;
-                        const isLowStock = (item.quantity || 0) < lowStockThreshold;
-
-                        return (
-                          <div className="flex items-center gap-2">
-                            {isLowStock && (
-                              <Badge variant="destructive" className="text-xs">
-                                Bajo Stock
-                              </Badge>
-                            )}
-                            <QuantityCell
-                              productId={item.product_id}
-                              listId={item.list_id}
-                              value={item.quantity}
-                              visibleSpan={false}
-                            />
-                          </div>
-                        );
-                      })()}
+                      <div className="flex items-center gap-2">
+                        <QuantityCell
+                          productId={item.product_id}
+                          listId={item.list_id}
+                          value={item.quantity}
+                          visibleSpan={false}
+                        />
+                      </div>
                     </TableCell>
 
                     <TableCell>{item.code || "-"}</TableCell>

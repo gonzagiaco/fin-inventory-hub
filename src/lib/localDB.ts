@@ -48,6 +48,7 @@ interface DynamicProductIndexDB {
   name?: string;
   price?: number;
   quantity?: number;
+  stock_threshold?: number;
   in_my_stock: boolean;
   calculated_data?: any;
   created_at: string;
@@ -62,6 +63,7 @@ interface DynamicProductDB {
   name?: string;
   price?: number;
   quantity?: number;
+  stock_threshold?: number;
   data: any;
   created_at: string;
   updated_at: string;
@@ -207,6 +209,23 @@ class LocalDatabase extends Dexie {
       product_lists: "id, user_id, supplier_id, name",
       dynamic_products_index: "id, user_id, list_id, product_id, code, name, in_my_stock",
       dynamic_products: "id, user_id, list_id, code, name",
+      delivery_notes: "id, user_id, customer_name, status, issue_date",
+      delivery_note_items: "id, delivery_note_id, product_id",
+      settings: "key, updated_at",
+      request_items: "id, user_id, product_id",
+      stock_items: "id, user_id, code, name, category, supplier_id",
+      pending_operations: "++id, table_name, timestamp, record_id, product_id",
+      tokens: "userId, updatedAt",
+      id_mappings: "temp_id, real_id, table_name",
+      stock_compensations: "++id, operation_id, product_id",
+    });
+
+    // Versión 7: Agregar stock_threshold al índice de productos
+    this.version(7).stores({
+      suppliers: "id, user_id, name",
+      product_lists: "id, user_id, supplier_id, name",
+      dynamic_products_index: "id, user_id, list_id, product_id, code, name, in_my_stock, stock_threshold",
+      dynamic_products: "id, user_id, list_id, code, name, stock_threshold",
       delivery_notes: "id, user_id, customer_name, status, issue_date",
       delivery_note_items: "id, delivery_note_id, product_id",
       settings: "key, updated_at",
@@ -489,9 +508,8 @@ function sanitizeDataForSync(tableName: string, operationType: string, data: any
     if (cleanData.unit_price !== undefined) {
       cleanData.unit_price = Number(cleanData.unit_price);
     }
-    if (cleanData.subtotal !== undefined) {
-      cleanData.subtotal = Number(cleanData.subtotal);
-    }
+    // subtotal es columna generada en Supabase
+    delete cleanData.subtotal;
   }
   
   return cleanData;
@@ -779,7 +797,28 @@ async function executeOperation(op: PendingOperation): Promise<'success' | 'skip
   }
 
   console.log(`✅ Operación completada: ${op.operation_type} ${op.table_name}`);
+  await syncDeliveryNoteAfterOperation(op, realId);
   return 'success';
+}
+
+async function syncDeliveryNoteAfterOperation(
+  op: PendingOperation,
+  realId: string,
+): Promise<void> {
+  if (op.table_name === "delivery_notes") {
+    await syncDeliveryNoteById(realId);
+    return;
+  }
+
+  if (op.table_name === "delivery_note_items") {
+    const noteId =
+      typeof op.data?.delivery_note_id === "string"
+        ? await resolveRecordId("delivery_notes", op.data.delivery_note_id)
+        : null;
+    if (noteId && !isTempId(noteId)) {
+      await syncDeliveryNoteById(noteId);
+    }
+  }
 }
 
 /**
@@ -831,7 +870,6 @@ async function executeDeliveryNoteUpdateWithItems(noteId: string, data: any): Pr
       product_name: item.product_name,
       quantity: item.quantity,
       unit_price: item.unit_price,
-      subtotal: item.subtotal || item.quantity * item.unit_price,
     }));
 
     const { error: insertError } = await supabase
@@ -1885,6 +1923,37 @@ export async function updateProductQuantityOffline(
   }
 }
 
+export async function updateProductThresholdOffline(
+  productId: string,
+  listId: string,
+  newThreshold: number,
+): Promise<void> {
+  const normalizedThreshold = Math.max(0, newThreshold);
+
+  const indexRecord = await localDB.dynamic_products_index.where({ product_id: productId, list_id: listId }).first();
+
+  if (indexRecord) {
+    await localDB.dynamic_products_index.put({
+      ...indexRecord,
+      stock_threshold: normalizedThreshold,
+      updated_at: new Date().toISOString(),
+    });
+
+    await queueOperation("dynamic_products_index", "UPDATE", indexRecord.id!, {
+      stock_threshold: normalizedThreshold,
+    });
+  }
+
+  const productRecord = await localDB.dynamic_products.get(productId);
+  if (productRecord) {
+    await localDB.dynamic_products.put({
+      ...productRecord,
+      stock_threshold: normalizedThreshold,
+      updated_at: new Date().toISOString(),
+    });
+  }
+}
+
 export async function getProductsForListOffline(
   listId: string,
   page: number = 0,
@@ -1981,6 +2050,7 @@ export async function getProductsForListOffline(
         name: indexRecord.name,
         price: indexRecord.price,
         quantity: indexRecord.quantity,
+        stock_threshold: indexRecord.stock_threshold ?? 0,
         in_my_stock: indexRecord.in_my_stock,
         calculated_data: (indexRecord as any).calculated_data ?? {},
         dynamic_products: fullProduct ? { data: fullProduct.data } : null,

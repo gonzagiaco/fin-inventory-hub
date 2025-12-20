@@ -32,20 +32,12 @@ export function ColumnConfigurationDialog({
   const [newColumnLabel, setNewColumnLabel] = useState("");
   const [newColumnType, setNewColumnType] = useState<"text" | "number" | "date">("text");
   const [newColumnDefault, setNewColumnDefault] = useState("");
-  const {
-    quantityColumn,
-    priceColumn,
-    lowStockThreshold,
-    setQuantityColumn,
-    setPriceColumn,
-    setLowStockThreshold,
-  } = useProductListStore();
+  const { quantityColumn, priceColumn, setQuantityColumn, setPriceColumn } = useProductListStore();
 
   const { updateColumnSchema } = useProductLists();
 
   const currentQuantityColumn = quantityColumn[listId] || "quantity";
   const currentPriceColumn = priceColumn[listId] || "price";
-  const currentThreshold = lowStockThreshold[listId] || 50;
 
   const handleSave = () => {
     toast.success("Configuración guardada correctamente");
@@ -129,20 +121,6 @@ export function ColumnConfigurationDialog({
             </Select>
             <p className="text-xs text-muted-foreground">
               Esta columna se utilizará para determinar la cantidad en stock
-            </p>
-          </div>
-
-          {/* Low Stock Threshold */}
-          <div className="space-y-2">
-            <Label>Umbral de Bajo Stock</Label>
-            <Input
-              type="number"
-              value={currentThreshold}
-              onChange={(e) => setLowStockThreshold(listId, Number(e.target.value))}
-              min={0}
-            />
-            <p className="text-xs text-muted-foreground">
-              Los productos con cantidad menor a este valor se marcarán en rojo
             </p>
           </div>
 

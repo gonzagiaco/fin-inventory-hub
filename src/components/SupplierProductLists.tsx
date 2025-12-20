@@ -60,6 +60,7 @@ const SupplierListProducts = ({
         name: item.name,
         price: item.price,
         quantity: item.quantity,
+        stock_threshold: item.stock_threshold ?? 0,
         in_my_stock: item.in_my_stock,
         // si la relación no viene, intenta con item.data
         data: item?.dynamic_products?.data ?? item?.data ?? {},

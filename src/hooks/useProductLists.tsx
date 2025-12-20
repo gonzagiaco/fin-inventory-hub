@@ -137,6 +137,7 @@ export const useProductLists = (supplierId?: string) => {
             name: indexProduct.name || extractNameFromData(fullProduct?.data || {}, columnSchema, mappingConfig), // Del índice con fallback usando mappingConfig
             price: indexProduct.price !== null ? Number(indexProduct.price) : undefined, // Del índice (ya calculado)
             quantity: indexProduct.quantity, // Del índice
+            stock_threshold: indexProduct.stock_threshold ?? 0,
             data: (fullProduct?.data as Record<string, any>) || {}, // Del producto completo para columnas dinámicas
           });
         });
@@ -160,6 +161,7 @@ export const useProductLists = (supplierId?: string) => {
           name: product.name,
           price: product.price ? Number(product.price) : undefined,
           quantity: product.quantity,
+          stock_threshold: product.stock_threshold ?? 0,
           data: product.data as Record<string, any>,
         });
       });

@@ -17,10 +17,10 @@ import { ColumnSettingsDrawer } from "./ColumnSettingsDrawer";
 import { cn } from "@/lib/utils";
 import { ProductCardView } from "./ProductCardView";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { CardPreviewSettings } from "./CardPreviewSettings";
 import { List, LayoutGrid, Loader2 } from "lucide-react";
 import { QuantityCell } from "./stock/QuantityCell";
+import { Badge } from "@/components/ui/badge";
 import { AddProductDropdown } from "./stock/AddProductDropdown";
 import { normalizeRawPrice, formatARS } from "@/utils/numberParser";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -157,8 +157,11 @@ export const DynamicProductTable = ({
           header: schema.label,
           cell: ({ row }) => {
             const quantity = row.original.quantity || 0;
-            const lowStockThreshold = mappingConfig?.low_stock_threshold || 0;
-            const isLowStock = quantity < lowStockThreshold;
+            const stockThreshold = row.original.stock_threshold ?? 0;
+            const isLowStock =
+              row.original.in_my_stock === true &&
+              stockThreshold > 0 &&
+              quantity < stockThreshold;
 
             return (
               <div className="flex items-center gap-2">
@@ -202,6 +205,7 @@ export const DynamicProductTable = ({
           if (schema.key === "name") return row.name;
           if (schema.key === "price") return row.price; // Fallback para "price" estándar
           if (schema.key === "quantity") return row.quantity;
+          if (schema.key === "stock_threshold") return row.stock_threshold;
           if (schema.key === "precio") return row.price;
           if (schema.key === "descripcion") return row.name;
 
@@ -352,6 +356,7 @@ export const DynamicProductTable = ({
           sortColumn={sortColumn}
           sortDirection={sortDirection}
           onSortChange={handleSortChange}
+          showLowStockBadge={true}
         />
       ) : (
         <div className="w-full border rounded-lg overflow-hidden">

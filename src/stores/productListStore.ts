@@ -56,10 +56,6 @@ interface PriceColumnState {
   [listId: string]: string;
 }
 
-interface LowStockThresholdState {
-  [listId: string]: number;
-}
-
 interface ProductListStore {
   columnVisibility: ColumnVisibilityState;
   columnOrder: ColumnOrderState;
@@ -72,7 +68,6 @@ interface ProductListStore {
   searchableColumns: SearchableColumnsState;
   quantityColumn: QuantityColumnState;
   priceColumn: PriceColumnState;
-  lowStockThreshold: LowStockThresholdState;
   
   setColumnVisibility: (listId: string, columnKey: string, visible: boolean) => void;
   setColumnOrder: (listId: string, order: string[]) => void;
@@ -86,7 +81,6 @@ interface ProductListStore {
   initializeSearchableColumns: (listId: string, columnSchema: ColumnSchema[]) => void;
   setQuantityColumn: (listId: string, columnKey: string) => void;
   setPriceColumn: (listId: string, columnKey: string) => void;
-  setLowStockThreshold: (listId: string, threshold: number) => void;
   
   // Saved views
   saveView: (listId: string, name: string) => void;
@@ -111,7 +105,6 @@ export const useProductListStore = create<ProductListStore>()(
       searchableColumns: {},
       quantityColumn: {},
       priceColumn: {},
-      lowStockThreshold: {},
       
       // Helper to initialize collapsed state for new lists
       initializeCollapsedState: (listIds: string[]) =>
@@ -315,13 +308,6 @@ export const useProductListStore = create<ProductListStore>()(
           },
         })),
 
-      setLowStockThreshold: (listId, threshold) =>
-        set((state) => ({
-          lowStockThreshold: {
-            ...state.lowStockThreshold,
-            [listId]: threshold,
-          },
-        })),
     }),
     {
       name: 'product-list-settings',
@@ -336,7 +322,6 @@ export const useProductListStore = create<ProductListStore>()(
         searchableColumns: state.searchableColumns,
         quantityColumn: state.quantityColumn,
         priceColumn: state.priceColumn,
-        lowStockThreshold: state.lowStockThreshold,
       }),
     }
   )

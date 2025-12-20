@@ -8,6 +8,7 @@ import { DynamicProduct, ColumnSchema, ProductList } from "@/types/productList";
 import { Loader2 } from "lucide-react";
 import { useProductListStore } from "@/stores/productListStore";
 import { QuantityCell } from "./stock/QuantityCell";
+import { StockThresholdCell } from "./stock/StockThresholdCell";
 import { AddProductDropdown } from "./stock/AddProductDropdown";
 import { normalizeRawPrice, formatARS } from "@/utils/numberParser";
 import {
@@ -32,6 +33,9 @@ interface ProductCardViewProps {
   sortColumn?: string | null;
   sortDirection?: 'asc' | 'desc' | null;
   onSortChange?: (columnKey: string | null, direction: 'asc' | 'desc' | null) => void;
+  showLowStockBadge?: boolean;
+  showStockThreshold?: boolean;
+  onThresholdChange?: (productId: string, newThreshold: number) => void;
 }
 
 type SortDirection = 'asc' | 'desc' | null;
@@ -51,6 +55,9 @@ export function ProductCardView({
   sortColumn: externalSortColumn,
   sortDirection: externalSortDirection,
   onSortChange,
+  showLowStockBadge = false,
+  showStockThreshold = false,
+  onThresholdChange,
 }: ProductCardViewProps) {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [displayCount, setDisplayCount] = useState(10);
@@ -64,7 +71,18 @@ export function ProductCardView({
   const sortColumn = externalSortColumn !== undefined ? externalSortColumn : null;
   const sortDirection = externalSortDirection !== undefined ? externalSortDirection : null;
 
-  const previewFieldKeys = cardPreviewFields[listId] || columnSchema.slice(0, 4).map((c) => c.key);
+  const basePreviewFields = cardPreviewFields[listId] || columnSchema.slice(0, 4).map((c) => c.key);
+  const sanitizedPreviewFields = showStockThreshold
+    ? basePreviewFields
+    : basePreviewFields.filter((key) => key !== "stock_threshold");
+  const fixedPreviewKeys = [
+    "quantity",
+    ...(showStockThreshold ? ["stock_threshold"] : []),
+  ];
+  const previewFieldKeys = fixedPreviewKeys.reduce(
+    (result, key) => (result.includes(key) ? result : [key, ...result]),
+    sanitizedPreviewFields,
+  );
 
   // Resetear la paginación local cuando cambian los productos
   useEffect(() => {
@@ -99,6 +117,7 @@ export function ProductCardView({
     if (key === "name") return product.name;
     if (key === "price") return product.price;
     if (key === "quantity") return product.quantity;
+    if (key === "stock_threshold") return product.stock_threshold ?? 0;
     if (key === "supplier_name") return product.supplierName;
     if (key === "list_name") return product.listName;
 
@@ -313,11 +332,6 @@ export function ProductCardView({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {visibleProducts.map((product) => {
           const isExpanded = expandedCards.has(product.id);
-          const quantity = product.quantity || 0;
-          const effectiveMappingConfig = product.mappingConfig || mappingConfig;
-          const lowStockThreshold =
-            effectiveMappingConfig?.low_stock_threshold || 50;
-          const isLowStock = quantity < lowStockThreshold;
 
           return (
             <Card key={product.id} className="flex flex-col relative group">
@@ -350,11 +364,12 @@ export function ProductCardView({
                     if (field.key === "quantity") {
                       const quantityField = field;
                       const q = product.quantity || 0;
-                      const effectiveMappingConfig =
-                        product.mappingConfig || mappingConfig;
-                      const lowStockThresholdField =
-                        effectiveMappingConfig?.low_stock_threshold || 0;
-                      const isLowStockField = q < lowStockThresholdField;
+                      const stockThresholdField = product.stock_threshold ?? 0;
+                      const isLowStockField =
+                        showLowStockBadge &&
+                        product.in_my_stock === true &&
+                        stockThresholdField > 0 &&
+                        q < stockThresholdField;
 
                       return (
                         <div
@@ -397,6 +412,30 @@ export function ProductCardView({
                               visibleSpan={true}
                             />
                           </div>
+                        </div>
+                      );
+                    }
+
+                    if (field.key === "stock_threshold" && showStockThreshold) {
+                      return (
+                        <div
+                          key={field.key}
+                          className="text-sm border-b pb-1 flex items-center justify-between w-full from-1440:justify-normal from-1440:gap-2"
+                        >
+                          <span className="text-muted-foreground">
+                            {field.label}:
+                          </span>{" "}
+                          <StockThresholdCell
+                            productId={product.id}
+                            listId={product.listId ?? listId}
+                            value={product.stock_threshold}
+                            onOptimisticUpdate={(newThreshold) =>
+                              onThresholdChange?.(product.id, newThreshold)
+                            }
+                            onLocalUpdate={(newThreshold) => {
+                              product.stock_threshold = newThreshold;
+                            }}
+                          />
                         </div>
                       );
                     }

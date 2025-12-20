@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +52,19 @@ const DeliveryNoteDialog = ({ open, onOpenChange, note, isLoadingNote = false }:
     resolver: zodResolver(deliveryNoteSchema),
   });
 
+  const reservedQuantities = useMemo(() => {
+    const map = new Map<string, number>();
+    note?.items?.forEach((item) => {
+      if (item.productId) {
+        map.set(item.productId, item.quantity);
+      }
+    });
+    return map;
+  }, [note]);
+
+  const getReservedQuantity = (productId?: string) =>
+    productId ? reservedQuantities.get(productId) ?? 0 : 0;
+
   useEffect(() => {
     if (note) {
       setValue("customerName", note.customerName);
@@ -88,19 +101,21 @@ const DeliveryNoteDialog = ({ open, onOpenChange, note, isLoadingNote = false }:
         console.error("Error al verificar stock:", error);
       } else if (indexProduct) {
         const availableStock = indexProduct.quantity || 0;
+        const reservedQuantity = getReservedQuantity(product.id);
+        const availableForEdit = availableStock + reservedQuantity;
         
         // Verificar si ya está en la lista
         const existingItem = items.find(i => i.productCode === product.code);
         const currentQuantity = existingItem ? existingItem.quantity : 0;
         
-        if (availableStock <= 0) {
+        if (availableForEdit <= 0) {
           toast.error(`⚠️ ${product.name} no tiene stock disponible`);
           return;
         }
         
-        if (currentQuantity + 1 > availableStock) {
+        if (currentQuantity + 1 > availableForEdit) {
           toast.warning(
-            `⚠️ Stock limitado: solo quedan ${availableStock} unidades de ${product.name}`
+            `⚠️ Stock limitado: solo quedan ${availableForEdit} unidades de ${product.name}`
           );
         }
       }
@@ -158,10 +173,12 @@ const DeliveryNoteDialog = ({ open, onOpenChange, note, isLoadingNote = false }:
 
       if (indexProduct) {
         const availableStock = indexProduct.quantity || 0;
+        const reservedQuantity = getReservedQuantity(item.productId);
+        const availableForEdit = availableStock + reservedQuantity;
         
-        if (newQuantity > availableStock) {
+        if (newQuantity > availableForEdit) {
           toast.error(
-            `⚠️ Stock insuficiente: solo hay ${availableStock} unidades disponibles`
+            `⚠️ Stock insuficiente: solo hay ${availableForEdit} unidades disponibles`
           );
           return;
         }
@@ -199,10 +216,12 @@ const DeliveryNoteDialog = ({ open, onOpenChange, note, isLoadingNote = false }:
 
         if (indexProduct) {
           const availableStock = indexProduct.quantity || 0;
+          const reservedQuantity = getReservedQuantity(item.productId);
+          const availableForEdit = availableStock + reservedQuantity;
           
-          if (item.quantity > availableStock) {
+          if (item.quantity > availableForEdit) {
             stockErrors.push(
-              `${item.productName}: necesitas ${item.quantity} pero solo hay ${availableStock}`
+              `${item.productName}: necesitas ${item.quantity} pero solo hay ${availableForEdit}`
             );
           }
         }
