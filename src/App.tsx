@@ -28,24 +28,25 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />
+
             <Route
               path="/"
               element={
                 <ProtectedRoute>
                   <div className="flex min-h-screen w-full safe-top">
                     <CollapsibleSidebar />
-                    <Stock />
+                    <MiStock />
                   </div>
                 </ProtectedRoute>
               }
             />
             <Route
-              path="/mi-stock"
+              path="/listas"
               element={
                 <ProtectedRoute>
                   <div className="flex min-h-screen w-full safe-top">
                     <CollapsibleSidebar />
-                    <MiStock />
+                    <Stock />
                   </div>
                 </ProtectedRoute>
               }
