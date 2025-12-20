@@ -1,0 +1,328 @@
+import { useState, useEffect } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
+import { Loader2, Columns, DollarSign, Settings2, Tags } from "lucide-react";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { syncFromSupabase } from "@/lib/localDB";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { ColumnsTab } from "@/components/mapping/tabs/ColumnsTab";
+import { PricesTab } from "@/components/mapping/tabs/PricesTab";
+import { DollarConversionTab } from "@/components/mapping/tabs/DollarConversionTab";
+import { OptionsTab } from "@/components/mapping/tabs/OptionsTab";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+
+export type MappingConfig = {
+  code_keys: string[];
+  name_keys: string[];
+  quantity_key: string | null;
+  price_primary_key: string | null;
+  price_alt_keys: string[];
+  extra_index_keys: string[];
+  low_stock_threshold?: number;
+  cart_price_column?: string | null;
+  price_modifiers?: {
+    general: { percentage: number; add_vat: boolean; vat_rate?: number };
+    overrides: Record<string, { percentage: number; add_vat: boolean; vat_rate?: number }>;
+  };
+  dollar_conversion?: {
+    target_columns: string[];
+  };
+};
+
+interface ListConfigurationViewProps {
+  listId: string;
+  onSaved?: () => void;
+}
+
+function useOfficialDollar() {
+  return useQuery({
+    queryKey: ["dollar-official"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("settings")
+        .select("value, updated_at")
+        .eq("key", "dollar_official")
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) return null;
+
+      const value = data.value as any;
+      return {
+        rate: value.rate || 0,
+        venta: value.venta,
+        compra: value.compra,
+        source: value.source,
+        updatedAt: data.updated_at,
+      };
+    },
+    staleTime: 0,
+    refetchInterval: 10 * 60 * 1000,
+  });
+}
+
+export function ListConfigurationView({ listId, onSaved }: ListConfigurationViewProps) {
+  const queryClient = useQueryClient();
+  const isMobile = useIsMobile();
+  const { data: officialDollar, isLoading: loadingDollar } = useOfficialDollar();
+
+  const [sample, setSample] = useState<any[]>([]);
+  const [keys, setKeys] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState("columns");
+  const [map, setMap] = useState<MappingConfig>({
+    code_keys: [],
+    name_keys: [],
+    quantity_key: null,
+    price_primary_key: null,
+    price_alt_keys: [],
+    extra_index_keys: [],
+    low_stock_threshold: 0,
+    cart_price_column: null,
+    price_modifiers: {
+      general: { percentage: 0, add_vat: false, vat_rate: 21 },
+      overrides: {},
+    },
+    dollar_conversion: {
+      target_columns: [],
+    },
+  });
+
+  const isNumericColumn = (columnKey: string): boolean => {
+    const numericCount = sample.filter((row) => {
+      const value = row.data?.[columnKey];
+      if (value == null) return false;
+      const parsed =
+        typeof value === "number"
+          ? value
+          : parseFloat(
+              String(value)
+                .replace(/[^0-9.,-]/g, "")
+                .replace(",", "."),
+            );
+      return !isNaN(parsed) && isFinite(parsed);
+    }).length;
+    return numericCount > 0 && numericCount >= sample.length * 0.5;
+  };
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadSample = async () => {
+      setIsLoading(true);
+      try {
+        const [{ data: sampleData, error: sampleError }, { data: configData, error: configError }] = await Promise.all([
+          supabase.from("dynamic_products").select("data").eq("list_id", listId).limit(20),
+          supabase.from("product_lists").select("mapping_config").eq("id", listId).single(),
+        ]);
+
+        if (sampleError) throw sampleError;
+        if (configError) throw configError;
+        if (isCancelled) return;
+
+        setSample(sampleData ?? []);
+        const k = new Set<string>();
+        (sampleData ?? []).forEach((row) => Object.keys(row.data || {}).forEach((kk) => k.add(kk)));
+        setKeys(Array.from(k).sort());
+
+        if (configData?.mapping_config) {
+          const loaded = configData.mapping_config as MappingConfig;
+          setMap((prev) => ({
+            ...prev,
+            ...loaded,
+            price_modifiers: {
+              general: { percentage: 0, add_vat: false, vat_rate: 21 },
+              overrides: {},
+              ...loaded.price_modifiers,
+            },
+            dollar_conversion: {
+              target_columns: loaded.dollar_conversion?.target_columns || [],
+            },
+          }));
+        }
+      } catch (error) {
+        console.error("Error loading sample or mapping_config:", error);
+        toast.error("Error al cargar columnas o configuración previa");
+      } finally {
+        if (!isCancelled) setIsLoading(false);
+      }
+    };
+
+    loadSample();
+    return () => {
+      isCancelled = true;
+    };
+  }, [listId]);
+
+  const handleRefetchDollar = async () => {
+    try {
+      const { error } = await supabase.functions.invoke("update-dollar-rate");
+      if (error) {
+        console.error("Error al actualizar dólar:", error);
+        toast.error("Error al actualizar el dólar");
+        return;
+      }
+      await queryClient.invalidateQueries({ queryKey: ["dollar-official"] });
+      toast.success("Dólar actualizado correctamente");
+    } catch (error) {
+      console.error("Error al actualizar dólar:", error);
+      toast.error("Error al actualizar el dólar");
+    }
+  };
+
+  const handleSave = async () => {
+    if (map.code_keys.length === 0 && map.name_keys.length === 0) {
+      toast.error("Debe seleccionar al menos una clave para código o nombre");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const cleanedMapping: MappingConfig = {
+        ...map,
+        dollar_conversion:
+          map.dollar_conversion?.target_columns?.length > 0
+            ? { target_columns: map.dollar_conversion.target_columns }
+            : undefined,
+      };
+
+      const { error: updateError } = await supabase
+        .from("product_lists")
+        .update({ mapping_config: cleanedMapping })
+        .eq("id", listId);
+
+      if (updateError) {
+        throw new Error(`Error al guardar configuración: ${updateError.message}`);
+      }
+
+      const { error: refreshError } = await supabase.rpc("refresh_list_index", { p_list_id: listId });
+
+      if (refreshError) {
+        throw new Error(`Error al indexar productos: ${refreshError.message}`);
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ["product-lists-index"] });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await queryClient.resetQueries({ queryKey: ["list-products", listId], exact: false });
+
+      try {
+        await syncFromSupabase();
+      } catch (error) {
+        console.error("Error al sincronizar después de guardar mapeo:", error);
+      }
+
+      toast.success("Configuración guardada correctamente");
+      onSaved?.();
+    } catch (error: any) {
+      console.error("Error en handleSave:", error);
+      toast.error(error.message || "Error al guardar configuración");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (keys.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        No se encontraron columnas en esta lista. Importa productos primero.
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+        <div className="border-b bg-background/50 backdrop-blur-sm sticky top-0 z-10">
+          <ScrollArea className="w-full">
+            <TabsList className={`${isMobile ? 'w-max' : 'w-full grid grid-cols-4'} h-auto p-1`}>
+              <TabsTrigger value="columns" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <Columns className="w-4 h-4" />
+                <span className={isMobile ? 'hidden sm:inline' : ''}>Columnas</span>
+              </TabsTrigger>
+              <TabsTrigger value="prices" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <Tags className="w-4 h-4" />
+                <span className={isMobile ? 'hidden sm:inline' : ''}>Precios</span>
+              </TabsTrigger>
+              <TabsTrigger value="dollar" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <DollarSign className="w-4 h-4" />
+                <span className={isMobile ? 'hidden sm:inline' : ''}>Dólar</span>
+              </TabsTrigger>
+              <TabsTrigger value="options" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+                <Settings2 className="w-4 h-4" />
+                <span className={isMobile ? 'hidden sm:inline' : ''}>Opciones</span>
+              </TabsTrigger>
+            </TabsList>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 md:p-6">
+          <TabsContent value="columns" className="mt-0 space-y-6">
+            <ColumnsTab 
+              keys={keys} 
+              map={map} 
+              setMap={setMap} 
+              isSaving={isSaving} 
+            />
+          </TabsContent>
+
+          <TabsContent value="prices" className="mt-0 space-y-6">
+            <PricesTab 
+              keys={keys} 
+              map={map} 
+              setMap={setMap} 
+              isSaving={isSaving}
+              isNumericColumn={isNumericColumn}
+            />
+          </TabsContent>
+
+          <TabsContent value="dollar" className="mt-0 space-y-6">
+            <DollarConversionTab 
+              keys={keys} 
+              map={map} 
+              setMap={setMap}
+              officialDollar={officialDollar}
+              loadingDollar={loadingDollar}
+              onRefetchDollar={handleRefetchDollar}
+              isNumericColumn={isNumericColumn}
+            />
+          </TabsContent>
+
+          <TabsContent value="options" className="mt-0 space-y-6">
+            <OptionsTab 
+              keys={keys} 
+              map={map} 
+              setMap={setMap}
+              isNumericColumn={isNumericColumn}
+            />
+          </TabsContent>
+        </div>
+      </Tabs>
+
+      {/* Fixed footer with save button */}
+      <div className="border-t bg-background/95 backdrop-blur-sm p-4 sticky bottom-0">
+        <Button onClick={handleSave} disabled={isSaving} className="w-full md:w-auto md:float-right">
+          {isSaving ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Guardando...
+            </>
+          ) : (
+            "Guardar configuración"
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}

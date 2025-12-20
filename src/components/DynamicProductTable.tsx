@@ -165,11 +165,6 @@ export const DynamicProductTable = ({
 
             return (
               <div className="flex items-center gap-2">
-                {isLowStock && (
-                  <Badge variant="destructive" className="text-xs">
-                    Bajo Stock
-                  </Badge>
-                )}
                 <QuantityCell
                   productId={row.original.id}
                   listId={listId}
