@@ -31,6 +31,7 @@ interface DeliveryNoteDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   note?: DeliveryNote;
+  isLoadingNote?: boolean;
 }
 
 interface CartItem {
@@ -41,7 +42,7 @@ interface CartItem {
   unitPrice: number;
 }
 
-const DeliveryNoteDialog = ({ open, onOpenChange, note }: DeliveryNoteDialogProps) => {
+const DeliveryNoteDialog = ({ open, onOpenChange, note, isLoadingNote = false }: DeliveryNoteDialogProps) => {
   const { createDeliveryNote, updateDeliveryNote } = useDeliveryNotes();
   const [items, setItems] = useState<CartItem[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -242,6 +243,22 @@ const DeliveryNoteDialog = ({ open, onOpenChange, note }: DeliveryNoteDialogProp
       setIsSubmitting(false);
     }
   };
+
+  // Si estamos cargando los datos del remito, mostrar skeleton
+  if (isLoadingNote) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-6xl min-h-[80vh] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Cargando remito...</DialogTitle>
+          </DialogHeader>
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

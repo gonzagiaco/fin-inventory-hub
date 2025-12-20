@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useDeliveryNotes } from "@/hooks/useDeliveryNotes";
+import { useDeliveryNoteWithItems } from "@/hooks/useDeliveryNoteWithItems";
 import { useToast } from "@/hooks/use-toast";
 import DeliveryNoteDialog from "@/components/DeliveryNoteDialog";
 import { generateDeliveryNotePDF } from "@/utils/deliveryNotePdfGenerator";
@@ -35,10 +36,23 @@ const Remitos = () => {
   const { deliveryNotes, isLoading, deleteDeliveryNote, markAsPaid, isDeleting } = useDeliveryNotes();
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingNote, setEditingNote] = useState<DeliveryNote | undefined>();
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [noteToDelete, setNoteToDelete] = useState<string | null>(null);
   const [isSendingWhatsApp, setIsSendingWhatsApp] = useState<string | null>(null);
+
+  // Hook para obtener el remito con items (funciona offline)
+  const { data: editingNoteData, isLoading: isLoadingEditNote } = useDeliveryNoteWithItems(
+    editingNoteId,
+    isDialogOpen && !!editingNoteId
+  );
+
+  // Cuando se cierra el diálogo, limpiar el ID
+  useEffect(() => {
+    if (!isDialogOpen) {
+      setEditingNoteId(null);
+    }
+  }, [isDialogOpen]);
 
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "paid">("all");
@@ -166,7 +180,7 @@ const Remitos = () => {
         <div className="flex justify-between items-center">
           <Button
             onClick={() => {
-              setEditingNote(undefined);
+              setEditingNoteId(null);
               setIsDialogOpen(true);
             }}
           >
@@ -264,7 +278,7 @@ const Remitos = () => {
                               size="sm"
                               variant="outline"
                               onClick={() => {
-                                setEditingNote(note);
+                                setEditingNoteId(note.id);
                                 setIsDialogOpen(true);
                               }}
                             >
@@ -382,7 +396,12 @@ const Remitos = () => {
           </AlertDialogContent>
         </AlertDialog>
 
-        <DeliveryNoteDialog open={isDialogOpen} onOpenChange={setIsDialogOpen} note={editingNote} />
+        <DeliveryNoteDialog 
+          open={isDialogOpen} 
+          onOpenChange={setIsDialogOpen} 
+          note={editingNoteData?.note || undefined}
+          isLoadingNote={isLoadingEditNote && !!editingNoteId}
+        />
       </div>
     </div>
   );
