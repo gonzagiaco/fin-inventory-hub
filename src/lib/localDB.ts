@@ -256,6 +256,9 @@ const SYNC_ORDER = [
 
 // ==================== UTILIDADES ====================
 
+// Variable de control para sincronización (mutex)
+let isSyncInProgress = false;
+
 export function isOnline(): boolean {
   return navigator.onLine;
 }
@@ -572,6 +575,69 @@ async function resolveRecordId(tableName: string, recordId: string): Promise<str
 }
 
 /**
+ * Deduplica operaciones pendientes antes de sincronizar
+ * Mantiene solo la operación más reciente para cada combinación de table_name + record_id + operation_type
+ */
+async function deduplicatePendingOperations(operations: PendingOperation[]): Promise<void> {
+  const operationsByKey = new Map<string, PendingOperation[]>();
+  
+  for (const op of operations) {
+    const key = `${op.table_name}:${op.record_id}:${op.operation_type}`;
+    if (!operationsByKey.has(key)) {
+      operationsByKey.set(key, []);
+    }
+    operationsByKey.get(key)!.push(op);
+  }
+  
+  let deletedCount = 0;
+  
+  for (const [key, ops] of operationsByKey.entries()) {
+    if (ops.length > 1) {
+      console.log(`⚠️ Detectadas ${ops.length} operaciones duplicadas para ${key}`);
+      // Ordenar por timestamp y mantener solo la última
+      ops.sort((a, b) => a.timestamp - b.timestamp);
+      const toDelete = ops.slice(0, -1); // Eliminar todas excepto la última
+      
+      for (const dupOp of toDelete) {
+        await localDB.pending_operations.delete(dupOp.id!);
+        deletedCount++;
+      }
+    }
+  }
+  
+  if (deletedCount > 0) {
+    console.log(`🗑️ Eliminadas ${deletedCount} operaciones duplicadas`);
+  }
+}
+
+/**
+ * Verifica si un remito ya existe en Supabase basándose en datos únicos
+ * Retorna el ID real si existe, null si no
+ */
+async function checkDeliveryNoteExistsInSupabase(data: any): Promise<string | null> {
+  if (!data.user_id || !data.created_at) return null;
+  
+  try {
+    const { data: existingNote, error } = await supabase
+      .from("delivery_notes")
+      .select("id")
+      .eq("user_id", data.user_id)
+      .eq("created_at", data.created_at)
+      .maybeSingle();
+    
+    if (error) {
+      console.warn("⚠️ Error verificando duplicado en Supabase:", error);
+      return null;
+    }
+    
+    return existingNote?.id || null;
+  } catch (e) {
+    console.warn("⚠️ Error verificando duplicado:", e);
+    return null;
+  }
+}
+
+/**
  * Actualiza referencias locales después de crear registro en Supabase
  */
 async function updateLocalRecordId(tableName: string, tempId: string, realId: string): Promise<void> {
@@ -625,17 +691,32 @@ export async function syncPendingOperations(): Promise<void> {
     return;
   }
 
-  const operations = await localDB.pending_operations.toArray();
-
-  if (operations.length === 0) {
-    console.log("✅ No hay operaciones pendientes");
+  // Prevenir ejecución simultánea (mutex)
+  if (isSyncInProgress) {
+    console.log("⏳ Sincronización ya en progreso, saltando...");
     return;
   }
 
-  console.log(`🔄 Sincronizando ${operations.length} operaciones pendientes...`);
+  isSyncInProgress = true;
 
-  // Ordenar por timestamp para respetar orden de creación
-  const sortedOps = operations.sort((a, b) => a.timestamp - b.timestamp);
+  try {
+    const operations = await localDB.pending_operations.toArray();
+
+    if (operations.length === 0) {
+      console.log("✅ No hay operaciones pendientes");
+      return;
+    }
+
+    console.log(`🔄 Sincronizando ${operations.length} operaciones pendientes...`);
+
+    // Deduplicar operaciones antes de procesar
+    await deduplicatePendingOperations(operations);
+    
+    // Re-obtener después de deduplicación
+    const dedupedOps = await localDB.pending_operations.toArray();
+
+    // Ordenar por timestamp para respetar orden de creación
+    const sortedOps = dedupedOps.sort((a, b) => a.timestamp - b.timestamp);
 
   let successCount = 0;
   let errorCount = 0;
@@ -709,6 +790,9 @@ export async function syncPendingOperations(): Promise<void> {
   } else if (errorCount > 0) {
     toast.error(`${errorCount} operaciones fallaron`);
   }
+  } finally {
+    isSyncInProgress = false;
+  }
 }
 
 async function executeOperation(op: PendingOperation): Promise<'success' | 'skipped'> {
@@ -726,6 +810,17 @@ async function executeOperation(op: PendingOperation): Promise<'success' | 'skip
       console.log(`✅ Skip INSERT: ID temporal ya mapeado (${realId})`);
       return 'success';
     }
+    
+    // 🆕 Para delivery_notes, verificar si ya existe en Supabase antes de insertar
+    if (op.table_name === "delivery_notes") {
+      const existingId = await checkDeliveryNoteExistsInSupabase(op.data);
+      if (existingId) {
+        console.log(`✅ Skip INSERT: remito ya existe en Supabase (${existingId})`);
+        await updateLocalRecordId(op.table_name, op.record_id, existingId);
+        return 'success';
+      }
+    }
+    
     // Para INSERTs, preparar datos sin el ID temporal
     let insertData = { ...op.data };
     delete insertData.id; // Supabase genera el UUID
@@ -2283,22 +2378,41 @@ export async function getOfflineData<T>(tableName: string): Promise<T[]> {
 
 // ==================== AUTO-SINCRONIZACIÓN ====================
 
+// Variable de control para debounce del evento online
+let onlineSyncTimeoutId: ReturnType<typeof setTimeout> | null = null;
+
 // Escuchar eventos de conexión
 if (typeof window !== "undefined") {
-  window.addEventListener("online", async () => {
-    console.log("🌐 Conexión restaurada. Iniciando sincronización...");
-    toast.info("Conexión restaurada. Sincronizando datos...");
-
-    try {
-      await syncPendingOperations();
-      await syncFromSupabase();
-    } catch (error) {
-      console.error("Error en sincronización automática:", error);
+  window.addEventListener("online", () => {
+    console.log("🌐 Conexión restaurada. Programando sincronización...");
+    
+    // Debounce de 2 segundos para evitar múltiples ejecuciones
+    if (onlineSyncTimeoutId) {
+      clearTimeout(onlineSyncTimeoutId);
     }
+    
+    onlineSyncTimeoutId = setTimeout(async () => {
+      onlineSyncTimeoutId = null;
+      toast.info("Conexión restaurada. Sincronizando datos...");
+
+      try {
+        await syncPendingOperations();
+        await syncFromSupabase();
+      } catch (error) {
+        console.error("Error en sincronización automática:", error);
+      }
+    }, 2000);
   });
 
   window.addEventListener("offline", () => {
     console.log("📡 Sin conexión. Trabajando en modo offline");
     toast.warning("Sin conexión. Los cambios se sincronizarán automáticamente");
   });
+}
+
+/**
+ * Getter para estado de sincronización (útil para UI)
+ */
+export function isSyncing(): boolean {
+  return isSyncInProgress;
 }
