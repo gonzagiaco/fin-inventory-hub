@@ -15,6 +15,7 @@ export interface DynamicProduct {
   price?: number;
   quantity?: number;
   stock_threshold?: number;
+  in_my_stock?: boolean;
   supplierId?: string;
   supplierName?: string;
   listName?: string;

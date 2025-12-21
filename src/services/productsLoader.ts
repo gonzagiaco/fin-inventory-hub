@@ -63,7 +63,6 @@ const columnSchema: ColumnSchema[] = Array.isArray(schema)
     name: item.name || undefined,
     price: item.price ? Number(item.price) : undefined,
     quantity: item.quantity || undefined,
-    stock_threshold: item.stock_threshold ?? 0,
     data: (item.data as Record<string, any>) || {},
   }));
 
