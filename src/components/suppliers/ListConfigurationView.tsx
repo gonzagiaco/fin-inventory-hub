@@ -211,9 +211,57 @@ export function ListConfigurationView({ listId, onSaved }: ListConfigurationView
             : undefined,
       };
 
+      // Fetch current column_schema to update it with custom columns
+      const { data: listData, error: fetchError } = await supabase
+        .from("product_lists")
+        .select("column_schema")
+        .eq("id", listId)
+        .single();
+
+      if (fetchError) {
+        throw new Error(`Error al obtener schema: ${fetchError.message}`);
+      }
+
+      let currentSchema = (listData?.column_schema as Array<{
+        key: string;
+        label: string;
+        type: string;
+        visible: boolean;
+        order: number;
+        isStandard?: boolean;
+        searchable?: boolean;
+        isCustom?: boolean;
+      }>) || [];
+
+      const customColNames = Object.keys(cleanedMapping.custom_columns || {});
+      const existingKeys = currentSchema.map(c => c.key);
+
+      // Add new custom columns to schema
+      for (const colName of customColNames) {
+        if (!existingKeys.includes(colName)) {
+          currentSchema.push({
+            key: colName,
+            label: colName,
+            type: "number",
+            visible: true,
+            order: currentSchema.length,
+            isStandard: false,
+            isCustom: true
+          });
+        }
+      }
+
+      // Remove custom columns that no longer exist
+      currentSchema = currentSchema.filter(col => 
+        !col.isCustom || customColNames.includes(col.key)
+      );
+
       const { error: updateError } = await supabase
         .from("product_lists")
-        .update({ mapping_config: cleanedMapping })
+        .update({ 
+          mapping_config: cleanedMapping,
+          column_schema: currentSchema
+        })
         .eq("id", listId);
 
       if (updateError) {
@@ -227,6 +275,7 @@ export function ListConfigurationView({ listId, onSaved }: ListConfigurationView
       }
 
       await queryClient.invalidateQueries({ queryKey: ["product-lists-index"] });
+      await queryClient.invalidateQueries({ queryKey: ["product-lists"] });
       await new Promise((resolve) => setTimeout(resolve, 500));
       await queryClient.resetQueries({ queryKey: ["list-products", listId], exact: false });
 

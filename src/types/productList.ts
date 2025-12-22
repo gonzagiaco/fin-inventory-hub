@@ -5,6 +5,8 @@ export interface ColumnSchema {
   visible: boolean;
   order: number;
   isStandard?: boolean; // code, name, price
+  searchable?: boolean;
+  isCustom?: boolean; // Custom calculated price columns
 }
 
 export interface DynamicProduct {
