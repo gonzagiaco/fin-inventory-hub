@@ -245,22 +245,22 @@ export function ListConfigurationView({ listId, onSaved }: ListConfigurationView
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
         <div className="border-b bg-background/50 backdrop-blur-sm sticky top-0 z-10">
           <ScrollArea className="w-full">
-            <TabsList className={`${isMobile ? 'w-max' : 'w-full grid grid-cols-4'} h-auto p-1`}>
-              <TabsTrigger value="columns" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+            <TabsList className='w-full grid grid-cols-4 h-10 gap-1 overflow-hidden p-0'>
+              <TabsTrigger value="columns" className="h-full overflow-hidden gap-2 whitespace-normal data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <Columns className="w-4 h-4" />
-                <span className={isMobile ? 'hidden sm:inline' : ''}>Columnas</span>
+                <span className={isMobile ? 'hidden sm:inline truncate overflow-hidden' : 'truncate overflow-hidden'}>Columnas</span>
               </TabsTrigger>
-              <TabsTrigger value="prices" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <TabsTrigger value="prices" className="h-full overflow-hidden flex items-center justify-center w-full min-w-0 px-2 gap-2 whitespace-normal data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <Tags className="w-4 h-4" />
-                <span className={isMobile ? 'hidden sm:inline' : ''}>Precios</span>
+                <span className={isMobile ? 'hidden sm:inline truncate overflow-hidden' : 'truncate overflow-hidden'}>Precios</span>
               </TabsTrigger>
-              <TabsTrigger value="dollar" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <TabsTrigger value="dollar" className="h-full overflow-hidden flex items-center justify-center w-full min-w-0 px-2 gap-2 whitespace-normal data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <DollarSign className="w-4 h-4" />
-                <span className={isMobile ? 'hidden sm:inline' : ''}>Dólar</span>
+                <span className={isMobile ? 'hidden sm:inline truncate overflow-hidden' : 'truncate overflow-hidden'}>Dólar</span>
               </TabsTrigger>
-              <TabsTrigger value="options" className="gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <TabsTrigger value="options" className="h-full overflow-hidden flex items-center justify-center w-full min-w-0 px-2 gap-2 whitespace-normal data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
                 <Settings2 className="w-4 h-4" />
-                <span className={isMobile ? 'hidden sm:inline' : ''}>Opciones</span>
+                <span className={isMobile ? 'hidden sm:inline truncate overflow-hidden' : 'truncate overflow-hidden'}>Opciones</span>
               </TabsTrigger>
             </TabsList>
             <ScrollBar orientation="horizontal" />

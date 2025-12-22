@@ -10,6 +10,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useLocation } from "react-router-dom";
 
 interface AddProductDropdownProps {
   product: any;
@@ -28,6 +29,8 @@ export function AddProductDropdown({
 }: AddProductDropdownProps) {
   const isOnline = useOnlineStatus();
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const isInMyStockPath = location.pathname == '/'
 
   const productId = product.product_id || product.id;
   const listId = product.list_id || product.listId;
@@ -78,7 +81,7 @@ export function AddProductDropdown({
                 className="flex-1"
               >
                 <ShoppingCart className="h-4 w-4" />
-                <span className="sr-only">Agregar al pedido</span>
+                <span>Agregar al pedido</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">
@@ -95,7 +98,7 @@ export function AddProductDropdown({
                 className="text-destructive hover:text-destructive hover:bg-destructive/10"
               >
                 <Trash2 className="h-4 w-4" />
-                <span className="sr-only">Quitar de Mi Stock</span>
+                <span>Quitar de Mi Stock</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">
@@ -120,15 +123,15 @@ export function AddProductDropdown({
               className="flex-1"
             >
               <ShoppingCart className="h-4 w-4" />
-              <span className="sr-only">Agregar al pedido</span>
+              <span className={`${!isInMyStockPath ? 'sr-only' : ''}`}>Agregar al carrito</span>
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top">
-            <p>Agregar al pedido</p>
+            <p>Agregar al carrito</p>
           </TooltipContent>
         </Tooltip>
 
-        {showAddToStock && (
+        {showAddToStock && !isInMyStockPath && (
           <Tooltip>
             <TooltipTrigger asChild>
               <Button 

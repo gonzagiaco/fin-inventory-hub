@@ -201,7 +201,7 @@ const Proveedores = () => {
 
   return (
     <div className="flex-1 w-full max-w-full overflow-hidden flex flex-col">
-      <div className="p-4 lg:px-4 lg:py-10 flex-1 flex flex-col">
+      <div className="p-4 pt-11 lg:px-4 lg:py-10 flex-1 flex flex-col">
         {currentView.type !== 'suppliers' && (
           <SupplierBreadcrumbs steps={getBreadcrumbSteps()} onBack={handleBack} />
         )}

@@ -69,12 +69,33 @@ const CollapsibleSidebar = () => {
       )}
 
       {/* Sidebar */}
+      <style>{`
+        @media (min-width: 320px) and (max-width: 375px) {
+          .compact-on-xs nav a {
+            padding: 6px 8px !important;
+            gap: 0.5rem !important;
+            border-radius: 0.75rem !important;
+          }
+          .compact-on-xs nav a span {
+            font-size: 14px !important;
+          }
+          .compact-on-xs nav a > div {
+            padding: 6px !important;
+          }
+          .compact-on-xs nav a svg {
+            width: 16px !important;
+            height: 16px !important;
+          }
+        }
+      `}</style>
+
       <aside
         className={`
           fixed lg:sticky top-0 lg:safe-top-fixed right-0 lg:left-0 lg:right-auto min-h-[100dvh] lg:h-screen bg-background/70 backdrop-blur-xl border-l lg:border-r border-primary/20 
           flex flex-col p-6 z-40 transition-all duration-300
           ${isMobileOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0"}
           ${isCollapsed ? "lg:w-32" : "w-64"}
+          compact-on-xs
         `}
         style={{
           paddingTop: "max(env(safe-area-inset-top), 1.5rem)",
@@ -94,7 +115,7 @@ const CollapsibleSidebar = () => {
         </button>
 
         {/* Logo */}
-        <div className={`flex items-center my-10 from-1024:mt-0 ${isCollapsed ? "justify-center" : "gap-3"}`}>
+        <div className={`flex items-center mt-10 mb-5 from-1024:mt-0 ${isCollapsed ? "justify-center" : "gap-3"}`}>
           <div className="w-14 h-14 text-primary flex-shrink-0">
             <img src="LogoTransparente.png" alt="" />
           </div>

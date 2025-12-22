@@ -381,29 +381,31 @@ export function ProductCardView({
                               isLowStockField ? "mb-0" : "mb-3"
                             }`}
                           >
-                            {isLowStockCard && (
-                              <div className="">
-                                <Badge
-                                  variant="destructive"
-                                  className="text-xs"
-                                >
+                            {/* Left slot — mantiene espacio y muestra badge si corresponde */}
+                            <div className="flex items-center">
+                              {isLowStockCard && (
+                                <Badge variant="destructive" className="text-xs">
                                   Bajo Stock
                                 </Badge>
-                              </div>
-                            )}
-                            {showRemoveFromStock && onRemoveFromStock && (
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-70 group-hover:opacity-100"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onRemoveFromStock(product);
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
+                              )}
+                            </div>
+
+                            {/* Right slot — botón Trash siempre en el extremo derecho */}
+                            <div className="flex items-center">
+                              {showRemoveFromStock && onRemoveFromStock && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-70 group-hover:opacity-100"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onRemoveFromStock(product);
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
                           </div>
                           {isLowStockField && !isLowStockCard && (
                             <div className="w-22 from-1440:w-4/12">
