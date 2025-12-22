@@ -393,6 +393,7 @@ export const useProductLists = (supplierId?: string) => {
       const { error: updateError } = await supabase
         .from("product_lists")
         .update({
+          name: fileName,
           file_name: fileName,
           updated_at: new Date().toISOString(),
           product_count: products.length,
@@ -461,7 +462,6 @@ export const useProductLists = (supplierId?: string) => {
         console.error("⚠️ No hay productos en Supabase después del UPSERT");
         throw new Error("Error al verificar productos guardados");
       }
-
     },
     onSuccess: async (_, variables) => {
       const { listId } = variables;

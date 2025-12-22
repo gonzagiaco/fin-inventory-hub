@@ -475,22 +475,22 @@ export async function syncFromSupabase(): Promise<void> {
  */
 function sanitizeDataForSync(tableName: string, operationType: string, data: any): any {
   const cleanData = { ...data };
-  
+
   // Siempre eliminar id para INSERTs (Supabase genera el UUID)
   if (operationType === "INSERT") {
     delete cleanData.id;
   }
-  
+
   delete cleanData.items;
-  
+
   if (tableName === "delivery_notes") {
     // Eliminar remaining_balance - es columna generada en Supabase
     delete cleanData.remaining_balance;
-    
+
     if (cleanData.issue_date) {
       cleanData.issue_date = new Date(cleanData.issue_date).toISOString();
     }
-    
+
     if (cleanData.total_amount !== undefined) {
       cleanData.total_amount = Number(cleanData.total_amount);
     }
@@ -498,13 +498,13 @@ function sanitizeDataForSync(tableName: string, operationType: string, data: any
       cleanData.paid_amount = Number(cleanData.paid_amount);
     }
   }
-  
+
   if (tableName === "delivery_note_items") {
     // Para items, reemplazar delivery_note_id temporal por el real si existe
     if (cleanData.delivery_note_id && isTempId(cleanData.delivery_note_id)) {
       // Se resolverá en executeOperation
     }
-    
+
     if (cleanData.quantity !== undefined) {
       cleanData.quantity = Number(cleanData.quantity);
     }
@@ -514,7 +514,7 @@ function sanitizeDataForSync(tableName: string, operationType: string, data: any
     // subtotal es columna generada en Supabase
     delete cleanData.subtotal;
   }
-  
+
   return cleanData;
 }
 
@@ -525,7 +525,7 @@ export async function queueOperation(
   data: any,
 ): Promise<void> {
   const sanitizedData = sanitizeDataForSync(tableName, operationType, data);
-  
+
   const operation: PendingOperation = {
     table_name: tableName,
     operation_type: operationType,
@@ -549,7 +549,7 @@ async function queueOperationWithId(
   data: any,
 ): Promise<number> {
   const sanitizedData = sanitizeDataForSync(tableName, operationType, data);
-  
+
   const operation: PendingOperation = {
     table_name: tableName,
     operation_type: operationType,
@@ -569,7 +569,7 @@ async function queueOperationWithId(
  */
 async function resolveRecordId(tableName: string, recordId: string): Promise<string> {
   if (!isTempId(recordId)) return recordId;
-  
+
   const mapping = await localDB.id_mappings.get(recordId);
   return mapping?.real_id || recordId;
 }
@@ -580,7 +580,7 @@ async function resolveRecordId(tableName: string, recordId: string): Promise<str
  */
 async function deduplicatePendingOperations(operations: PendingOperation[]): Promise<void> {
   const operationsByKey = new Map<string, PendingOperation[]>();
-  
+
   for (const op of operations) {
     const key = `${op.table_name}:${op.record_id}:${op.operation_type}`;
     if (!operationsByKey.has(key)) {
@@ -588,23 +588,23 @@ async function deduplicatePendingOperations(operations: PendingOperation[]): Pro
     }
     operationsByKey.get(key)!.push(op);
   }
-  
+
   let deletedCount = 0;
-  
+
   for (const [key, ops] of operationsByKey.entries()) {
     if (ops.length > 1) {
       console.log(`⚠️ Detectadas ${ops.length} operaciones duplicadas para ${key}`);
       // Ordenar por timestamp y mantener solo la última
       ops.sort((a, b) => a.timestamp - b.timestamp);
       const toDelete = ops.slice(0, -1); // Eliminar todas excepto la última
-      
+
       for (const dupOp of toDelete) {
         await localDB.pending_operations.delete(dupOp.id!);
         deletedCount++;
       }
     }
   }
-  
+
   if (deletedCount > 0) {
     console.log(`🗑️ Eliminadas ${deletedCount} operaciones duplicadas`);
   }
@@ -616,7 +616,7 @@ async function deduplicatePendingOperations(operations: PendingOperation[]): Pro
  */
 async function checkDeliveryNoteExistsInSupabase(data: any): Promise<string | null> {
   if (!data.user_id || !data.created_at) return null;
-  
+
   try {
     const { data: existingNote, error } = await supabase
       .from("delivery_notes")
@@ -624,12 +624,12 @@ async function checkDeliveryNoteExistsInSupabase(data: any): Promise<string | nu
       .eq("user_id", data.user_id)
       .eq("created_at", data.created_at)
       .maybeSingle();
-    
+
     if (error) {
       console.warn("⚠️ Error verificando duplicado en Supabase:", error);
       return null;
     }
-    
+
     return existingNote?.id || null;
   } catch (e) {
     console.warn("⚠️ Error verificando duplicado:", e);
@@ -642,14 +642,14 @@ async function checkDeliveryNoteExistsInSupabase(data: any): Promise<string | nu
  */
 async function updateLocalRecordId(tableName: string, tempId: string, realId: string): Promise<void> {
   console.log(`🔄 Mapeando ID: ${tempId} -> ${realId}`);
-  
+
   await localDB.id_mappings.put({
     temp_id: tempId,
     real_id: realId,
     table_name: tableName,
-    created_at: new Date().toISOString()
+    created_at: new Date().toISOString(),
   });
-  
+
   if (tableName === "delivery_notes") {
     const note = await localDB.delivery_notes.get(tempId);
     if (note) {
@@ -657,19 +657,16 @@ async function updateLocalRecordId(tableName: string, tempId: string, realId: st
       await localDB.delivery_notes.delete(tempId);
       // Insertar con el ID real
       await localDB.delivery_notes.put({ ...note, id: realId });
-      
+
       // Actualizar delivery_note_id en los items asociados
-      const items = await localDB.delivery_note_items
-        .where("delivery_note_id")
-        .equals(tempId)
-        .toArray();
-      
+      const items = await localDB.delivery_note_items.where("delivery_note_id").equals(tempId).toArray();
+
       for (const item of items) {
         // Eliminar item con referencia temporal y reinsertarlo con referencia real
         await localDB.delivery_note_items.delete(item.id);
         await localDB.delivery_note_items.put({
           ...item,
-          delivery_note_id: realId
+          delivery_note_id: realId,
         });
       }
     }
@@ -711,134 +708,135 @@ export async function syncPendingOperations(): Promise<void> {
 
     // Deduplicar operaciones antes de procesar
     await deduplicatePendingOperations(operations);
-    
+
     // Re-obtener después de deduplicación
     const dedupedOps = await localDB.pending_operations.toArray();
 
     // Ordenar por timestamp para respetar orden de creación
     const sortedOps = dedupedOps.sort((a, b) => a.timestamp - b.timestamp);
 
-  let successCount = 0;
-  let errorCount = 0;
-  let skippedCount = 0;
+    let successCount = 0;
+    let errorCount = 0;
+    let skippedCount = 0;
 
-  for (const op of sortedOps) {
-    try {
-      const result = await executeOperation(op);
-      
-      if (result === 'skipped') {
-        // La operación fue saltada porque depende de un ID temporal no resuelto aún
-        skippedCount++;
-        console.log(`⏭️ Operación ${op.id} saltada (depende de ID temporal)`);
-        continue;
-      }
-      
-      await localDB.pending_operations.delete(op.id!);
-      await clearStockCompensation(op.id!);
-      successCount++;
-      
-    } catch (error: any) {
-      errorCount++;
-      console.error(`❌ Error al sincronizar operación ${op.id}:`, error);
+    for (const op of sortedOps) {
+      try {
+        const result = await executeOperation(op);
 
-      const updatedOp = await localDB.pending_operations.get(op.id!);
-      if (updatedOp) {
-        const newRetryCount = op.retry_count + 1;
-        
-        await localDB.pending_operations.put({
-          ...updatedOp,
-          retry_count: newRetryCount,
-          error: error.message,
-        });
+        if (result === "skipped") {
+          // La operación fue saltada porque depende de un ID temporal no resuelto aún
+          skippedCount++;
+          console.log(`⏭️ Operación ${op.id} saltada (depende de ID temporal)`);
+          continue;
+        }
 
-        if (newRetryCount >= 3) {
-          console.error(`❌ Operación ${op.id} descartada después de 3 intentos`);
-          await rollbackStockCompensation(op.id!);
-          
-          // 🆕 Rollback especial para DELETE de delivery_notes con snapshot
-          if (op.table_name === "delivery_notes" && op.operation_type === "DELETE" && op.data?._snapshot) {
-            await rollbackDeliveryNoteDelete(op.data._snapshot);
+        await localDB.pending_operations.delete(op.id!);
+        await clearStockCompensation(op.id!);
+        successCount++;
+      } catch (error: any) {
+        errorCount++;
+        console.error(`❌ Error al sincronizar operación ${op.id}:`, error);
+
+        const updatedOp = await localDB.pending_operations.get(op.id!);
+        if (updatedOp) {
+          const newRetryCount = op.retry_count + 1;
+
+          await localDB.pending_operations.put({
+            ...updatedOp,
+            retry_count: newRetryCount,
+            error: error.message,
+          });
+
+          if (newRetryCount >= 3) {
+            console.error(`❌ Operación ${op.id} descartada después de 3 intentos`);
+            await rollbackStockCompensation(op.id!);
+
+            // 🆕 Rollback especial para DELETE de delivery_notes con snapshot
+            if (op.table_name === "delivery_notes" && op.operation_type === "DELETE" && op.data?._snapshot) {
+              await rollbackDeliveryNoteDelete(op.data._snapshot);
+            }
+
+            // 🆕 Rollback especial para UPDATE de delivery_notes con snapshot
+            if (op.table_name === "delivery_notes" && op.operation_type === "UPDATE" && op.data?._snapshot) {
+              await rollbackDeliveryNoteUpdate(op.data._snapshot);
+            }
+
+            await localDB.pending_operations.delete(op.id!);
+            // Solo mostrar toast de error crítico
+            toast.error(`Operación fallida: ${op.table_name}`);
           }
-          
-          // 🆕 Rollback especial para UPDATE de delivery_notes con snapshot
-          if (op.table_name === "delivery_notes" && op.operation_type === "UPDATE" && op.data?._snapshot) {
-            await rollbackDeliveryNoteUpdate(op.data._snapshot);
-          }
-          
-          await localDB.pending_operations.delete(op.id!);
-          // Solo mostrar toast de error crítico
-          toast.error(`Operación fallida: ${op.table_name}`);
         }
       }
     }
-  }
 
-  console.log(`✅ Sincronización completada: ${successCount} exitosas, ${errorCount} fallidas, ${skippedCount} saltadas`);
+    console.log(
+      `✅ Sincronización completada: ${successCount} exitosas, ${errorCount} fallidas, ${skippedCount} saltadas`,
+    );
 
-  // Si hubo operaciones saltadas, hacer otra pasada después de un momento
-  if (skippedCount > 0 && successCount > 0) {
-    console.log(`🔄 Re-ejecutando sincronización para operaciones saltadas...`);
-    setTimeout(() => syncPendingOperations(), 500);
-    return;
-  }
+    // Si hubo operaciones saltadas, hacer otra pasada después de un momento
+    if (skippedCount > 0 && successCount > 0) {
+      console.log(`🔄 Re-ejecutando sincronización para operaciones saltadas...`);
+      setTimeout(() => syncPendingOperations(), 500);
+      return;
+    }
 
-  // Mostrar UN SOLO toast resumen al final (reduce spam)
-  if (successCount > 0 && errorCount === 0) {
-    toast.success(`${successCount} cambios sincronizados`);
-  } else if (errorCount > 0 && successCount > 0) {
-    toast.warning(`${successCount} sincronizados, ${errorCount} fallidos`);
-  } else if (errorCount > 0) {
-    toast.error(`${errorCount} operaciones fallaron`);
-  }
+    // Mostrar UN SOLO toast resumen al final (reduce spam)
+    if (successCount > 0 && errorCount === 0) {
+      toast.success(`${successCount} cambios sincronizados`);
+    } else if (errorCount > 0 && successCount > 0) {
+      toast.warning(`${successCount} sincronizados, ${errorCount} fallidos`);
+    } else if (errorCount > 0) {
+      toast.error(`${errorCount} operaciones fallaron`);
+    }
   } finally {
     isSyncInProgress = false;
   }
 }
 
-async function executeOperation(op: PendingOperation): Promise<'success' | 'skipped'> {
+async function executeOperation(op: PendingOperation): Promise<"success" | "skipped"> {
   console.log(`🔄 Ejecutando: ${op.operation_type} ${op.table_name} ${op.record_id}`);
 
   // Resolver ID temporal a ID real si existe mapeo
   const realId = await resolveRecordId(op.table_name, op.record_id);
-  
+
   if (op.operation_type === "INSERT") {
     if (!isTempId(op.record_id) && op.record_id === realId) {
       console.log(`✅ Skip INSERT: registro ya existe (${realId})`);
-      return 'success';
+      return "success";
     }
     if (!isTempId(realId) && op.record_id !== realId) {
       console.log(`✅ Skip INSERT: ID temporal ya mapeado (${realId})`);
-      return 'success';
+      return "success";
     }
-    
+
     // 🆕 Para delivery_notes, verificar si ya existe en Supabase antes de insertar
     if (op.table_name === "delivery_notes") {
       const existingId = await checkDeliveryNoteExistsInSupabase(op.data);
       if (existingId) {
         console.log(`✅ Skip INSERT: remito ya existe en Supabase (${existingId})`);
         await updateLocalRecordId(op.table_name, op.record_id, existingId);
-        return 'success';
+        return "success";
       }
     }
-    
+
     // Para INSERTs, preparar datos sin el ID temporal
     let insertData = { ...op.data };
     delete insertData.id; // Supabase genera el UUID
     delete insertData._snapshot; // Eliminar snapshot interno
-    
+
     // Para delivery_note_items, resolver delivery_note_id temporal
     if (op.table_name === "delivery_note_items" && insertData.delivery_note_id) {
       const realNoteId = await resolveRecordId("delivery_notes", insertData.delivery_note_id);
-      
+
       if (isTempId(realNoteId)) {
         // El remito padre aún no se ha sincronizado, saltar esta operación
         console.log(`⏭️ Item depende de remito no sincronizado: ${insertData.delivery_note_id}`);
-        return 'skipped';
+        return "skipped";
       }
-      
+
       insertData.delivery_note_id = realNoteId;
     }
-    
+
     const { data, error } = await supabase
       .from(op.table_name as any)
       .insert([insertData])
@@ -846,29 +844,28 @@ async function executeOperation(op: PendingOperation): Promise<'success' | 'skip
       .single();
 
     if (error) throw error;
-    
+
     // Mapear ID temporal al ID real generado por Supabase
     if (data && isTempId(op.record_id)) {
       await updateLocalRecordId(op.table_name, op.record_id, (data as any).id);
     }
-    
   } else if (op.operation_type === "UPDATE") {
     if (isTempId(realId)) {
       // El registro aún no existe en Supabase, saltar hasta que se sincronice el INSERT
       console.log(`⏭️ UPDATE depende de INSERT pendiente: ${realId}`);
-      return 'skipped';
+      return "skipped";
     }
-    
+
     // 🆕 MANEJO ESPECIAL: delivery_notes con snapshot de items
     if (op.table_name === "delivery_notes" && op.data?._snapshot?.newItems) {
       await executeDeliveryNoteUpdateWithItems(realId, op.data);
-      return 'success';
+      return "success";
     }
-    
+
     // Preparar datos de actualización (remover campos internos)
     let updateData = { ...op.data };
     delete updateData._snapshot;
-    
+
     // Para delivery_note_items, resolver delivery_note_id temporal
     if (op.table_name === "delivery_note_items" && updateData.delivery_note_id) {
       const realNoteId = await resolveRecordId("delivery_notes", updateData.delivery_note_id);
@@ -876,21 +873,20 @@ async function executeOperation(op: PendingOperation): Promise<'success' | 'skip
         updateData.delivery_note_id = realNoteId;
       }
     }
-    
+
     const { error } = await supabase
       .from(op.table_name as any)
       .update(updateData)
       .eq("id", realId);
 
     if (error) throw error;
-    
   } else if (op.operation_type === "DELETE") {
     if (isTempId(realId)) {
       // El registro nunca existió en Supabase, simplemente marcar como completado
       console.log(`✅ Skip DELETE de registro que nunca existió en servidor: ${realId}`);
-      return 'success';
+      return "success";
     }
-    
+
     const { error } = await supabase
       .from(op.table_name as any)
       .delete()
@@ -905,13 +901,10 @@ async function executeOperation(op: PendingOperation): Promise<'success' | 'skip
   } catch (error) {
     console.warn("⚠️ Error al sincronizar remito post-operación:", error);
   }
-  return 'success';
+  return "success";
 }
 
-async function syncDeliveryNoteAfterOperation(
-  op: PendingOperation,
-  realId: string,
-): Promise<void> {
+async function syncDeliveryNoteAfterOperation(op: PendingOperation, realId: string): Promise<void> {
   if (op.table_name === "delivery_notes") {
     await syncDeliveryNoteById(realId);
     return;
@@ -934,20 +927,17 @@ async function syncDeliveryNoteAfterOperation(
  */
 async function executeDeliveryNoteUpdateWithItems(noteId: string, data: any): Promise<void> {
   console.log(`🔄 Sincronización atómica de remito ${noteId} con items...`);
-  
+
   const snapshot = data._snapshot;
   const newItems = snapshot?.newItems;
-  
+
   // PASO 1: Preparar datos de la nota (sin campos internos)
   const noteUpdateData: any = { ...data };
   delete noteUpdateData._snapshot;
   delete noteUpdateData.remaining_balance; // Columna generada
-  
+
   // PASO 2: Actualizar la nota principal
-  const { error: noteError } = await supabase
-    .from("delivery_notes")
-    .update(noteUpdateData)
-    .eq("id", noteId);
+  const { error: noteError } = await supabase.from("delivery_notes").update(noteUpdateData).eq("id", noteId);
 
   if (noteError) {
     console.error(`❌ Error actualizando nota ${noteId}:`, noteError);
@@ -957,12 +947,9 @@ async function executeDeliveryNoteUpdateWithItems(noteId: string, data: any): Pr
   // PASO 3: Si hay nuevos items, reemplazar los existentes
   if (newItems && newItems.length > 0) {
     console.log(`  📦 Reemplazando ${newItems.length} items...`);
-    
+
     // Eliminar items existentes
-    const { error: deleteError } = await supabase
-      .from("delivery_note_items")
-      .delete()
-      .eq("delivery_note_id", noteId);
+    const { error: deleteError } = await supabase.from("delivery_note_items").delete().eq("delivery_note_id", noteId);
 
     if (deleteError) {
       console.error(`❌ Error eliminando items antiguos:`, deleteError);
@@ -979,9 +966,7 @@ async function executeDeliveryNoteUpdateWithItems(noteId: string, data: any): Pr
       unit_price: item.unit_price,
     }));
 
-    const { error: insertError } = await supabase
-      .from("delivery_note_items")
-      .insert(itemsToInsert);
+    const { error: insertError } = await supabase.from("delivery_note_items").insert(itemsToInsert);
 
     if (insertError) {
       console.error(`❌ Error insertando items nuevos:`, insertError);
@@ -990,7 +975,7 @@ async function executeDeliveryNoteUpdateWithItems(noteId: string, data: any): Pr
 
     console.log(`  ✅ ${itemsToInsert.length} items sincronizados`);
   }
-  
+
   // PASO 4: Sincronizar stock en Supabase usando bulk_adjust_stock
   if (snapshot?.stockAdjustments && snapshot.stockAdjustments.length > 0) {
     const adjustments = snapshot.stockAdjustments
@@ -1000,14 +985,14 @@ async function executeDeliveryNoteUpdateWithItems(noteId: string, data: any): Pr
         delta: adj.delta,
         op_id: `sync-${noteId}-${adj.id}`,
       }));
-    
+
     if (adjustments.length > 0) {
       console.log(`  📊 Sincronizando ${adjustments.length} ajustes de stock...`);
-      
+
       const { error: stockError } = await supabase.rpc("bulk_adjust_stock", {
         p_adjustments: adjustments,
       });
-      
+
       if (stockError) {
         console.error(`❌ Error sincronizando stock:`, stockError);
         // No lanzar error aquí para no fallar toda la operación
@@ -1026,14 +1011,14 @@ async function executeDeliveryNoteUpdateWithItems(noteId: string, data: any): Pr
  */
 async function refreshProductListIndex(listId: string): Promise<void> {
   console.log(`🔄 Refrescando índice para lista: ${listId}`);
-  
+
   const { error } = await supabase.rpc("refresh_list_index", { p_list_id: listId });
-  
+
   if (error) {
     console.error("❌ Error al refrescar índice:", error);
     throw error;
   }
-  
+
   console.log(`✅ Índice refrescado para lista: ${listId}`);
 }
 
@@ -1118,16 +1103,15 @@ export async function syncDeliveryNoteById(noteId: string): Promise<void> {
  * Sincroniza múltiples remitos a IndexedDB (útil después de operaciones masivas)
  */
 export async function syncDeliveryNotesToLocal(): Promise<void> {
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) throw new Error("Usuario no autenticado");
 
   console.log("🔄 Sincronizando todos los remitos a IndexedDB...");
 
   // Sincronizar delivery_notes
-  const { data: notes, error: notesError } = await supabase
-    .from("delivery_notes")
-    .select("*")
-    .eq("user_id", user.id);
+  const { data: notes, error: notesError } = await supabase.from("delivery_notes").select("*").eq("user_id", user.id);
 
   if (notesError) throw notesError;
 
@@ -1137,9 +1121,7 @@ export async function syncDeliveryNotesToLocal(): Promise<void> {
   }
 
   // Sincronizar delivery_note_items
-  const { data: items, error: itemsError } = await supabase
-    .from("delivery_note_items")
-    .select("*");
+  const { data: items, error: itemsError } = await supabase.from("delivery_note_items").select("*");
 
   if (itemsError) throw itemsError;
 
@@ -1157,10 +1139,10 @@ export async function syncDeliveryNotesToLocal(): Promise<void> {
 export async function refreshDeliveryNotesCache(): Promise<DeliveryNoteDB[]> {
   const notes = await localDB.delivery_notes.toArray();
   const items = await localDB.delivery_note_items.toArray();
-  
-  return notes.map(note => ({
+
+  return notes.map((note) => ({
     ...note,
-    items: items.filter(item => item.delivery_note_id === note.id)
+    items: items.filter((item) => item.delivery_note_id === note.id),
   })) as any;
 }
 
@@ -1269,6 +1251,7 @@ export async function updateProductListOffline(
 
   // 1. Actualizar metadatos
   const updates = {
+    name: data.fileName,
     file_name: data.fileName,
     product_count: data.products.length,
     column_schema: data.columnSchema,
@@ -1457,7 +1440,11 @@ export async function syncProductListById(listId: string): Promise<void> {
     .eq("list_id", listId);
   if (indexError) throw indexError;
 
-  await replaceListProductsLocalData(listId, (productsData as DynamicProductDB[]) || [], (indexData as DynamicProductIndexDB[]) || []);
+  await replaceListProductsLocalData(
+    listId,
+    (productsData as DynamicProductDB[]) || [],
+    (indexData as DynamicProductIndexDB[]) || [],
+  );
 }
 
 export async function updateSupplierOffline(id: string, updates: Partial<SupplierDB>): Promise<void> {
@@ -1481,7 +1468,8 @@ export async function deleteSupplierOffline(id: string): Promise<void> {
 
 // Helpers para sincronizar proveedores específicos cuando hay conexión
 export async function upsertSupplierLocalRecord(
-  supplier: Pick<SupplierDB, "id" | "name"> & Partial<Pick<SupplierDB, "logo_url" | "user_id" | "created_at" | "updated_at">>,
+  supplier: Pick<SupplierDB, "id" | "name"> &
+    Partial<Pick<SupplierDB, "logo_url" | "user_id" | "created_at" | "updated_at">>,
 ): Promise<void> {
   const now = new Date().toISOString();
   const existing = await localDB.suppliers.get(supplier.id);
@@ -1508,17 +1496,17 @@ export async function deleteSupplierLocalRecord(id: string): Promise<void> {
 async function updateProductQuantityDeltaWithCompensation(
   productId: string,
   quantityDelta: number,
-  operationId: number
+  operationId: number,
 ): Promise<void> {
   await updateProductQuantityDelta(productId, quantityDelta);
-  
+
   await localDB.stock_compensations.add({
     operation_id: operationId,
     product_id: productId,
     quantity_delta: quantityDelta,
-    timestamp: Date.now()
+    timestamp: Date.now(),
   });
-  
+
   console.log(`📊Compensación registrada: producto=${productId}, delta=${quantityDelta}`);
 }
 
@@ -1526,32 +1514,23 @@ async function updateProductQuantityDeltaWithCompensation(
  * Revierte cambios de stock si la operación falla
  */
 async function rollbackStockCompensation(operationId: number): Promise<void> {
-  const compensations = await localDB.stock_compensations
-    .where("operation_id")
-    .equals(operationId)
-    .toArray();
-  
+  const compensations = await localDB.stock_compensations.where("operation_id").equals(operationId).toArray();
+
   console.log(`🔄 Revirtiendo ${compensations.length} cambios de stock...`);
-  
+
   for (const comp of compensations) {
     await updateProductQuantityDelta(comp.product_id, -comp.quantity_delta, { enqueue: false });
     console.log(`  ✅ Revertido: producto=${comp.product_id}, delta=${-comp.quantity_delta}`);
   }
-  
-  await localDB.stock_compensations
-    .where("operation_id")
-    .equals(operationId)
-    .delete();
+
+  await localDB.stock_compensations.where("operation_id").equals(operationId).delete();
 }
 
 /**
  * Limpia compensaciones exitosas
  */
 async function clearStockCompensation(operationId: number): Promise<void> {
-  await localDB.stock_compensations
-    .where("operation_id")
-    .equals(operationId)
-    .delete();
+  await localDB.stock_compensations.where("operation_id").equals(operationId).delete();
 }
 
 /**
@@ -1565,18 +1544,18 @@ async function rollbackDeliveryNoteDelete(snapshot: {
   shouldRevertStock: boolean;
 }): Promise<void> {
   console.log(`🔄 Rollback de eliminación de remito: ${snapshot.note.id}`);
-  
+
   try {
     // PASO 1: Restaurar el remito en IndexedDB
     await localDB.delivery_notes.put(snapshot.note);
     console.log(`  ✅ Remito restaurado: ${snapshot.note.id}`);
-    
+
     // PASO 2: Restaurar los items
     for (const item of snapshot.items) {
       await localDB.delivery_note_items.put(item);
     }
     console.log(`  ✅ ${snapshot.items.length} items restaurados`);
-    
+
     // PASO 3: Si se había revertido stock, deshacer esa reversión (restar cantidades)
     if (snapshot.shouldRevertStock) {
       console.log(`  🔄 Deshaciendo reversión de stock...`);
@@ -1587,7 +1566,7 @@ async function rollbackDeliveryNoteDelete(snapshot: {
         }
       }
     }
-    
+
     console.log(`✅ Rollback completado para remito ${snapshot.note.id}`);
     toast.info("Remito restaurado debido a error de sincronización");
   } catch (error) {
@@ -1608,35 +1587,32 @@ async function rollbackDeliveryNoteUpdate(snapshot: {
 }): Promise<void> {
   const noteId = snapshot.previousNote.id;
   console.log(`🔄 Rollback de actualización de remito: ${noteId}`);
-  
+
   try {
     // PASO 1: Restaurar el remito al estado anterior
     await localDB.delivery_notes.put(snapshot.previousNote);
     console.log(`  ✅ Remito restaurado al estado anterior`);
-    
+
     // PASO 2: Eliminar items actuales y restaurar los anteriores
-    await localDB.delivery_note_items
-      .where("delivery_note_id")
-      .equals(noteId)
-      .delete();
-    
+    await localDB.delivery_note_items.where("delivery_note_id").equals(noteId).delete();
+
     for (const item of snapshot.previousItems) {
       await localDB.delivery_note_items.put(item);
     }
     console.log(`  ✅ ${snapshot.previousItems.length} items restaurados`);
-    
+
     // PASO 3: Revertir ajustes de stock (invertir los deltas)
     if (snapshot.stockAdjustments && snapshot.stockAdjustments.length > 0) {
       console.log(`  🔄 Revirtiendo ${snapshot.stockAdjustments.length} ajustes de stock...`);
       for (const adj of snapshot.stockAdjustments) {
         if (adj.delta !== 0) {
           // Invertir el delta para revertir el cambio
-          console.log(`    📦 Revirtiendo: ${adj.id} (${adj.delta > 0 ? '-' : '+'}${Math.abs(adj.delta)})`);
+          console.log(`    📦 Revirtiendo: ${adj.id} (${adj.delta > 0 ? "-" : "+"}${Math.abs(adj.delta)})`);
           await updateProductQuantityDelta(adj.id, -adj.delta, { enqueue: false });
         }
       }
     }
-    
+
     console.log(`✅ Rollback de actualización completado para remito ${noteId}`);
     toast.info("Cambios del remito revertidos debido a error de sincronización");
   } catch (error) {
@@ -1666,7 +1642,7 @@ export async function createDeliveryNoteOffline(
   };
 
   await localDB.delivery_notes.add(newNote);
-  
+
   const operationId = await queueOperationWithId("delivery_notes", "INSERT", tempNoteId, newNote);
 
   for (const item of items) {
@@ -1682,11 +1658,7 @@ export async function createDeliveryNoteOffline(
     await queueOperation("delivery_note_items", "INSERT", tempItemId, newItem);
 
     if (item.product_id) {
-      await updateProductQuantityDeltaWithCompensation(
-        item.product_id,
-        -item.quantity,
-        operationId
-      );
+      await updateProductQuantityDeltaWithCompensation(item.product_id, -item.quantity, operationId);
     }
   }
 
@@ -1705,10 +1677,7 @@ export async function updateDeliveryNoteOffline(
   const now = new Date().toISOString();
 
   // PASO 1: Obtener items ANTERIORES para snapshot (antes de cualquier cambio)
-  const oldItems = await localDB.delivery_note_items
-    .where("delivery_note_id")
-    .equals(id)
-    .toArray();
+  const oldItems = await localDB.delivery_note_items.where("delivery_note_id").equals(id).toArray();
 
   // PASO 2: Crear snapshot del estado anterior para posible rollback
   const snapshot = {
@@ -1752,16 +1721,13 @@ export async function updateDeliveryNoteOffline(
     // PASO 4: Aplicar solo los deltas netos en IndexedDB
     for (const [productId, delta] of stockAdjustmentsMap.entries()) {
       if (delta !== 0) {
-        console.log(`  📦 Ajuste neto: ${productId} (${delta > 0 ? '+' : ''}${delta})`);
+        console.log(`  📦 Ajuste neto: ${productId} (${delta > 0 ? "+" : ""}${delta})`);
         await updateProductQuantityDelta(productId, delta);
       }
     }
 
     // PASO 5: Eliminar items antiguos de IndexedDB (sin encolar operaciones individuales)
-    await localDB.delivery_note_items
-      .where("delivery_note_id")
-      .equals(id)
-      .delete();
+    await localDB.delivery_note_items.where("delivery_note_id").equals(id).delete();
 
     // PASO 6: Insertar nuevos items en IndexedDB (sin encolar operaciones individuales)
     const newItemsToSave: DeliveryNoteItemDB[] = [];
@@ -1775,11 +1741,11 @@ export async function updateDeliveryNoteOffline(
       };
       newItemsToSave.push(newItem);
     }
-    
+
     if (newItemsToSave.length > 0) {
       await localDB.delivery_note_items.bulkAdd(newItemsToSave);
     }
-    
+
     // Guardar nuevos items en snapshot para sincronización
     snapshot.newItems = newItemsToSave;
   }
@@ -1822,14 +1788,16 @@ export async function updateDeliveryNoteOffline(
     _snapshot: {
       previousNote: snapshot.note,
       previousItems: snapshot.items,
-      newItems: items ? snapshot.newItems.map(item => ({
-        product_id: item.product_id,
-        product_code: item.product_code,
-        product_name: item.product_name,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        subtotal: item.subtotal,
-      })) : null,
+      newItems: items
+        ? snapshot.newItems.map((item) => ({
+            product_id: item.product_id,
+            product_code: item.product_code,
+            product_name: item.product_name,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            subtotal: item.subtotal,
+          }))
+        : null,
       stockAdjustments: Array.from(stockAdjustmentsMap.entries()).map(([id, delta]) => ({ id, delta })),
     },
   };
@@ -1846,14 +1814,11 @@ export async function deleteDeliveryNoteOffline(id: string): Promise<void> {
   console.log(`🗑️ Eliminando remito offline: ${id}, status: ${note.status}`);
 
   // PASO 1: Obtener items para snapshot y posible reversión de stock
-  const items = await localDB.delivery_note_items
-    .where("delivery_note_id")
-    .equals(id)
-    .toArray();
+  const items = await localDB.delivery_note_items.where("delivery_note_id").equals(id).toArray();
 
   // PASO 2: Determinar si se debe revertir stock (SOLO si NO está pagado)
   const shouldRevertStock = note.status !== "paid";
-  
+
   console.log(`  shouldRevertStock: ${shouldRevertStock} (status=${note.status})`);
 
   // PASO 3: Si corresponde, revertir stock (delta POSITIVO)
@@ -1869,10 +1834,7 @@ export async function deleteDeliveryNoteOffline(id: string): Promise<void> {
   }
 
   // PASO 4: Eliminar items de la base de datos
-  await localDB.delivery_note_items
-    .where("delivery_note_id")
-    .equals(id)
-    .delete();
+  await localDB.delivery_note_items.where("delivery_note_id").equals(id).delete();
 
   for (const item of items) {
     await queueOperation("delivery_note_items", "DELETE", item.id, {});
@@ -1880,7 +1842,7 @@ export async function deleteDeliveryNoteOffline(id: string): Promise<void> {
 
   // PASO 5: Eliminar nota
   await localDB.delivery_notes.delete(id);
-  
+
   // PASO 6: Encolar DELETE con snapshot para posible rollback
   // El snapshot incluye la nota, items y si se revirtió stock
   const snapshot = {
@@ -1888,7 +1850,7 @@ export async function deleteDeliveryNoteOffline(id: string): Promise<void> {
     items: items,
     shouldRevertStock: shouldRevertStock,
   };
-  
+
   await queueOperation("delivery_notes", "DELETE", id, { _snapshot: snapshot });
 
   console.log(`✅ Remito ${id} eliminado offline ${shouldRevertStock ? "con" : "sin"} reversión de stock`);
@@ -2332,22 +2294,19 @@ export async function getOfficialDollarRate(): Promise<number> {
  * Limpia operaciones pendientes muy antiguas (más de 7 días)
  */
 export async function cleanupOldOperations(): Promise<void> {
-  const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-  
-  const oldOps = await localDB.pending_operations
-    .where("timestamp")
-    .below(sevenDaysAgo)
-    .toArray();
-  
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+  const oldOps = await localDB.pending_operations.where("timestamp").below(sevenDaysAgo).toArray();
+
   if (oldOps.length === 0) return;
-  
+
   console.log(`🗑️ Limpiando ${oldOps.length} operaciones antiguas...`);
-  
+
   for (const op of oldOps) {
     await rollbackStockCompensation(op.id!);
     await localDB.pending_operations.delete(op.id!);
   }
-  
+
   toast.info(`${oldOps.length} operaciones obsoletas eliminadas`);
 }
 
@@ -2385,12 +2344,12 @@ let onlineSyncTimeoutId: ReturnType<typeof setTimeout> | null = null;
 if (typeof window !== "undefined") {
   window.addEventListener("online", () => {
     console.log("🌐 Conexión restaurada. Programando sincronización...");
-    
+
     // Debounce de 2 segundos para evitar múltiples ejecuciones
     if (onlineSyncTimeoutId) {
       clearTimeout(onlineSyncTimeoutId);
     }
-    
+
     onlineSyncTimeoutId = setTimeout(async () => {
       onlineSyncTimeoutId = null;
       toast.info("Conexión restaurada. Sincronizando datos...");
