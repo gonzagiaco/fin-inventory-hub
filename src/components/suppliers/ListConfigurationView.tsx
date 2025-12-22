@@ -5,13 +5,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Loader2, Columns, DollarSign, Settings2, Tags } from "lucide-react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { syncFromSupabase } from "@/lib/localDB";
+import { syncFromSupabase, localDB, isOnline, queueOperation } from "@/lib/localDB";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ColumnsTab } from "@/components/mapping/tabs/ColumnsTab";
 import { PricesTab } from "@/components/mapping/tabs/PricesTab";
 import { DollarConversionTab } from "@/components/mapping/tabs/DollarConversionTab";
 import { OptionsTab } from "@/components/mapping/tabs/OptionsTab";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { ColumnSchema } from "@/types/productList";
 
 export type CustomColumnFormula = {
   base_column: string;
@@ -211,27 +212,27 @@ export function ListConfigurationView({ listId, onSaved }: ListConfigurationView
             : undefined,
       };
 
-      // Fetch current column_schema to update it with custom columns
-      const { data: listData, error: fetchError } = await supabase
-        .from("product_lists")
-        .select("column_schema")
-        .eq("id", listId)
-        .single();
+      const online = isOnline();
+      let currentSchema: ColumnSchema[];
 
-      if (fetchError) {
-        throw new Error(`Error al obtener schema: ${fetchError.message}`);
+      if (online) {
+        // Online: Fetch from Supabase
+        const { data: listData, error: fetchError } = await supabase
+          .from("product_lists")
+          .select("column_schema")
+          .eq("id", listId)
+          .single();
+
+        if (fetchError) {
+          throw new Error(`Error al obtener schema: ${fetchError.message}`);
+        }
+
+        currentSchema = (listData?.column_schema as unknown as ColumnSchema[]) || [];
+      } else {
+        // Offline: Fetch from IndexedDB
+        const localList = await localDB.product_lists.get(listId);
+        currentSchema = (localList?.column_schema as ColumnSchema[]) || [];
       }
-
-      let currentSchema = (listData?.column_schema as Array<{
-        key: string;
-        label: string;
-        type: string;
-        visible: boolean;
-        order: number;
-        isStandard?: boolean;
-        searchable?: boolean;
-        isCustom?: boolean;
-      }>) || [];
 
       const customColNames = Object.keys(cleanedMapping.custom_columns || {});
       const existingKeys = currentSchema.map(c => c.key);
@@ -256,36 +257,62 @@ export function ListConfigurationView({ listId, onSaved }: ListConfigurationView
         !col.isCustom || customColNames.includes(col.key)
       );
 
-      const { error: updateError } = await supabase
-        .from("product_lists")
-        .update({ 
+      if (online) {
+        // Online: Save to Supabase
+        const { error: updateError } = await supabase
+          .from("product_lists")
+          .update({ 
+            mapping_config: cleanedMapping,
+            column_schema: currentSchema as unknown as import("@/integrations/supabase/types").Json
+          })
+          .eq("id", listId);
+
+        if (updateError) {
+          throw new Error(`Error al guardar configuración: ${updateError.message}`);
+        }
+
+        const { error: refreshError } = await supabase.rpc("refresh_list_index", { p_list_id: listId });
+
+        if (refreshError) {
+          throw new Error(`Error al indexar productos: ${refreshError.message}`);
+        }
+
+        await queryClient.invalidateQueries({ queryKey: ["product-lists-index"] });
+        await queryClient.invalidateQueries({ queryKey: ["product-lists"] });
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        await queryClient.resetQueries({ queryKey: ["list-products", listId], exact: false });
+
+        try {
+          await syncFromSupabase();
+        } catch (error) {
+          console.error("Error al sincronizar después de guardar mapeo:", error);
+        }
+
+        // Invalidate my-stock to update "Mi Stock" view
+        await queryClient.invalidateQueries({ queryKey: ["my-stock"] });
+
+        toast.success("Configuración guardada correctamente");
+      } else {
+        // Offline: Save to IndexedDB and queue operation
+        await localDB.product_lists.update(listId, {
+          mapping_config: cleanedMapping,
+          column_schema: currentSchema,
+          updated_at: new Date().toISOString()
+        });
+
+        await queueOperation("product_lists", "UPDATE", listId, {
           mapping_config: cleanedMapping,
           column_schema: currentSchema
-        })
-        .eq("id", listId);
+        });
 
-      if (updateError) {
-        throw new Error(`Error al guardar configuración: ${updateError.message}`);
+        // Invalidate local queries
+        await queryClient.invalidateQueries({ queryKey: ["product-lists-index"] });
+        await queryClient.invalidateQueries({ queryKey: ["product-lists"] });
+        await queryClient.invalidateQueries({ queryKey: ["my-stock"] });
+
+        toast.success("Configuración guardada (offline - se sincronizará al reconectar)");
       }
 
-      const { error: refreshError } = await supabase.rpc("refresh_list_index", { p_list_id: listId });
-
-      if (refreshError) {
-        throw new Error(`Error al indexar productos: ${refreshError.message}`);
-      }
-
-      await queryClient.invalidateQueries({ queryKey: ["product-lists-index"] });
-      await queryClient.invalidateQueries({ queryKey: ["product-lists"] });
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      await queryClient.resetQueries({ queryKey: ["list-products", listId], exact: false });
-
-      try {
-        await syncFromSupabase();
-      } catch (error) {
-        console.error("Error al sincronizar después de guardar mapeo:", error);
-      }
-
-      toast.success("Configuración guardada correctamente");
       onSaved?.();
     } catch (error: any) {
       console.error("Error en handleSave:", error);
