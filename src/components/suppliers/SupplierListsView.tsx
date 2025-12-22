@@ -47,7 +47,7 @@ export function SupplierListsView({ supplierId, supplierName, onConfigureList }:
 
   useEffect(() => {
     if (productLists.length > 0) {
-      const listIds = productLists.map(list => list.id);
+      const listIds = productLists.map((list) => list.id);
       initializeCollapsedState(listIds);
     }
   }, [productLists, initializeCollapsedState]);
@@ -374,10 +374,7 @@ export function SupplierListsView({ supplierId, supplierName, onConfigureList }:
 
             return (
               <Card key={list.id} className="glassmorphism border-primary/20 hover:border-primary/40 transition-colors">
-                <CardHeader 
-                  className="cursor-pointer" 
-                  onClick={() => onConfigureList(list.id, list.name)}
-                >
+                <CardHeader className="cursor-pointer" onClick={() => onConfigureList(list.id, list.name)}>
                   <div className="flex gap-4 items-center justify-between overflow-hidden">
                     <div className="flex items-center gap-3 min-w-0 flex-1">
                       <div className="flex-1 min-w-0">
@@ -396,7 +393,7 @@ export function SupplierListsView({ supplierId, supplierName, onConfigureList }:
                             {list.fileType.toUpperCase()}
                           </Badge>
                           <span className="text-xs text-muted-foreground">
-                            {new Date(list.createdAt).toLocaleDateString()}
+                            {new Date(list.updatedAt).toLocaleDateString()}
                           </span>
                           <span className="text-xs text-muted-foreground">{list.productCount} productos</span>
                         </div>
