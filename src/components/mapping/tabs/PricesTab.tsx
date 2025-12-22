@@ -5,8 +5,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { MappingConfig, CustomColumnFormula } from "@/components/suppliers/ListConfigurationView";
-import { Plus, Trash2, Pencil, Check, X } from "lucide-react";
+import { MappingConfig } from "@/components/suppliers/ListConfigurationView";
+import { Plus, Trash2 } from "lucide-react";
 
 interface PricesTabProps {
   keys: string[];
@@ -25,50 +25,18 @@ export function PricesTab({ keys, map, setMap, setKeys, isSaving, isNumericColum
   const [addVat, setAddVat] = useState(false);
   const [vatRate, setVatRate] = useState(21);
 
-  // State for editing existing custom columns
-  const [editingColumn, setEditingColumn] = useState<string | null>(null);
-  const [editValues, setEditValues] = useState<CustomColumnFormula | null>(null);
-
-  const handleEditColumn = (colName: string) => {
-    const formula = map.custom_columns?.[colName];
-    if (formula) {
-      setEditingColumn(colName);
-      setEditValues({ ...formula });
-    }
-  };
-
-  const handleCancelEdit = () => {
-    setEditingColumn(null);
-    setEditValues(null);
-  };
-
-  const handleSaveEdit = () => {
-    if (!editingColumn || !editValues) return;
-    
-    setMap(prev => ({
-      ...prev,
-      custom_columns: {
-        ...(prev.custom_columns || {}),
-        [editingColumn]: editValues
-      }
-    }));
-    
-    setEditingColumn(null);
-    setEditValues(null);
-  };
-
   const handleAddCustomColumn = () => {
     if (!newColName.trim() || !baseColumn) return;
-    
+
     const trimmedName = newColName.trim();
-    
+
     // Check if column name already exists
     if (keys.includes(trimmedName)) {
       return;
     }
 
     // Update mapping config state with new custom column
-    setMap(prev => ({
+    setMap((prev) => ({
       ...prev,
       custom_columns: {
         ...(prev.custom_columns || {}),
@@ -76,13 +44,13 @@ export function PricesTab({ keys, map, setMap, setKeys, isSaving, isNumericColum
           base_column: baseColumn,
           percentage,
           add_vat: addVat,
-          vat_rate: vatRate
-        }
-      }
+          vat_rate: vatRate,
+        },
+      },
     }));
 
     // Add to keys so it appears in column lists
-    setKeys(prevKeys => [...prevKeys, trimmedName]);
+    setKeys((prevKeys) => [...prevKeys, trimmedName]);
 
     // Reset form inputs
     setNewColName("");
@@ -93,19 +61,17 @@ export function PricesTab({ keys, map, setMap, setKeys, isSaving, isNumericColum
   };
 
   const handleRemoveCustomColumn = (colName: string) => {
-    setMap(prev => {
+    setMap((prev) => {
       const updated = { ...(prev.custom_columns || {}) };
       delete updated[colName];
       return { ...prev, custom_columns: Object.keys(updated).length > 0 ? updated : undefined };
     });
-    setKeys(prev => prev.filter(k => k !== colName));
+    setKeys((prev) => prev.filter((k) => k !== colName));
   };
 
   // Get existing custom column names to exclude from base column selection
   const customColumnNames = Object.keys(map.custom_columns || {});
-  const availableBaseColumns = keys.filter(k => 
-    isNumericColumn(k) && !customColumnNames.includes(k)
-  );
+  const availableBaseColumns = keys.filter((k) => isNumericColumn(k) && !customColumnNames.includes(k));
 
   return (
     <div className="space-y-6">
@@ -132,11 +98,13 @@ export function PricesTab({ keys, map, setMap, setKeys, isSaving, isNumericColum
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="__none__">Sin precio</SelectItem>
-            {keys.filter(k => !customColumnNames.includes(k)).map((k) => (
-              <SelectItem key={k} value={k}>
-                {k}
-              </SelectItem>
-            ))}
+            {keys
+              .filter((k) => !customColumnNames.includes(k))
+              .map((k) => (
+                <SelectItem key={k} value={k}>
+                  {k}
+                </SelectItem>
+              ))}
           </SelectContent>
         </Select>
       </div>
@@ -239,187 +207,6 @@ export function PricesTab({ keys, map, setMap, setKeys, isSaving, isNumericColum
         </div>
       </div>
 
-      {/* Custom Price Columns */}
-      <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
-        <Label className="text-base font-semibold">Columnas Personalizadas de Precio</Label>
-        <p className="text-sm text-muted-foreground">
-          Define columnas calculadas basadas en otra columna de precio.
-        </p>
-
-        {/* Form inputs for new custom column */}
-        <div className="flex flex-wrap items-end gap-3 pt-2">
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Nombre</Label>
-            <Input
-              placeholder="Ej: Precio+IVA"
-              value={newColName}
-              onChange={e => setNewColName(e.target.value)}
-              className="w-32"
-              disabled={isSaving}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Columna base</Label>
-            <Select
-              onValueChange={val => setBaseColumn(val)}
-              value={baseColumn || ""}
-              disabled={isSaving}
-            >
-              <SelectTrigger className="w-36">
-                <SelectValue placeholder="Seleccionar" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableBaseColumns.map(k => (
-                  <SelectItem key={k} value={k}>{k}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Variación %</Label>
-            <Input
-              type="number"
-              value={percentage}
-              onChange={e => setPercentage(parseFloat(e.target.value) || 0)}
-              className="w-20"
-              disabled={isSaving}
-            />
-          </div>
-          <div className="flex items-center gap-2 pb-0.5">
-            <Checkbox
-              checked={addVat}
-              onCheckedChange={checked => setAddVat(Boolean(checked))}
-              disabled={isSaving}
-            />
-            <Label className="text-sm">IVA</Label>
-            <Input
-              type="number"
-              value={vatRate}
-              onChange={e => setVatRate(parseFloat(e.target.value) || 0)}
-              className="w-16"
-              disabled={!addVat || isSaving}
-            />
-            <span className="text-sm">%</span>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleAddCustomColumn}
-            disabled={!newColName.trim() || !baseColumn || keys.includes(newColName.trim()) || isSaving}
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Agregar
-          </Button>
-        </div>
-
-        {/* List existing custom columns */}
-        {map.custom_columns && Object.keys(map.custom_columns).length > 0 && (
-          <div className="mt-4 space-y-2">
-            <Label className="text-sm text-muted-foreground">Columnas creadas:</Label>
-            <ScrollArea className="max-h-[200px]">
-              {Object.entries(map.custom_columns).map(([colName, formula]) => (
-                <div key={colName} className="py-2 px-2 border-b last:border-0 bg-background/50 rounded mb-1">
-                  {editingColumn === colName && editValues ? (
-                    // Edit mode
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium text-sm min-w-[80px]">{colName}</span>
-                      <Select
-                        value={editValues.base_column}
-                        onValueChange={val => setEditValues(prev => prev ? { ...prev, base_column: val } : null)}
-                        disabled={isSaving}
-                      >
-                        <SelectTrigger className="w-32 h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableBaseColumns.map(k => (
-                            <SelectItem key={k} value={k}>{k}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Input
-                        type="number"
-                        value={editValues.percentage}
-                        onChange={e => setEditValues(prev => prev ? { ...prev, percentage: parseFloat(e.target.value) || 0 } : null)}
-                        className="w-16 h-8"
-                        disabled={isSaving}
-                      />
-                      <span className="text-sm">%</span>
-                      <Checkbox
-                        checked={editValues.add_vat}
-                        onCheckedChange={checked => setEditValues(prev => prev ? { ...prev, add_vat: Boolean(checked) } : null)}
-                        disabled={isSaving}
-                      />
-                      <span className="text-sm">IVA</span>
-                      <Input
-                        type="number"
-                        value={editValues.vat_rate ?? 21}
-                        onChange={e => setEditValues(prev => prev ? { ...prev, vat_rate: parseFloat(e.target.value) || 21 } : null)}
-                        className="w-14 h-8"
-                        disabled={!editValues.add_vat || isSaving}
-                      />
-                      <span className="text-sm">%</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleSaveEdit}
-                        disabled={isSaving}
-                        className="h-8 px-2 text-primary hover:text-primary"
-                      >
-                        <Check className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleCancelEdit}
-                        disabled={isSaving}
-                        className="h-8 px-2"
-                      >
-                        <X className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  ) : (
-                    // View mode
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm">
-                        <span className="font-medium">{colName}</span>
-                        <span className="text-muted-foreground ml-2">
-                          (base: {formula.base_column})
-                        </span>
-                        <span className="text-muted-foreground ml-2">
-                          {formula.percentage >= 0 ? "+" : ""}{formula.percentage}%
-                          {formula.add_vat ? ` + IVA ${formula.vat_rate || 21}%` : ""}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEditColumn(colName)}
-                          disabled={isSaving}
-                          className="h-8 px-2"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveCustomColumn(colName)}
-                          disabled={isSaving}
-                          className="h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </ScrollArea>
-          </div>
-        )}
-      </div>
-
       {/* Per-Column Overrides */}
       <div className="space-y-3">
         <div>
@@ -490,9 +277,7 @@ export function PricesTab({ keys, map, setMap, setKeys, isSaving, isNumericColum
                     <Input
                       type="number"
                       value={
-                        map.price_modifiers.overrides[columnKey].vat_rate ??
-                        map.price_modifiers?.general.vat_rate ??
-                        21
+                        map.price_modifiers.overrides[columnKey].vat_rate ?? map.price_modifiers?.general.vat_rate ?? 21
                       }
                       onChange={(e) => {
                         const rate = parseFloat(e.target.value) || 0;
@@ -515,6 +300,104 @@ export function PricesTab({ keys, map, setMap, setKeys, isSaving, isNumericColum
               </div>
             ))}
         </ScrollArea>
+      </div>
+      {/* Custom Price Columns */}
+      <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
+        <Label className="text-base font-semibold">Columnas Personalizadas de Precio</Label>
+        <p className="text-sm text-muted-foreground">Define columnas calculadas basadas en otra columna de precio.</p>
+
+        {/* Form inputs for new custom column */}
+        <div className="flex flex-wrap items-end gap-3 pt-2">
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Nombre</Label>
+            <Input
+              placeholder="Ej: Precio+IVA"
+              value={newColName}
+              onChange={(e) => setNewColName(e.target.value)}
+              className="w-32"
+              disabled={isSaving}
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Columna base</Label>
+            <Select onValueChange={(val) => setBaseColumn(val)} value={baseColumn || ""} disabled={isSaving}>
+              <SelectTrigger className="w-36">
+                <SelectValue placeholder="Seleccionar" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableBaseColumns.map((k) => (
+                  <SelectItem key={k} value={k}>
+                    {k}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Variación %</Label>
+            <Input
+              type="number"
+              value={percentage}
+              onChange={(e) => setPercentage(parseFloat(e.target.value) || 0)}
+              className="w-20"
+              disabled={isSaving}
+            />
+          </div>
+          <div className="flex items-center gap-2 pb-0.5">
+            <Checkbox checked={addVat} onCheckedChange={(checked) => setAddVat(Boolean(checked))} disabled={isSaving} />
+            <Label className="text-sm">IVA</Label>
+            <Input
+              type="number"
+              value={vatRate}
+              onChange={(e) => setVatRate(parseFloat(e.target.value) || 0)}
+              className="w-16"
+              disabled={!addVat || isSaving}
+            />
+            <span className="text-sm">%</span>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleAddCustomColumn}
+            disabled={!newColName.trim() || !baseColumn || keys.includes(newColName.trim()) || isSaving}
+          >
+            <Plus className="w-4 h-4 mr-1" />
+            Agregar
+          </Button>
+        </div>
+
+        {/* List existing custom columns */}
+        {map.custom_columns && Object.keys(map.custom_columns).length > 0 && (
+          <div className="mt-4 space-y-2">
+            <Label className="text-sm text-muted-foreground">Columnas creadas:</Label>
+            <ScrollArea className="max-h-[150px]">
+              {Object.entries(map.custom_columns).map(([colName, formula]) => (
+                <div
+                  key={colName}
+                  className="flex items-center justify-between py-2 px-2 border-b last:border-0 bg-background/50 rounded"
+                >
+                  <div className="text-sm">
+                    <span className="font-medium">{colName}</span>
+                    <span className="text-muted-foreground ml-2">(base: {formula.base_column})</span>
+                    <span className="text-muted-foreground ml-2">
+                      {formula.percentage >= 0 ? "+" : ""}
+                      {formula.percentage}%{formula.add_vat ? ` + IVA ${formula.vat_rate || 21}%` : ""}
+                    </span>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleRemoveCustomColumn(colName)}
+                    disabled={isSaving}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+            </ScrollArea>
+          </div>
+        )}
       </div>
     </div>
   );
