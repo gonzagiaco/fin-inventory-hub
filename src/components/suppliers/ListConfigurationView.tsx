@@ -13,6 +13,13 @@ import { DollarConversionTab } from "@/components/mapping/tabs/DollarConversionT
 import { OptionsTab } from "@/components/mapping/tabs/OptionsTab";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 
+export type CustomColumnFormula = {
+  base_column: string;
+  percentage: number;
+  add_vat: boolean;
+  vat_rate?: number;
+};
+
 export type MappingConfig = {
   code_keys: string[];
   name_keys: string[];
@@ -29,6 +36,7 @@ export type MappingConfig = {
   dollar_conversion?: {
     target_columns: string[];
   };
+  custom_columns?: Record<string, CustomColumnFormula>;
 };
 
 interface ListConfigurationViewProps {
@@ -126,10 +134,17 @@ export function ListConfigurationView({ listId, onSaved }: ListConfigurationView
         setSample(sampleData ?? []);
         const k = new Set<string>();
         (sampleData ?? []).forEach((row) => Object.keys(row.data || {}).forEach((kk) => k.add(kk)));
-        setKeys(Array.from(k).sort());
 
         if (configData?.mapping_config) {
           const loaded = configData.mapping_config as MappingConfig;
+          
+          // Add custom column names to keys set
+          if (loaded.custom_columns) {
+            Object.keys(loaded.custom_columns).forEach(customColName => k.add(customColName));
+          }
+          
+          setKeys(Array.from(k).sort());
+          
           setMap((prev) => ({
             ...prev,
             ...loaded,
@@ -141,7 +156,10 @@ export function ListConfigurationView({ listId, onSaved }: ListConfigurationView
             dollar_conversion: {
               target_columns: loaded.dollar_conversion?.target_columns || [],
             },
+            custom_columns: loaded.custom_columns || undefined,
           }));
+        } else {
+          setKeys(Array.from(k).sort());
         }
       } catch (error) {
         console.error("Error loading sample or mapping_config:", error);
@@ -186,6 +204,10 @@ export function ListConfigurationView({ listId, onSaved }: ListConfigurationView
         dollar_conversion:
           map.dollar_conversion?.target_columns?.length > 0
             ? { target_columns: map.dollar_conversion.target_columns }
+            : undefined,
+        custom_columns:
+          map.custom_columns && Object.keys(map.custom_columns).length > 0
+            ? map.custom_columns
             : undefined,
       };
 
@@ -281,7 +303,8 @@ export function ListConfigurationView({ listId, onSaved }: ListConfigurationView
             <PricesTab 
               keys={keys} 
               map={map} 
-              setMap={setMap} 
+              setMap={setMap}
+              setKeys={setKeys}
               isSaving={isSaving}
               isNumericColumn={isNumericColumn}
             />
