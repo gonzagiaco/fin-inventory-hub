@@ -5,8 +5,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { MappingConfig } from "@/components/suppliers/ListConfigurationView";
-import { Plus, Trash2 } from "lucide-react";
+import { MappingConfig, CustomColumnFormula } from "@/components/suppliers/ListConfigurationView";
+import { Plus, Trash2, Pencil, Check, X } from "lucide-react";
 
 interface PricesTabProps {
   keys: string[];
@@ -24,6 +24,38 @@ export function PricesTab({ keys, map, setMap, setKeys, isSaving, isNumericColum
   const [percentage, setPercentage] = useState(0);
   const [addVat, setAddVat] = useState(false);
   const [vatRate, setVatRate] = useState(21);
+
+  // State for editing existing custom columns
+  const [editingColumn, setEditingColumn] = useState<string | null>(null);
+  const [editValues, setEditValues] = useState<CustomColumnFormula | null>(null);
+
+  const handleEditColumn = (colName: string) => {
+    const formula = map.custom_columns?.[colName];
+    if (formula) {
+      setEditingColumn(colName);
+      setEditValues({ ...formula });
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingColumn(null);
+    setEditValues(null);
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingColumn || !editValues) return;
+    
+    setMap(prev => ({
+      ...prev,
+      custom_columns: {
+        ...(prev.custom_columns || {}),
+        [editingColumn]: editValues
+      }
+    }));
+    
+    setEditingColumn(null);
+    setEditValues(null);
+  };
 
   const handleAddCustomColumn = () => {
     if (!newColName.trim() || !baseColumn) return;
@@ -284,28 +316,103 @@ export function PricesTab({ keys, map, setMap, setKeys, isSaving, isNumericColum
         {map.custom_columns && Object.keys(map.custom_columns).length > 0 && (
           <div className="mt-4 space-y-2">
             <Label className="text-sm text-muted-foreground">Columnas creadas:</Label>
-            <ScrollArea className="max-h-[150px]">
+            <ScrollArea className="max-h-[200px]">
               {Object.entries(map.custom_columns).map(([colName, formula]) => (
-                <div key={colName} className="flex items-center justify-between py-2 px-2 border-b last:border-0 bg-background/50 rounded">
-                  <div className="text-sm">
-                    <span className="font-medium">{colName}</span>
-                    <span className="text-muted-foreground ml-2">
-                      (base: {formula.base_column})
-                    </span>
-                    <span className="text-muted-foreground ml-2">
-                      {formula.percentage >= 0 ? "+" : ""}{formula.percentage}%
-                      {formula.add_vat ? ` + IVA ${formula.vat_rate || 21}%` : ""}
-                    </span>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleRemoveCustomColumn(colName)}
-                    disabled={isSaving}
-                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
+                <div key={colName} className="py-2 px-2 border-b last:border-0 bg-background/50 rounded mb-1">
+                  {editingColumn === colName && editValues ? (
+                    // Edit mode
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium text-sm min-w-[80px]">{colName}</span>
+                      <Select
+                        value={editValues.base_column}
+                        onValueChange={val => setEditValues(prev => prev ? { ...prev, base_column: val } : null)}
+                        disabled={isSaving}
+                      >
+                        <SelectTrigger className="w-32 h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableBaseColumns.map(k => (
+                            <SelectItem key={k} value={k}>{k}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Input
+                        type="number"
+                        value={editValues.percentage}
+                        onChange={e => setEditValues(prev => prev ? { ...prev, percentage: parseFloat(e.target.value) || 0 } : null)}
+                        className="w-16 h-8"
+                        disabled={isSaving}
+                      />
+                      <span className="text-sm">%</span>
+                      <Checkbox
+                        checked={editValues.add_vat}
+                        onCheckedChange={checked => setEditValues(prev => prev ? { ...prev, add_vat: Boolean(checked) } : null)}
+                        disabled={isSaving}
+                      />
+                      <span className="text-sm">IVA</span>
+                      <Input
+                        type="number"
+                        value={editValues.vat_rate ?? 21}
+                        onChange={e => setEditValues(prev => prev ? { ...prev, vat_rate: parseFloat(e.target.value) || 21 } : null)}
+                        className="w-14 h-8"
+                        disabled={!editValues.add_vat || isSaving}
+                      />
+                      <span className="text-sm">%</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleSaveEdit}
+                        disabled={isSaving}
+                        className="h-8 px-2 text-primary hover:text-primary"
+                      >
+                        <Check className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleCancelEdit}
+                        disabled={isSaving}
+                        className="h-8 px-2"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    // View mode
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm">
+                        <span className="font-medium">{colName}</span>
+                        <span className="text-muted-foreground ml-2">
+                          (base: {formula.base_column})
+                        </span>
+                        <span className="text-muted-foreground ml-2">
+                          {formula.percentage >= 0 ? "+" : ""}{formula.percentage}%
+                          {formula.add_vat ? ` + IVA ${formula.vat_rate || 21}%` : ""}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditColumn(colName)}
+                          disabled={isSaving}
+                          className="h-8 px-2"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveCustomColumn(colName)}
+                          disabled={isSaving}
+                          className="h-8 px-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </ScrollArea>
