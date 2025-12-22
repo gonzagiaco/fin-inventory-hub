@@ -534,7 +534,7 @@ export const useProductLists = (supplierId?: string) => {
     createList: createListMutation.mutateAsync,
     deleteList: deleteListMutation.mutate,
     updateColumnSchema: updateColumnSchemaMutation.mutateAsync,
-    updateList: updateListMutation.mutate,
+    updateList: updateListMutation.mutateAsync,
     findSimilarList,
   };
 };
