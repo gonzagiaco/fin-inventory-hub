@@ -332,22 +332,18 @@ export function ProductCardView({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {visibleProducts.map((product) => {
           const isExpanded = expandedCards.has(product.id);
+          const inMyStockCard =
+            product.in_my_stock === true ||
+            (product.in_my_stock === undefined && (product.quantity ?? 0) > 0);
+
+          const isLowStockCard =
+            showLowStockBadge &&
+            inMyStockCard &&
+            (product.stock_threshold ?? 0) > 0 &&
+            (product.quantity ?? 0) < (product.stock_threshold ?? 0);
 
           return (
             <Card key={product.id} className="flex flex-col relative group">
-              {showRemoveFromStock && onRemoveFromStock && (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="absolute top-2 right-2 h-7 w-7 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-70 group-hover:opacity-100"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRemoveFromStock(product);
-                  }}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
               <CardHeader className="pb-3">
                 <div className="space-y-2">
                   {keyFields.map((field) => {
@@ -365,9 +361,13 @@ export function ProductCardView({
                       const quantityField = field;
                       const q = product.quantity || 0;
                       const stockThresholdField = product.stock_threshold ?? 0;
+                      const inMyStock =
+                        product.in_my_stock === true ||
+                        (product.in_my_stock === undefined && (product.quantity ?? 0) > 0);
+
                       const isLowStockField =
                         showLowStockBadge &&
-                        product.in_my_stock === true &&
+                        inMyStock &&
                         stockThresholdField > 0 &&
                         q < stockThresholdField;
 
@@ -376,12 +376,26 @@ export function ProductCardView({
                           key={field.key}
                           className="text-sm border-b pb-1 flex flex-col gap-2"
                         >
-                          <div className={`w-full ${isLowStockField ? 'mb-0' : 'mb-3'}`}>
+                          <div
+                            className={`w-full flex items-center justify-between ${
+                              isLowStockField ? "mb-0" : "mb-3"
+                            }`}
+                          >
+                            {isLowStockCard && (
+                              <div className="">
+                                <Badge
+                                  variant="destructive"
+                                  className="text-xs"
+                                >
+                                  Bajo Stock
+                                </Badge>
+                              </div>
+                            )}
                             {showRemoveFromStock && onRemoveFromStock && (
                               <Button
                                 size="icon"
                                 variant="ghost"
-                                className="absolute top-2 right-2 h-7 w-7 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-70 group-hover:opacity-100"
+                                className="h-7 w-7 rounded-full text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors opacity-70 group-hover:opacity-100"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   onRemoveFromStock(product);
@@ -391,7 +405,7 @@ export function ProductCardView({
                               </Button>
                             )}
                           </div>
-                          {isLowStockField && (
+                          {isLowStockField && !isLowStockCard && (
                             <div className="w-22 from-1440:w-4/12">
                               <Badge variant="destructive" className="text-xs">
                                 Bajo Stock
