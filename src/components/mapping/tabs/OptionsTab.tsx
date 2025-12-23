@@ -75,14 +75,14 @@ export function OptionsTab({ keys, map, setMap, isNumericColumn }: OptionsTabPro
           </p>
         </div>
         <Select
-          value={map.delivery_note_price_column || ""}
-          onValueChange={(value) => setMap({ ...map, delivery_note_price_column: value || null })}
+          value={map.delivery_note_price_column || "__default__"}
+          onValueChange={(value) => setMap({ ...map, delivery_note_price_column: value === "__default__" ? null : value })}
         >
           <SelectTrigger className="max-w-[300px]">
             <SelectValue placeholder="Usar precio principal (por defecto)" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Usar precio principal (por defecto)</SelectItem>
+            <SelectItem value="__default__">Usar precio principal (por defecto)</SelectItem>
             {priceOptions.map(({ key, label }) => (
               <SelectItem key={key} value={key}>
                 {label}
