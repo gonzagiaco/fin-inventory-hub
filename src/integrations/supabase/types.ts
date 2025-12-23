@@ -704,6 +704,7 @@ export type Database = {
         }
         Returns: {
           code: string
+          calculated_data: Json | null
           list_id: string
           name: string
           price: number

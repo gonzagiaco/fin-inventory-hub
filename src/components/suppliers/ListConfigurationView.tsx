@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Loader2, Columns, DollarSign, Settings2, Tags } from "lucide-react";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
-import { syncFromSupabase, localDB, isOnline, queueOperation } from "@/lib/localDB";
+import { localDB, isOnline, queueOperation, syncProductListById } from "@/lib/localDB";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ColumnsTab } from "@/components/mapping/tabs/ColumnsTab";
 import { PricesTab } from "@/components/mapping/tabs/PricesTab";
@@ -280,16 +280,14 @@ export function ListConfigurationView({ listId, onSaved }: ListConfigurationView
 
         await queryClient.invalidateQueries({ queryKey: ["product-lists-index"] });
         await queryClient.invalidateQueries({ queryKey: ["product-lists"] });
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        await queryClient.resetQueries({ queryKey: ["list-products", listId], exact: false });
 
         try {
-          await syncFromSupabase();
+          await syncProductListById(listId);
         } catch (error) {
-          console.error("Error al sincronizar después de guardar mapeo:", error);
+          console.error("Error al sincronizar la lista después de guardar mapeo:", error);
         }
 
-        // Invalidate my-stock to update "Mi Stock" view
+        await queryClient.resetQueries({ queryKey: ["list-products", listId], exact: false });
         await queryClient.invalidateQueries({ queryKey: ["my-stock"] });
 
         toast.success("Configuración guardada correctamente");
