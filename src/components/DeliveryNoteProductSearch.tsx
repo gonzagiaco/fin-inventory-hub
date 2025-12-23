@@ -5,6 +5,7 @@ import { Search, Loader2 } from "lucide-react";
 import { formatARS } from "@/utils/numberParser";
 import { useGlobalProductSearch } from "@/hooks/useGlobalProductSearch";
 import { useProductLists } from "@/hooks/useProductLists";
+import { MappingConfig } from "@/components/suppliers/ListConfigurationView";
 
 interface ProductSearchProps {
   onSelect: (product: { id?: string; code: string; name: string; price: number }) => void;
@@ -35,12 +36,14 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
   const handleSelect = (product: any) => {
     // Obtener nombre del producto
     let productName = product.name || product.code || "Producto sin nombre";
+    let productPrice = product.price || 0;
+
+    // Obtener configuración de la lista
+    const list = productLists.find((l: any) => l.id === product.list_id);
+    const mappingConfig = list?.mapping_config as MappingConfig | undefined;
 
     // Si tenemos el producto completo con data, extraer mejor nombre
     if (product.dynamic_products?.data) {
-      const list = productLists.find((l: any) => l.id === product.list_id);
-      const mappingConfig = list?.mapping_config;
-
       if (mappingConfig?.name_keys && Array.isArray(mappingConfig.name_keys)) {
         for (const key of mappingConfig.name_keys) {
           const value = product.dynamic_products.data[key];
@@ -52,11 +55,26 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
       }
     }
 
+    // Usar columna de precio configurada para remitos
+    if (mappingConfig?.delivery_note_price_column) {
+      const priceCol = mappingConfig.delivery_note_price_column;
+      // Buscar en calculated_data primero (columnas calculadas)
+      if (product.calculated_data?.[priceCol] != null) {
+        productPrice = product.calculated_data[priceCol];
+      } else if (product.dynamic_products?.data?.[priceCol] != null) {
+        const rawValue = product.dynamic_products.data[priceCol];
+        const parsed = typeof rawValue === 'number' ? rawValue : parseFloat(String(rawValue).replace(/[^0-9.,-]/g, '').replace(',', '.'));
+        if (!isNaN(parsed)) {
+          productPrice = parsed;
+        }
+      }
+    }
+
     onSelect({
       id: product.product_id,
       code: product.code || "SIN-CODIGO",
       name: productName,
-      price: product.price || 0,
+      price: productPrice,
     });
 
     setQuery("");
