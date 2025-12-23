@@ -30,6 +30,7 @@ export type MappingConfig = {
   extra_index_keys: string[];
   low_stock_threshold?: number;
   cart_price_column?: string | null;
+  delivery_note_price_column?: string | null;
   price_modifiers?: {
     general: { percentage: number; add_vat: boolean; vat_rate?: number };
     overrides: Record<string, { percentage: number; add_vat: boolean; vat_rate?: number }>;
