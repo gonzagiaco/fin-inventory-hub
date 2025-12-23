@@ -289,6 +289,7 @@ export function ListConfigurationView({ listId, onSaved }: ListConfigurationView
 
         await queryClient.resetQueries({ queryKey: ["list-products", listId], exact: false });
         await queryClient.invalidateQueries({ queryKey: ["my-stock"] });
+        await queryClient.invalidateQueries({ queryKey: ["global-product-search"] });
 
         toast.success("Configuración guardada correctamente");
       } else {
