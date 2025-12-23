@@ -28,6 +28,7 @@ export function PricesTab({ keys, map, setMap, setKeys, isSaving, isNumericColum
   // State for editing existing custom columns
   const [editingColumn, setEditingColumn] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<CustomColumnFormula | null>(null);
+  const [editName, setEditName] = useState("");
 
   const handleAddCustomColumn = () => {
     if (!newColName.trim() || !baseColumn) return;
@@ -78,27 +79,47 @@ export function PricesTab({ keys, map, setMap, setKeys, isSaving, isNumericColum
     if (formula) {
       setEditingColumn(colName);
       setEditValues({ ...formula });
+      setEditName(colName);
     }
   };
 
   const handleCancelEdit = () => {
     setEditingColumn(null);
     setEditValues(null);
+    setEditName("");
   };
 
   const handleSaveEdit = () => {
     if (!editingColumn || !editValues) return;
+    const trimmedName = editName.trim();
+    if (!trimmedName) return;
+    if (trimmedName !== editingColumn && keys.includes(trimmedName)) return;
 
-    setMap((prev) => ({
-      ...prev,
-      custom_columns: {
-        ...(prev.custom_columns || {}),
-        [editingColumn]: editValues,
-      },
-    }));
+    setMap((prev) => {
+      const customColumns = { ...(prev.custom_columns || {}) };
+      delete customColumns[editingColumn];
+      customColumns[trimmedName] = editValues;
+
+      const replaceColumn = (value?: string | null) => (value === editingColumn ? trimmedName : value ?? null);
+      const replaceInList = (values: string[]) =>
+        values.map((value) => (value === editingColumn ? trimmedName : value));
+
+      return {
+        ...prev,
+        custom_columns: customColumns,
+        cart_price_column: replaceColumn(prev.cart_price_column ?? null),
+        delivery_note_price_column: replaceColumn(prev.delivery_note_price_column ?? null),
+        price_alt_keys: replaceInList(prev.price_alt_keys ?? []),
+      };
+    });
+
+    if (trimmedName !== editingColumn) {
+      setKeys((prev) => prev.map((key) => (key === editingColumn ? trimmedName : key)));
+    }
 
     setEditingColumn(null);
     setEditValues(null);
+    setEditName("");
   };
 
   // Get existing custom column names to exclude from base column selection
@@ -411,7 +432,12 @@ export function PricesTab({ keys, map, setMap, setKeys, isSaving, isNumericColum
                   {editingColumn === colName && editValues ? (
                     // Edit mode
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-medium text-sm min-w-[80px]">{colName}</span>
+                      <Input
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className="w-32"
+                        disabled={isSaving}
+                      />
                       <Select
                         value={editValues.base_column}
                         onValueChange={(val) => setEditValues({ ...editValues, base_column: val })}
@@ -450,7 +476,17 @@ export function PricesTab({ keys, map, setMap, setKeys, isSaving, isNumericColum
                         disabled={!editValues.add_vat || isSaving}
                       />
                       <span className="text-sm">%</span>
-                      <Button variant="ghost" size="sm" onClick={handleSaveEdit} disabled={isSaving} className="text-primary">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleSaveEdit}
+                        disabled={
+                          isSaving ||
+                          !editName.trim() ||
+                          (editName.trim() !== colName && keys.includes(editName.trim()))
+                        }
+                        className="text-primary"
+                      >
                         <Check className="w-4 h-4" />
                       </Button>
                       <Button variant="ghost" size="sm" onClick={handleCancelEdit} disabled={isSaving}>

@@ -5,7 +5,10 @@ import { Search, Loader2 } from "lucide-react";
 import { formatARS } from "@/utils/numberParser";
 import { useGlobalProductSearch } from "@/hooks/useGlobalProductSearch";
 import { useProductLists } from "@/hooks/useProductLists";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { MappingConfig } from "@/components/suppliers/ListConfigurationView";
+import { localDB } from "@/lib/localDB";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ProductSearchProps {
   onSelect: (product: { id?: string; code: string; name: string; price: number }) => void;
@@ -16,11 +19,12 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
   const [isFocused, setIsFocused] = useState(false);
 
   const { productLists } = useProductLists();
+  const isOnline = useOnlineStatus();
 
-  const { 
+  const {
     data: searchData, 
     isLoading,
-    isOnline 
+    isOnline: isSearchOnline
   } = useGlobalProductSearch({
     searchTerm: query,
     supplierFilter: "all",
@@ -33,7 +37,14 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
     return searchData.pages.flatMap((page) => page.data || []);
   }, [searchData]);
 
-  const handleSelect = (product: any) => {
+  const parsePriceValue = (rawValue: unknown): number | null => {
+    if (rawValue == null) return null;
+    if (typeof rawValue === "number") return rawValue;
+    const parsed = parseFloat(String(rawValue).replace(/[^0-9.,-]/g, "").replace(",", "."));
+    return Number.isNaN(parsed) ? null : parsed;
+  };
+
+  const handleSelect = async (product: any) => {
     // Obtener nombre del producto
     let productName = product.name || product.code || "Producto sin nombre";
     let productPrice = product.price || 0;
@@ -58,15 +69,35 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
     // Usar columna de precio configurada para remitos
     if (mappingConfig?.delivery_note_price_column) {
       const priceCol = mappingConfig.delivery_note_price_column;
+      let resolvedPrice: number | null = null;
       // Buscar en calculated_data primero (columnas calculadas)
       if (product.calculated_data?.[priceCol] != null) {
-        productPrice = product.calculated_data[priceCol];
+        resolvedPrice = parsePriceValue(product.calculated_data[priceCol]);
       } else if (product.dynamic_products?.data?.[priceCol] != null) {
-        const rawValue = product.dynamic_products.data[priceCol];
-        const parsed = typeof rawValue === 'number' ? rawValue : parseFloat(String(rawValue).replace(/[^0-9.,-]/g, '').replace(',', '.'));
-        if (!isNaN(parsed)) {
-          productPrice = parsed;
+        resolvedPrice = parsePriceValue(product.dynamic_products.data[priceCol]);
+      } else if (product.data?.[priceCol] != null) {
+        resolvedPrice = parsePriceValue(product.data[priceCol]);
+      }
+
+      if (resolvedPrice == null && product.product_id) {
+        const localProduct = await localDB.dynamic_products.get(product.product_id);
+        resolvedPrice = parsePriceValue(localProduct?.data?.[priceCol]);
+
+        if (resolvedPrice == null && isOnline) {
+          const { data: remoteProduct, error } = await supabase
+            .from("dynamic_products")
+            .select("data")
+            .eq("id", product.product_id)
+            .maybeSingle();
+
+          if (!error) {
+            resolvedPrice = parsePriceValue(remoteProduct?.data?.[priceCol]);
+          }
         }
+      }
+
+      if (resolvedPrice != null) {
+        productPrice = resolvedPrice;
       }
     }
 
@@ -106,7 +137,7 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
         <Card className="absolute z-50 mt-1 w-full p-4 text-center">
           <Loader2 className="w-4 h-4 animate-spin mx-auto" />
           <p className="text-sm text-muted-foreground mt-2">
-            Buscando{!isOnline ? " (modo offline)" : ""}...
+            Buscando{!isSearchOnline ? " (modo offline)" : ""}...
           </p>
         </Card>
       )}
@@ -161,7 +192,7 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
       {!isLoading && showResults && query.length >= 2 && results.length === 0 && (
         <Card className="absolute z-50 mt-1 w-full p-4 text-center">
           <p className="text-muted-foreground">
-            No se encontraron productos{!isOnline ? " (modo offline)" : ""}
+            No se encontraron productos{!isSearchOnline ? " (modo offline)" : ""}
           </p>
         </Card>
       )}
