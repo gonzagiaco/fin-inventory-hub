@@ -52,6 +52,14 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
     // Obtener configuración de la lista
     const list = productLists.find((l: any) => l.id === product.list_id);
     const mappingConfig = list?.mapping_config as MappingConfig | undefined;
+    
+    console.log('📦 DeliveryNote - Producto seleccionado:', {
+      product_id: product.product_id,
+      list_id: product.list_id,
+      price_from_search: product.price,
+      calculated_data: product.calculated_data,
+      delivery_note_price_column: mappingConfig?.delivery_note_price_column
+    });
 
     // Si tenemos el producto completo con data, extraer mejor nombre
     if (product.dynamic_products?.data) {
@@ -71,10 +79,14 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
       const priceCol = mappingConfig.delivery_note_price_column;
       let resolvedPrice: number | null = null;
 
+      console.log('🔍 DeliveryNote - Buscando precio en columna:', priceCol);
+
       // 1. Buscar en calculated_data del resultado RPC (columnas personalizadas/calculadas)
       if (product.calculated_data && typeof product.calculated_data === 'object' && Object.keys(product.calculated_data).length > 0) {
+        console.log('🔍 DeliveryNote - calculated_data del RPC:', product.calculated_data);
         if (product.calculated_data[priceCol] != null) {
           resolvedPrice = parsePriceValue(product.calculated_data[priceCol]);
+          console.log('✅ DeliveryNote - Precio encontrado en RPC calculated_data:', resolvedPrice);
         }
       }
 
@@ -85,8 +97,11 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
           .equals(product.product_id)
           .first();
         
+        console.log('🔍 DeliveryNote - IndexedDB record:', indexRecord?.calculated_data);
+        
         if (indexRecord?.calculated_data?.[priceCol] != null) {
           resolvedPrice = parsePriceValue(indexRecord.calculated_data[priceCol]);
+          console.log('✅ DeliveryNote - Precio encontrado en IndexedDB:', resolvedPrice);
         }
       }
 
@@ -94,8 +109,10 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
       if (resolvedPrice == null) {
         if (product.dynamic_products?.data?.[priceCol] != null) {
           resolvedPrice = parsePriceValue(product.dynamic_products.data[priceCol]);
+          console.log('✅ DeliveryNote - Precio encontrado en dynamic_products.data:', resolvedPrice);
         } else if (product.data?.[priceCol] != null) {
           resolvedPrice = parsePriceValue(product.data[priceCol]);
+          console.log('✅ DeliveryNote - Precio encontrado en product.data:', resolvedPrice);
         }
       }
 
@@ -103,6 +120,10 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
       if (resolvedPrice == null && product.product_id) {
         const localProduct = await localDB.dynamic_products.get(product.product_id);
         resolvedPrice = parsePriceValue(localProduct?.data?.[priceCol]);
+
+        if (resolvedPrice != null) {
+          console.log('✅ DeliveryNote - Precio encontrado en local dynamic_products:', resolvedPrice);
+        }
 
         // 5. Si aún no hay precio y estamos online, consultar Supabase directamente
         if (resolvedPrice == null && isOnline) {
@@ -112,14 +133,18 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
             .eq("id", product.product_id)
             .maybeSingle();
 
-          if (!error) {
-            resolvedPrice = parsePriceValue(remoteProduct?.data?.[priceCol]);
+          if (!error && remoteProduct?.data?.[priceCol] != null) {
+            resolvedPrice = parsePriceValue(remoteProduct.data[priceCol]);
+            console.log('✅ DeliveryNote - Precio encontrado en Supabase:', resolvedPrice);
           }
         }
       }
 
       if (resolvedPrice != null) {
         productPrice = resolvedPrice;
+        console.log('💰 DeliveryNote - Precio final resuelto:', productPrice);
+      } else {
+        console.log('⚠️ DeliveryNote - No se encontró precio en columna', priceCol, ', usando precio por defecto:', productPrice);
       }
     }
 
