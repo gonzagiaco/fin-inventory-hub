@@ -70,19 +70,41 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
     if (mappingConfig?.delivery_note_price_column) {
       const priceCol = mappingConfig.delivery_note_price_column;
       let resolvedPrice: number | null = null;
-      // Buscar en calculated_data primero (columnas calculadas)
-      if (product.calculated_data?.[priceCol] != null) {
-        resolvedPrice = parsePriceValue(product.calculated_data[priceCol]);
-      } else if (product.dynamic_products?.data?.[priceCol] != null) {
-        resolvedPrice = parsePriceValue(product.dynamic_products.data[priceCol]);
-      } else if (product.data?.[priceCol] != null) {
-        resolvedPrice = parsePriceValue(product.data[priceCol]);
+
+      // 1. Buscar en calculated_data del resultado RPC (columnas personalizadas/calculadas)
+      if (product.calculated_data && typeof product.calculated_data === 'object' && Object.keys(product.calculated_data).length > 0) {
+        if (product.calculated_data[priceCol] != null) {
+          resolvedPrice = parsePriceValue(product.calculated_data[priceCol]);
+        }
       }
 
+      // 2. Si calculated_data del RPC está vacío o no tiene la columna, buscar en IndexedDB
+      if (resolvedPrice == null && product.product_id) {
+        const indexRecord = await localDB.dynamic_products_index
+          .where('product_id')
+          .equals(product.product_id)
+          .first();
+        
+        if (indexRecord?.calculated_data?.[priceCol] != null) {
+          resolvedPrice = parsePriceValue(indexRecord.calculated_data[priceCol]);
+        }
+      }
+
+      // 3. Buscar en data del producto completo (columnas originales del archivo)
+      if (resolvedPrice == null) {
+        if (product.dynamic_products?.data?.[priceCol] != null) {
+          resolvedPrice = parsePriceValue(product.dynamic_products.data[priceCol]);
+        } else if (product.data?.[priceCol] != null) {
+          resolvedPrice = parsePriceValue(product.data[priceCol]);
+        }
+      }
+
+      // 4. Fallback final: buscar en dynamic_products local
       if (resolvedPrice == null && product.product_id) {
         const localProduct = await localDB.dynamic_products.get(product.product_id);
         resolvedPrice = parsePriceValue(localProduct?.data?.[priceCol]);
 
+        // 5. Si aún no hay precio y estamos online, consultar Supabase directamente
         if (resolvedPrice == null && isOnline) {
           const { data: remoteProduct, error } = await supabase
             .from("dynamic_products")
