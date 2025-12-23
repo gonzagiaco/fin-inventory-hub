@@ -47,7 +47,7 @@ export const useProductLists = (supplierId?: string) => {
   const isOnline = useOnlineStatus();
 
   const { data: productLists = [], isLoading } = useQuery({
-    queryKey: ["product-lists", supplierId, isOnline ? "online" : "offline"],
+    queryKey: ["product-lists", supplierId ?? "all", isOnline ? "online" : "offline"],
     queryFn: async () => {
       // OFFLINE: Cargar desde IndexedDB
       if (isOnline === false) {
@@ -96,7 +96,8 @@ export const useProductLists = (supplierId?: string) => {
         };
       }) as ProductList[];
     },
-    enabled: !!supplierId,
+    // Siempre habilitado: si supplierId está definido, filtra; si no, trae todas las listas
+    enabled: true,
   });
 
   const { data: productsMap = {} } = useQuery({
@@ -168,7 +169,9 @@ export const useProductLists = (supplierId?: string) => {
 
       return grouped;
     },
-    enabled: productLists.length > 0,
+    // Solo cargar productos cuando hay supplierId definido (pantallas de proveedor)
+    // Esto evita cargar TODOS los productos cuando se usa desde DeliveryNoteProductSearch
+    enabled: productLists.length > 0 && !!supplierId,
     staleTime: 3 * 60 * 1000, // 3 minutes
     gcTime: 8 * 60 * 1000, // 8 minutes in cache
   });

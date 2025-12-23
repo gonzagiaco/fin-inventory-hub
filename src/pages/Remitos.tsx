@@ -345,13 +345,13 @@ const Remitos = () => {
                                 setIsDeleteDialogOpen(true);
                               }}
                             >
-                              {isDeleting ? (
+                              {isDeleting && noteToDelete === note.id ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />
                               ) : (
                                 <Trash2 className="h-4 w-4" />
                               )}
                               <span className="ml-2 hidden sm:inline">
-                                {isDeleting ? "Eliminando..." : "Eliminar"}
+                                {isDeleting && noteToDelete === note.id ? "Eliminando..." : "Eliminar"}
                               </span>
                             </Button>
                           </TooltipTrigger>
