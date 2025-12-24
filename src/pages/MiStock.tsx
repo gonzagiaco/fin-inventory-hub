@@ -169,7 +169,6 @@ export default function MiStock() {
 
     if (existingItem) {
       setRequestList((prev) => prev.map((r) => (r.productId === product.id ? { ...r, quantity: r.quantity + 1 } : r)));
-      toast.success("Cantidad actualizada en la lista de pedidos");
     } else {
       let finalPrice = parsePriceValue(product.price) ?? 0;
       const cartPriceColumn = mappingConfig?.cart_price_column;
@@ -188,7 +187,7 @@ export default function MiStock() {
         quantity: 1,
       };
       setRequestList((prev) => [...prev, newRequest]);
-      toast.success("Producto agregado a la lista de pedidos");
+      toast.success("Producto agregado al carrito");
     }
   };
 
@@ -198,7 +197,7 @@ export default function MiStock() {
 
   const handleRemoveFromRequest = (id: string) => {
     setRequestList((prev) => prev.filter((item) => item.id !== id));
-    toast.success("Producto eliminado de la lista de pedidos");
+    toast.success("Producto eliminado del carrito");
   };
 
   const handleExportToExcel = () => {

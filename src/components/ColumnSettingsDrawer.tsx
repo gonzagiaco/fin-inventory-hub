@@ -325,8 +325,7 @@ export const ColumnSettingsDrawer = ({
 
   const handleApplyView = (viewId: string) => {
     applyView(listId, viewId);
-    const view = savedViews[listId]?.find((v) => v.id === viewId);
-    toast.success(`Vista "${view?.name}" aplicada`);
+    toast.success("Vista aplicada");
   };
 
   const handleRenameView = (viewId: string) => {
@@ -337,13 +336,12 @@ export const ColumnSettingsDrawer = ({
     renameView(listId, viewId, editingViewName.trim());
     setEditingViewId(null);
     setEditingViewName("");
-    toast.success("Vista renombrada");
+    toast.success("Vista actualizada");
   };
 
   const handleDeleteView = (viewId: string) => {
-    const view = savedViews[listId]?.find((v) => v.id === viewId);
     deleteView(listId, viewId);
-    toast.success(`Vista "${view?.name}" eliminada`);
+    toast.success("Vista eliminada");
   };
 
   // Handle rename - opens confirmation dialog, then renames both label and key
@@ -469,13 +467,11 @@ export const ColumnSettingsDrawer = ({
 
         const updatedCount = result?.updatedCount ?? 0;
 
-        if (updatedCount === 0) {
-          toast.success(`Columna renombrada a "${column.label}"`);
-        } else {
-          toast.success(
-            `Columna renombrada a "${column.label}" (${updatedCount} productos actualizados)`
-          );
-        }
+        toast.success(
+          updatedCount > 0
+            ? `Columna renombrada (${updatedCount} productos actualizados)`
+            : `Columna renombrada a "${column.label}"`
+        );
 
         // Update local store with new key
         updateColumnLabel(listId, normalizedNewKey, column.label);
@@ -525,13 +521,11 @@ export const ColumnSettingsDrawer = ({
 
         updateColumnLabel(listId, normalizedNewKey, column.label);
 
-        if (updatedCount === 0) {
-          toast.success(`Columna renombrada a "${column.label}"`);
-        } else {
-          toast.success(
-            `Columna renombrada a "${column.label}" (${updatedCount} productos)`
-          );
-        }
+        toast.success(
+          updatedCount > 0
+            ? `Columna renombrada (${updatedCount} productos)`
+            : `Columna renombrada a "${column.label}"`
+        );
       }
 
       console.log(`✅ Clave renombrada: "${oldKey}" → "${normalizedNewKey}"`);

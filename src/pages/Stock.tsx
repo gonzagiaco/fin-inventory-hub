@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Filter, FileDown, Plus } from "lucide-react";
+import { Filter, FileDown, Plus, Package2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import RequestCart from "@/components/RequestCart";
@@ -151,7 +151,6 @@ export default function Stock() {
 
     if (existingItem) {
       setRequestList((prev) => prev.map((r) => (r.productId === product.id ? { ...r, quantity: r.quantity + 1 } : r)));
-      toast.success("Cantidad actualizada en la lista de pedidos");
     } else {
       let finalPrice = parsePriceValue(product.price) ?? 0;
       const cartPriceColumn = mappingConfig?.cart_price_column;
@@ -178,7 +177,7 @@ export default function Stock() {
         quantity: 1,
       };
       setRequestList((prev) => [...prev, newRequest]);
-      toast.success("Producto agregado a la lista de pedidos");
+      toast.success("Producto agregado al carrito");
     }
   };
 
@@ -188,7 +187,7 @@ export default function Stock() {
 
   const handleRemoveFromRequest = (id: string) => {
     setRequestList((prev) => prev.filter((item) => item.id !== id));
-    toast.success("Producto eliminado de la lista de pedidos");
+    toast.success("Producto eliminado del carrito");
   };
 
   const handleExportToExcel = () => {
@@ -337,7 +336,10 @@ export default function Stock() {
         style={{ paddingTop: "max(env(safe-area-inset-top), 1.5rem)" }}
       >
         <div className="w-full px-4 pt-5 pb-10 lg:pl-4 max-w-full overflow-hidden">
-          <h1 className="text-3xl font-bold mb-6">Listas de proveedores</h1>
+          <div className="flex items-center gap-3 mb-6">
+            <Package2 className="h-8 w-8 text-primary" />
+            <h1 className="text-3xl font-bold">Listas de proveedores</h1>
+          </div>
 
           <div className="flex flex-col md:flex-row gap-4 mb-4">
             <div className="flex flex-1 gap-2">

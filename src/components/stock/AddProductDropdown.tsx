@@ -131,7 +131,7 @@ export function AddProductDropdown({
           </TooltipContent>
         </Tooltip>
 
-        {showAddToStock && !isInMyStockPath && (
+        {showAddToStock && !isInMyStockPath && ( 
           <Tooltip>
             <TooltipTrigger asChild>
               <Button 
@@ -142,7 +142,7 @@ export function AddProductDropdown({
                 className={isInMyStock ? "opacity-50 cursor-not-allowed" : "text-primary hover:text-primary"}
               >
                 <Package className="h-4 w-4" />
-                <span className="sr-only">Agregar a Mi Stock</span>
+                <span className="sr-only">{isInMyStock ? "Ya en Mi Stock" : "Agregar a Mi Stock"}</span>
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import Header from "@/components/Header";
 import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Plus, Pencil, Trash2, Building2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Building2, Warehouse } from "lucide-react";
 import { Supplier } from "@/types";
 import SupplierDialog from "@/components/SupplierDialog";
 import DeleteConfirmDialog from "@/components/DeleteConfirmDialog";
@@ -133,7 +133,7 @@ const Proveedores = () => {
   // Render supplier grid view
   const renderSuppliersView = () => (
     <>
-      <Header title="Proveedores" subtitle="Gestiona tus proveedores y sus productos." showSearch={false} />
+      <Header title="Proveedores" subtitle="Gestiona tus proveedores y sus productos." showSearch={false} icon={<Warehouse className="h-8 w-8" />} />
 
       <div className="mb-6 flex justify-end">
         <Button onClick={handleCreateSupplier} className="gap-2">
