@@ -36,12 +36,15 @@ import { Settings2, GripVertical, Eye, EyeOff, RotateCcw, Save, Trash2, Edit2, C
 import { ColumnSchema } from "@/types/productList";
 import { useProductListStore } from "@/stores/productListStore";
 import { useProductLists } from "@/hooks/useProductLists";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { renameColumnKeyOffline } from "@/lib/localDB";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ColumnSettingsDrawerProps {
   listId: string;
   columnSchema: ColumnSchema[];
+  mappingConfig?: any;
 }
 
 interface SortableItemProps {
@@ -146,7 +149,7 @@ function SortableItem({
   );
 }
 
-export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDrawerProps) => {
+export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: ColumnSettingsDrawerProps) => {
   const {
     columnVisibility,
     columnOrder,
@@ -164,7 +167,8 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDra
     updateColumnLabel,
   } = useProductListStore();
 
-  const { updateColumnSchema } = useProductLists();
+  const { updateColumnSchema, renameColumnKey } = useProductLists();
+  const isOnline = useOnlineStatus();
 
   const [open, setOpen] = useState(false);
   const [newViewName, setNewViewName] = useState("");
@@ -273,15 +277,93 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema }: ColumnSettingsDra
   };
 
   const handleLabelChange = async (columnKey: string, newLabel: string) => {
-    // Update the label in the column schema
-    const updatedSchema = columnSchema.map((col) => (col.key === columnKey ? { ...col, label: newLabel } : col));
+    // Normalize the new key (convert to lowercase, remove special chars)
+    const newKey = newLabel.toLowerCase().replace(/[^a-z0-9áéíóúñü_]/gi, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+    const oldKey = columnKey;
+    const keyChanged = oldKey !== newKey && newKey.length > 0;
 
-    // Persist to database
+    // Update the schema with new key and label
+    const updatedSchema = columnSchema.map((col) => 
+      col.key === oldKey 
+        ? { ...col, key: keyChanged ? newKey : col.key, label: newLabel } 
+        : col
+    );
+
+    // Update mapping_config references if key changed
+    let updatedMappingConfig = mappingConfig;
+    if (keyChanged && mappingConfig) {
+      updatedMappingConfig = { ...mappingConfig };
+      
+      // Update array references
+      const arrayKeys = ['code_keys', 'name_keys', 'extra_index_keys'];
+      for (const arrayKey of arrayKeys) {
+        if (Array.isArray(updatedMappingConfig[arrayKey])) {
+          updatedMappingConfig[arrayKey] = updatedMappingConfig[arrayKey].map((k: string) => 
+            k === oldKey ? newKey : k
+          );
+        }
+      }
+      
+      // Update single value references
+      const singleKeys = ['price_primary_key', 'cart_price_column', 'delivery_note_price_column', 'quantity_key'];
+      for (const singleKey of singleKeys) {
+        if (updatedMappingConfig[singleKey] === oldKey) {
+          updatedMappingConfig[singleKey] = newKey;
+        }
+      }
+
+      // Update dollar_conversion target_columns
+      if (updatedMappingConfig.dollar_conversion?.target_columns) {
+        updatedMappingConfig.dollar_conversion.target_columns = 
+          updatedMappingConfig.dollar_conversion.target_columns.map((k: string) => 
+            k === oldKey ? newKey : k
+          );
+      }
+
+      // Update price_modifiers overrides
+      if (updatedMappingConfig.price_modifiers?.overrides?.[oldKey]) {
+        updatedMappingConfig.price_modifiers.overrides[newKey] = 
+          updatedMappingConfig.price_modifiers.overrides[oldKey];
+        delete updatedMappingConfig.price_modifiers.overrides[oldKey];
+      }
+
+      // Update custom_columns base_column references
+      if (updatedMappingConfig.custom_columns) {
+        for (const customKey in updatedMappingConfig.custom_columns) {
+          if (updatedMappingConfig.custom_columns[customKey].base_column === oldKey) {
+            updatedMappingConfig.custom_columns[customKey].base_column = newKey;
+          }
+        }
+      }
+    }
+
     try {
-      await updateColumnSchema({ listId, columnSchema: updatedSchema });
-      updateColumnLabel(listId, columnKey, newLabel);
+      if (keyChanged) {
+        // Rename key in JSONB data + schema + mapping_config
+        if (isOnline) {
+          await renameColumnKey({ 
+            listId, 
+            oldKey, 
+            newKey, 
+            updatedSchema, 
+            updatedMappingConfig 
+          });
+        } else {
+          await renameColumnKeyOffline(listId, oldKey, newKey);
+          // Also update schema locally (will sync later)
+          await updateColumnSchema({ listId, columnSchema: updatedSchema, silent: true });
+        }
+        console.log(`✅ Columna renombrada: "${oldKey}" → "${newKey}"`);
+      } else {
+        // Only update label (no key change)
+        await updateColumnSchema({ listId, columnSchema: updatedSchema, silent: true });
+      }
+      
+      updateColumnLabel(listId, keyChanged ? newKey : columnKey, newLabel);
+      toast.success("Columna actualizada");
     } catch (error) {
-      console.error("Error updating column label:", error);
+      console.error("Error updating column:", error);
+      toast.error("Error al actualizar columna");
     }
   };
 

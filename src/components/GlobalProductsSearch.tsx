@@ -19,7 +19,7 @@ interface GlobalProductSearchProps {
   isOnline: boolean;
   lists: any[];
   suppliers: any[];
-  onAddToRequest: (product: any) => void;
+  onAddToRequest: (product: any, mappingConfig?: any) => void;
   defaultViewMode?: "table" | "card";
   onLoadMore?: () => void;
   hasMore?: boolean;
@@ -266,7 +266,9 @@ export function GlobalProductSearch({
                     name: product.name,
                     price: product.price,
                     supplierId: listGroup.supplierId,
-                  })
+                    data: product.data,
+                    calculated_data: product.calculated_data,
+                  }, listGroup.mappingConfig)
                 }
                 showActions={true}
               />
@@ -320,7 +322,10 @@ export function GlobalProductSearch({
                           price: Number(item.price) || 0,
                           quantity: item.quantity || 0,
                           supplierId: supplierInfo ? supplierInfo.id : "",
+                          data: item.dynamic_products?.data || {},
+                          calculated_data: item.calculated_data || {},
                         }}
+                        mappingConfig={listInfo?.mapping_config}
                         onAddToRequest={onAddToRequest}
                         showAddToStock={true}
                       />
