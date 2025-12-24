@@ -797,12 +797,8 @@ export async function syncPendingOperations(): Promise<void> {
       return;
     }
 
-    // Mostrar UN SOLO toast resumen al final (reduce spam)
-    if (successCount > 0 && errorCount === 0) {
-      toast.success(`${successCount} cambios sincronizados`);
-    } else if (errorCount > 0 && successCount > 0) {
-      toast.warning(`${successCount} sincronizados, ${errorCount} fallidos`);
-    } else if (errorCount > 0) {
+    // Mostrar solo errores para evitar ruido en la UI
+    if (errorCount > 0 && successCount === 0) {
       toast.error(`${errorCount} operaciones fallaron`);
     }
   } finally {
@@ -1585,7 +1581,6 @@ async function rollbackDeliveryNoteDelete(snapshot: {
     }
 
     console.log(`✅ Rollback completado para remito ${snapshot.note.id}`);
-    toast.info("Remito restaurado debido a error de sincronización");
   } catch (error) {
     console.error(`❌ Error en rollback de remito:`, error);
   }
@@ -1631,7 +1626,6 @@ async function rollbackDeliveryNoteUpdate(snapshot: {
     }
 
     console.log(`✅ Rollback de actualización completado para remito ${noteId}`);
-    toast.info("Cambios del remito revertidos debido a error de sincronización");
   } catch (error) {
     console.error(`❌ Error en rollback de actualización de remito:`, error);
   }
@@ -2394,7 +2388,6 @@ export async function cleanupOldOperations(): Promise<void> {
     await localDB.pending_operations.delete(op.id!);
   }
 
-  toast.info(`${oldOps.length} operaciones obsoletas eliminadas`);
 }
 
 // ==================== OBTENER DATOS OFFLINE ====================
@@ -2439,7 +2432,6 @@ if (typeof window !== "undefined") {
 
     onlineSyncTimeoutId = setTimeout(async () => {
       onlineSyncTimeoutId = null;
-      toast.info("Conexión restaurada. Sincronizando datos...");
 
       try {
         await syncPendingOperations();
@@ -2452,7 +2444,6 @@ if (typeof window !== "undefined") {
 
   window.addEventListener("offline", () => {
     console.log("📡 Sin conexión. Trabajando en modo offline");
-    toast.warning("Sin conexión. Los cambios se sincronizarán automáticamente");
   });
 }
 

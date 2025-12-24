@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { ShoppingCart, Package, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -30,13 +31,16 @@ export function AddProductDropdown({
   const isOnline = useOnlineStatus();
   const queryClient = useQueryClient();
   const location = useLocation();
-  const isInMyStockPath = location.pathname == '/'
+  const isInMyStockPath = location.pathname === "/";
+
+  const [hasBeenAddedToStock, setHasBeenAddedToStock] = useState(false);
 
   const productId = product.product_id || product.id;
   const listId = product.list_id || product.listId;
 
   const handleAddToStock = async () => {
     toast.success("Agregado a Mi Stock");
+    setHasBeenAddedToStock(true);
     queryClient.invalidateQueries({ queryKey: ["my-stock"] });
 
     queueMicrotask(async () => {
@@ -64,8 +68,9 @@ export function AddProductDropdown({
   // - in_my_stock === true explícitamente, O
   // - in_my_stock es undefined (offline fallback) Y quantity > 0
   const productQuantity = product.quantity ?? 0;
-  const isInMyStock = product.in_my_stock === true || 
-    (product.in_my_stock === undefined && productQuantity > 0);
+  const isInMyStock =
+    product.in_my_stock === true || (product.in_my_stock === undefined && productQuantity > 0);
+  const shouldDisableAddToStock = isInMyStock || hasBeenAddedToStock;
 
   // Página Mi Stock: mostrar botones para agregar al pedido y quitar del stock
   if (showRemoveFromStock) {
@@ -131,22 +136,26 @@ export function AddProductDropdown({
           </TooltipContent>
         </Tooltip>
 
-        {showAddToStock && !isInMyStockPath && ( 
+        {showAddToStock && !isInMyStockPath && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button 
-                size="sm" 
-                variant="outline" 
+              <Button
+                size="sm"
+                variant="outline"
                 onClick={handleAddToStock}
-                disabled={isInMyStock}
-                className={isInMyStock ? "opacity-50 cursor-not-allowed" : "text-primary hover:text-primary"}
+                disabled={shouldDisableAddToStock}
+                className={
+                  shouldDisableAddToStock ? "opacity-50 cursor-not-allowed" : "text-primary hover:text-primary"
+                }
               >
                 <Package className="h-4 w-4" />
-                <span className="sr-only">{isInMyStock ? "Ya en Mi Stock" : "Agregar a Mi Stock"}</span>
+                <span className="sr-only">
+                  {shouldDisableAddToStock ? "Ya en Mi Stock" : "Agregar a Mi Stock"}
+                </span>
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">
-              <p>{isInMyStock ? "Ya está en Mi Stock" : "Agregar a Mi Stock"}</p>
+              <p>{shouldDisableAddToStock ? "Ya está en Mi Stock" : "Agregar a Mi Stock"}</p>
             </TooltipContent>
           </Tooltip>
         )}
