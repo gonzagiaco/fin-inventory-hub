@@ -1718,11 +1718,11 @@ export async function updateDeliveryNoteOffline(
       }
     }
 
-    // PASO 4: Aplicar solo los deltas netos en IndexedDB
+    // PASO 4: Aplicar solo los deltas netos en IndexedDB (SIN encolar para evitar duplicación en sync)
     for (const [productId, delta] of stockAdjustmentsMap.entries()) {
       if (delta !== 0) {
         console.log(`  📦 Ajuste neto: ${productId} (${delta > 0 ? "+" : ""}${delta})`);
-        await updateProductQuantityDelta(productId, delta);
+        await updateProductQuantityDelta(productId, delta, { enqueue: false });
       }
     }
 
@@ -1821,12 +1821,12 @@ export async function deleteDeliveryNoteOffline(id: string): Promise<void> {
 
   console.log(`  shouldRevertStock: ${shouldRevertStock} (status=${note.status})`);
 
-  // PASO 3: Si corresponde, revertir stock (delta POSITIVO)
+  // PASO 3: Si corresponde, revertir stock (delta POSITIVO) - SIN encolar para evitar duplicación
   if (shouldRevertStock) {
     for (const item of items) {
       if (item.product_id) {
         console.log(`  ⬆️ Revirtiendo: ${item.product_name} (+${item.quantity})`);
-        await updateProductQuantityDelta(item.product_id, item.quantity);
+        await updateProductQuantityDelta(item.product_id, item.quantity, { enqueue: false });
       }
     }
   } else {
