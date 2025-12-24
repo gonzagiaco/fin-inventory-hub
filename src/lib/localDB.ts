@@ -236,6 +236,23 @@ class LocalDatabase extends Dexie {
       id_mappings: "temp_id, real_id, table_name",
       stock_compensations: "++id, operation_id, product_id",
     });
+
+    // Versión 8: Agregar índice compuesto para fusión de operaciones pendientes
+    this.version(8).stores({
+      suppliers: "id, user_id, name",
+      product_lists: "id, user_id, supplier_id, name",
+      dynamic_products_index: "id, user_id, list_id, product_id, code, name, in_my_stock, stock_threshold",
+      dynamic_products: "id, user_id, list_id, code, name, stock_threshold",
+      delivery_notes: "id, user_id, customer_name, status, issue_date",
+      delivery_note_items: "id, delivery_note_id, product_id",
+      settings: "key, updated_at",
+      request_items: "id, user_id, product_id",
+      stock_items: "id, user_id, code, name, category, supplier_id",
+      pending_operations: "++id, table_name, timestamp, record_id, product_id, operation_type, [table_name+record_id+operation_type]",
+      tokens: "userId, updatedAt",
+      id_mappings: "temp_id, real_id, table_name",
+      stock_compensations: "++id, operation_id, product_id",
+    });
   }
 }
 
@@ -1862,27 +1879,52 @@ export async function markDeliveryNoteAsPaidOffline(id: string, paidAmount: numb
 
   const remainingBalance = note.total_amount - paidAmount;
   const status = remainingBalance <= 0 ? "paid" : "pending";
+  const now = new Date().toISOString();
 
   // Actualizaciones para IndexedDB (incluye remaining_balance para UI)
   const localUpdates = {
     paid_amount: paidAmount,
     remaining_balance: remainingBalance,
     status,
-    updated_at: new Date().toISOString(),
-  };
-
-  // Actualizaciones para Supabase (sin remaining_balance que es columna generada)
-  const supabaseUpdates = {
-    paid_amount: paidAmount,
-    status,
-    updated_at: new Date().toISOString(),
+    updated_at: now,
   };
 
   await localDB.delivery_notes.put({
     ...note,
     ...localUpdates,
   });
-  await queueOperation("delivery_notes", "UPDATE", id, supabaseUpdates);
+
+  // BUSCAR operación UPDATE pendiente para este remito (índice compuesto)
+  const pendingOp = await localDB.pending_operations
+    .where("[table_name+record_id+operation_type]")
+    .equals(["delivery_notes", id, "UPDATE"])
+    .first();
+
+  if (pendingOp) {
+    // FUSIONAR con la operación existente (mantener snapshot e items)
+    console.log(`🔄 Fusionando pago con operación UPDATE existente para remito ${id}`);
+    
+    const mergedData = {
+      ...pendingOp.data,
+      paid_amount: paidAmount,
+      status,
+      updated_at: now,
+    };
+
+    await localDB.pending_operations.update(pendingOp.id!, {
+      data: mergedData,
+      timestamp: Date.now(),
+    });
+  } else {
+    // No hay operación pendiente, encolar nueva
+    console.log(`➕ Encolando nueva operación de pago para remito ${id}`);
+    
+    await queueOperation("delivery_notes", "UPDATE", id, {
+      paid_amount: paidAmount,
+      status,
+      updated_at: now,
+    });
+  }
 }
 
 // PRODUCTOS - Actualizar cantidad (privada, usa delta)
