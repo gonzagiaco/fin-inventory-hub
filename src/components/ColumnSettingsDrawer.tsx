@@ -42,7 +42,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Settings2, GripVertical, Eye, EyeOff, RotateCcw, Edit2, Check, X, KeyRound } from "lucide-react";
+import { Settings2, GripVertical, Eye, EyeOff, RotateCcw, Edit2, Check, X } from "lucide-react";
 import { ColumnSchema } from "@/types/productList";
 import { useProductListStore } from "@/stores/productListStore";
 import { useProductLists } from "@/hooks/useProductLists";
@@ -65,8 +65,7 @@ interface SortableItemProps {
   isDisabled: boolean;
   isSearchable: boolean;
   onToggle: (key: string, visible: boolean) => void;
-  onLabelChange: (key: string, newLabel: string) => void;
-  onKeyRename: (key: string) => void;
+  onRename: (key: string, newLabel: string) => void;
   onSearchableToggle: (key: string, searchable: boolean) => void;
 }
 
@@ -77,8 +76,7 @@ function SortableItem({
   isDisabled,
   isSearchable,
   onToggle,
-  onLabelChange,
-  onKeyRename,
+  onRename,
   onSearchableToggle,
 }: SortableItemProps) {
   const [isEditing, setIsEditing] = useState(false);
@@ -96,7 +94,7 @@ function SortableItem({
 
   const handleSaveLabel = () => {
     if (editLabel.trim() && editLabel !== column.label) {
-      onLabelChange(column.key, editLabel.trim());
+      onRename(column.key, editLabel.trim());
     }
     setIsEditing(false);
   };
@@ -148,11 +146,8 @@ function SortableItem({
             {column.label}
             {column.isStandard && <span className="text-xs text-muted-foreground ml-1">(fija)</span>}
           </Label>
-          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setIsEditing(true)} title="Editar nombre visible">
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setIsEditing(true)} title="Renombrar columna">
             <Edit2 className="h-3 w-3" />
-          </Button>
-          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onKeyRename(column.key)} title="Renombrar clave interna">
-            <KeyRound className="h-3 w-3" />
           </Button>
         </>
       )}
@@ -298,49 +293,22 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
     toast.success(`Vista "${view?.name}" eliminada`);
   };
 
-  // Handle LABEL-ONLY change (does NOT rename JSONB keys)
-  const handleLabelChange = async (columnKey: string, newLabel: string) => {
-    // Update only the label, keep the key unchanged
-    const updatedSchema = columnSchema.map((col) => 
-      col.key === columnKey 
-        ? { ...col, label: newLabel } 
-        : col
-    );
-
-    try {
-      await updateColumnSchema({ listId, columnSchema: updatedSchema, silent: true });
-      
-      // Update local store
-      updateColumnLabel(listId, columnKey, newLabel);
-      
-      // Update product-lists-index cache for /listas page
-      queryClient.setQueryData(
-        ["product-lists-index", isOnline ? "online" : "offline"],
-        (old: any[] | undefined) => {
-          if (!old) return old;
-          return old.map((list) =>
-            list.id === listId ? { ...list, column_schema: updatedSchema } : list
-          );
-        }
-      );
-      
-      toast.success("Nombre visible actualizado");
-    } catch (error) {
-      console.error("Error updating label:", error);
-      toast.error("Error al actualizar nombre");
-    }
-  };
-
-  // Open key rename dialog
-  const handleOpenKeyRename = (key: string) => {
-    const column = columnSchema.find((c) => c.key === key);
+  // Handle rename - opens confirmation dialog, then renames both label and key
+  const handleRename = (columnKey: string, newLabel: string) => {
+    const column = columnSchema.find((c) => c.key === columnKey);
     if (!column) return;
+    
+    // Normalize new key from label
+    const normalizedNewKey = newLabel.toLowerCase()
+      .replace(/[^a-z0-9áéíóúñü_]/gi, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '');
     
     setKeyRenameDialog({
       open: true,
-      oldKey: key,
-      newKey: key,
-      column,
+      oldKey: columnKey,
+      newKey: normalizedNewKey,
+      column: { ...column, label: newLabel }, // Store new label
     });
   };
 
@@ -433,12 +401,9 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
         const updatedCount = result?.updatedCount ?? 0;
 
         if (updatedCount === 0) {
-          // No data was found to rename - this could mean:
-          // 1. The old key doesn't exist in any product's data
-          // 2. The products haven't been loaded yet
-          toast.warning(`Clave "${normalizedNewKey}" configurada, pero no se encontraron datos para migrar`);
+          toast.success(`Columna renombrada a "${column.label}"`);
         } else {
-          toast.success(`Clave renombrada: ${updatedCount} productos actualizados`);
+          toast.success(`Columna renombrada a "${column.label}" (${updatedCount} productos actualizados)`);
         }
 
         // Update local store with new key
@@ -473,9 +438,9 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
         updateColumnLabel(listId, normalizedNewKey, column.label);
         
         if (updatedCount === 0) {
-          toast.warning(`Clave configurada (se sincronizará), pero no se encontraron datos locales`);
+          toast.success(`Columna renombrada a "${column.label}"`);
         } else {
-          toast.success(`Clave renombrada localmente: ${updatedCount} productos`);
+          toast.success(`Columna renombrada a "${column.label}" (${updatedCount} productos)`);
         }
       }
 
@@ -544,8 +509,7 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
               <div className="space-y-2">
                 <h4 className="text-sm font-semibold">Columnas</h4>
                 <p className="text-xs text-muted-foreground">
-                  <Edit2 className="w-3 h-3 inline mr-1" /> Editar nombre visible | 
-                  <KeyRound className="w-3 h-3 inline mx-1" /> Renombrar clave interna
+                  <Edit2 className="w-3 h-3 inline mr-1" /> Renombrar columna
                 </p>
                 <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
                   <SortableContext items={currentOrder} strategy={verticalListSortingStrategy}>
@@ -563,8 +527,7 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
                             isDisabled={column.isStandard || false}
                             isSearchable={isSearchable}
                             onToggle={handleToggleColumn}
-                            onLabelChange={handleLabelChange}
-                            onKeyRename={handleOpenKeyRename}
+                            onRename={handleRename}
                             onSearchableToggle={handleSearchableToggle}
                           />
                         );
@@ -584,37 +547,38 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
         </DrawerContent>
       </Drawer>
 
-      {/* Key Rename Confirmation Dialog */}
+      {/* Rename Confirmation Dialog */}
       <AlertDialog open={keyRenameDialog.open} onOpenChange={(open) => !isRenaming && setKeyRenameDialog(prev => ({ ...prev, open }))}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Renombrar clave interna</AlertDialogTitle>
-            <AlertDialogDescription className="space-y-3">
-              <p>Esta acción renombrará la clave en todos los productos de esta lista.</p>
-              <div className="p-3 bg-muted rounded-md space-y-2">
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="font-medium">Clave actual:</span>
-                  <code className="px-2 py-1 bg-background rounded">{keyRenameDialog.oldKey}</code>
-                </div>
-                <div className="flex items-center gap-2 text-sm">
-                  <span className="font-medium">Nueva clave:</span>
-                  <Input
-                    value={keyRenameDialog.newKey}
-                    onChange={(e) => setKeyRenameDialog(prev => ({ ...prev, newKey: e.target.value }))}
-                    placeholder="Nueva clave"
-                    className="h-8"
-                    disabled={isRenaming}
-                  />
+            <AlertDialogTitle>¿Renombrar columna?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>Esta acción actualizará el nombre de la columna en todos los productos.</p>
+                <div className="p-3 bg-muted rounded-md space-y-2">
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="font-medium">Nombre actual:</span>
+                    <span className="text-foreground">{columnSchema.find(c => c.key === keyRenameDialog.oldKey)?.label}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="font-medium">Nuevo nombre:</span>
+                    <span className="text-foreground font-semibold">{keyRenameDialog.column?.label}</span>
+                  </div>
+                  <div className="border-t pt-2 mt-2">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>Clave interna:</span>
+                      <code className="px-1 py-0.5 bg-background rounded">{keyRenameDialog.oldKey}</code>
+                      <span>→</span>
+                      <code className="px-1 py-0.5 bg-background rounded">{keyRenameDialog.newKey}</code>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <p className="text-xs text-amber-600">
-                ⚠️ Esto afecta los datos almacenados. Usa esta opción solo si necesitas cambiar la estructura de datos.
-              </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isRenaming}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmKeyRename} disabled={isRenaming || !keyRenameDialog.newKey.trim()}>
+            <AlertDialogAction onClick={handleConfirmKeyRename} disabled={isRenaming}>
               {isRenaming ? "Renombrando..." : "Confirmar"}
             </AlertDialogAction>
           </AlertDialogFooter>
