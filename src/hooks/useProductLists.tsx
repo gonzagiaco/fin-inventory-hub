@@ -316,37 +316,33 @@ export const useProductLists = (supplierId?: string) => {
   });
 
   const updateColumnSchemaMutation = useMutation({
-    mutationFn: async ({ listId, columnSchema }: { listId: string; columnSchema: ColumnSchema[] }) => {
+    mutationFn: async ({ listId, columnSchema, silent = false }: { listId: string; columnSchema: ColumnSchema[]; silent?: boolean }) => {
       const { error } = await supabase
         .from("product_lists")
         .update({ column_schema: JSON.parse(JSON.stringify(columnSchema)) })
         .eq("id", listId);
 
       if (error) throw error;
+      return { listId, columnSchema, silent };
     },
-    onSuccess: async (_, variables) => {
-      const { listId } = variables;
+    onSuccess: async (result, variables) => {
+      const { listId, columnSchema, silent } = result;
 
-      // Resetear queries específicas de esta lista
-      queryClient.resetQueries({
-        queryKey: ["list-products", listId],
-        exact: false,
+      // Usar setQueryData para actualización inmediata sin refetch (evita cerrar drawer)
+      queryClient.setQueryData(["product-lists", supplierId ?? "all", isOnline ? "online" : "offline"], (old: ProductList[] | undefined) => {
+        if (!old) return old;
+        return old.map((list) => 
+          list.id === listId ? { ...list, columnSchema } : list
+        );
       });
 
-      queryClient.invalidateQueries({
-        queryKey: ["product-lists"],
-        refetchType: "all",
-      });
-
-      queryClient.invalidateQueries({
-        queryKey: ["all-product-lists"],
-        refetchType: "all",
-      });
-
-      queryClient.invalidateQueries({
-        queryKey: ["product-lists-index"],
-        refetchType: "all",
-      });
+      // Invalidar solo si no es silencioso
+      if (!silent) {
+        queryClient.invalidateQueries({
+          queryKey: ["product-lists"],
+          refetchType: "none", // No refetch automático
+        });
+      }
 
       if (isOnline) {
         try {
@@ -356,7 +352,7 @@ export const useProductLists = (supplierId?: string) => {
         }
       }
 
-      toast.success("Esquema de columnas actualizado");
+      // No mostrar toast aquí - el llamador lo manejará
     },
     onError: (error: any) => {
       toast.error(error.message || "Error al actualizar columnas");
@@ -507,6 +503,75 @@ export const useProductLists = (supplierId?: string) => {
     },
   });
 
+  // Mutation to rename a column key in JSONB data
+  const renameColumnKeyMutation = useMutation({
+    mutationFn: async ({ 
+      listId, 
+      oldKey, 
+      newKey, 
+      updatedSchema, 
+      updatedMappingConfig 
+    }: { 
+      listId: string; 
+      oldKey: string; 
+      newKey: string;
+      updatedSchema: ColumnSchema[];
+      updatedMappingConfig?: any;
+    }) => {
+      // 1. Rename keys in JSONB data using RPC
+      const { data: updatedCount, error: renameError } = await supabase.rpc("rename_jsonb_key_in_products", {
+        p_list_id: listId,
+        p_old_key: oldKey,
+        p_new_key: newKey,
+      });
+
+      if (renameError) throw renameError;
+
+      // 2. Update column_schema and mapping_config in product_lists
+      const updatePayload: any = {
+        column_schema: JSON.parse(JSON.stringify(updatedSchema)),
+        updated_at: new Date().toISOString(),
+      };
+
+      if (updatedMappingConfig) {
+        updatePayload.mapping_config = updatedMappingConfig;
+      }
+
+      const { error: updateError } = await supabase
+        .from("product_lists")
+        .update(updatePayload)
+        .eq("id", listId);
+
+      if (updateError) throw updateError;
+
+      return { listId, updatedCount, updatedSchema };
+    },
+    onSuccess: async (result) => {
+      const { listId, updatedCount, updatedSchema } = result;
+
+      // Update query cache directly
+      queryClient.setQueryData(["product-lists", supplierId ?? "all", isOnline ? "online" : "offline"], (old: ProductList[] | undefined) => {
+        if (!old) return old;
+        return old.map((list) => 
+          list.id === listId ? { ...list, columnSchema: updatedSchema } : list
+        );
+      });
+
+      if (isOnline) {
+        try {
+          await syncProductListById(listId);
+        } catch (error) {
+          console.error("Error al sincronizar la lista tras renombrar columna:", error);
+        }
+      }
+
+      console.log(`✅ Columna renombrada: ${updatedCount} productos actualizados`);
+    },
+    onError: (error: any) => {
+      toast.error(error.message || "Error al renombrar columna");
+    },
+  });
+
   // @deprecated - Helper function to find similar list
   // No longer used - user now selects from all available lists
   const findSimilarList = (fileName: string, columnSchema: ColumnSchema[]) => {
@@ -538,6 +603,7 @@ export const useProductLists = (supplierId?: string) => {
     deleteList: deleteListMutation.mutate,
     updateColumnSchema: updateColumnSchemaMutation.mutateAsync,
     updateList: updateListMutation.mutateAsync,
+    renameColumnKey: renameColumnKeyMutation.mutateAsync,
     findSimilarList,
   };
 };

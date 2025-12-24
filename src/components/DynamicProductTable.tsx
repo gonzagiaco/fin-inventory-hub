@@ -336,7 +336,7 @@ export const DynamicProductTable = ({
                 <CardPreviewSettings listId={listId} columnSchema={columnSchema} />
               </>
             )}
-            <ColumnSettingsDrawer listId={listId} columnSchema={columnSchema} />
+            <ColumnSettingsDrawer listId={listId} columnSchema={columnSchema} mappingConfig={mappingConfig} />
           </div>
         </div>
       </div>

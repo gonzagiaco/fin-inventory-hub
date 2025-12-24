@@ -363,7 +363,7 @@ export function MyStockListProducts({
               columnSchema={processedSchema}
               fixedKeys={["quantity", STOCK_THRESHOLD_COLUMN.key]}
             />
-            <ColumnSettingsDrawer listId={listId} columnSchema={processedSchema} />
+            <ColumnSettingsDrawer listId={listId} columnSchema={processedSchema} mappingConfig={mappingConfig} />
           </div>
           <ViewToggle />
         </div>
@@ -396,7 +396,7 @@ export function MyStockListProducts({
             columnSchema={processedSchema}
             fixedKeys={["quantity", STOCK_THRESHOLD_COLUMN.key]}
           />
-          <ColumnSettingsDrawer listId={listId} columnSchema={processedSchema} />
+          <ColumnSettingsDrawer listId={listId} columnSchema={processedSchema} mappingConfig={mappingConfig} />
         </div>
         <ViewToggle />
       </div>

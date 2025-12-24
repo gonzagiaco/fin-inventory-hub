@@ -694,6 +694,10 @@ export type Database = {
       }
       parse_price_string: { Args: { input: string }; Returns: number }
       refresh_list_index: { Args: { p_list_id: string }; Returns: undefined }
+      rename_jsonb_key_in_products: {
+        Args: { p_list_id: string; p_new_key: string; p_old_key: string }
+        Returns: number
+      }
       search_products: {
         Args: {
           p_limit?: number

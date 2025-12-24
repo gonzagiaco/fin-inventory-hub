@@ -2065,6 +2065,51 @@ export async function updateProductThresholdOffline(
   }
 }
 
+// Rename a column key in JSONB data for all products in a list (offline)
+export async function renameColumnKeyOffline(
+  listId: string,
+  oldKey: string,
+  newKey: string
+): Promise<number> {
+  if (oldKey === newKey) return 0;
+
+  let updatedCount = 0;
+
+  // 1. Update dynamic_products data
+  const products = await localDB.dynamic_products.where("list_id").equals(listId).toArray();
+  for (const product of products) {
+    if (product.data && oldKey in product.data) {
+      const newData = { ...product.data };
+      newData[newKey] = newData[oldKey];
+      delete newData[oldKey];
+      
+      await localDB.dynamic_products.update(product.id, { 
+        data: newData,
+        updated_at: new Date().toISOString()
+      });
+      updatedCount++;
+    }
+  }
+
+  // 2. Update dynamic_products_index calculated_data
+  const indexedProducts = await localDB.dynamic_products_index.where("list_id").equals(listId).toArray();
+  for (const indexProduct of indexedProducts) {
+    if (indexProduct.calculated_data && oldKey in indexProduct.calculated_data) {
+      const newCalcData = { ...indexProduct.calculated_data };
+      newCalcData[newKey] = newCalcData[oldKey];
+      delete newCalcData[oldKey];
+      
+      await localDB.dynamic_products_index.update(indexProduct.id, { 
+        calculated_data: newCalcData,
+        updated_at: new Date().toISOString()
+      });
+    }
+  }
+
+  console.log(`🔄 Offline: Renamed key "${oldKey}" to "${newKey}" in ${updatedCount} products`);
+  return updatedCount;
+}
+
 export async function getProductsForListOffline(
   listId: string,
   page: number = 0,
