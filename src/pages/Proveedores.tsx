@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Header from "@/components/Header";
+import { useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Plus, Pencil, Trash2, Building2 } from "lucide-react";
 import { Supplier } from "@/types";
@@ -26,6 +27,7 @@ const Proveedores = () => {
 
   const { suppliers, isLoading: isLoadingSuppliers, createSupplier, updateSupplier, deleteSupplier } = useSuppliers();
   const { data: lists = [] } = useProductListsIndex();
+  const location = useLocation();
 
   const handleCreateSupplier = () => {
     setSelectedSupplier(null);
@@ -66,6 +68,23 @@ const Proveedores = () => {
   const handleViewSupplier = (supplier: Supplier) => {
     setCurrentView({ type: 'supplier-lists', supplier });
   };
+
+  // If navigated with query params, open list config view
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const listId = params.get('listId');
+    const supplierId = params.get('supplierId');
+    const listName = params.get('listName') || '';
+
+    if (!listId || !supplierId) return;
+
+    if (suppliers && suppliers.length > 0) {
+      const sup = suppliers.find((s: any) => s.id === supplierId);
+      if (sup) {
+        setCurrentView({ type: 'list-config', supplier: sup, listId, listName });
+      }
+    }
+  }, [location.search, suppliers]);
 
   const handleConfigureList = (listId: string, listName: string) => {
     if (currentView.type === 'supplier-lists') {

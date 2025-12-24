@@ -1,14 +1,13 @@
 import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { ChevronDown, ChevronUp, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DynamicProductTable } from "@/components/DynamicProductTable";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ColumnMappingWizard } from "@/components/mapping/ColumnMappingWizard";
-import { useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
+// dialog and ColumnMappingWizard removed — navigation to /proveedores is used instead
+// removed unused imports: useQueryClient, toast
 import { useListProducts } from "@/hooks/useListProducts";
 import { DynamicProduct } from "@/types/productList";
 
@@ -28,8 +27,7 @@ interface SupplierStockSectionProps {
 
 export function SupplierStockSection({ supplierName, supplierLogo, lists, onAddToRequest }: SupplierStockSectionProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const [listToMap, setListToMap] = useState<string | null>(null);
-  const queryClient = useQueryClient();
+  const navigate = useNavigate();
 
   const totalProducts = lists.reduce((sum, list) => sum + list.productCount, 0);
 
@@ -89,28 +87,20 @@ export function SupplierStockSection({ supplierName, supplierLogo, lists, onAddT
                   ) : (
                     <div className="p-6 text-center border-t">
                       <p className="text-muted-foreground mb-4">Esta lista no ha sido configurada aún</p>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button onClick={() => setListToMap(list.id)}>
-                            <Settings className="w-4 h-4 mr-2" />
-                            Configurar lista
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                          <DialogHeader>
-                            <DialogTitle>Configuración de lista</DialogTitle>
-                          </DialogHeader>
-                          <ColumnMappingWizard
-                            listId={list.id}
-                            onSaved={() => {
-                              setListToMap(null);
-                              queryClient.invalidateQueries({
-                                queryKey: ["product-lists-index"],
-                              });
-                            }}
-                          />
-                        </DialogContent>
-                      </Dialog>
+                      <div className="flex justify-center">
+                        <Button
+                          onClick={() =>
+                            navigate(
+                              `/proveedores?listId=${list.id}&supplierId=${list.supplierId}&listName=${encodeURIComponent(
+                                list.name,
+                              )}`,
+                            )
+                          }
+                        >
+                          <Settings className="w-4 h-4 mr-2" />
+                          Configurar lista
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </CollapsibleContent>
