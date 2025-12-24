@@ -26,13 +26,23 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Settings2, GripVertical, Eye, EyeOff, RotateCcw, Save, Trash2, Edit2, Check, X, Search } from "lucide-react";
+import { Settings2, GripVertical, Eye, EyeOff, RotateCcw, Edit2, Check, X, KeyRound } from "lucide-react";
 import { ColumnSchema } from "@/types/productList";
 import { useProductListStore } from "@/stores/productListStore";
 import { useProductLists } from "@/hooks/useProductLists";
@@ -40,6 +50,7 @@ import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 import { renameColumnKeyOffline } from "@/lib/localDB";
 import { toast } from "sonner";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface ColumnSettingsDrawerProps {
   listId: string;
@@ -55,6 +66,7 @@ interface SortableItemProps {
   isSearchable: boolean;
   onToggle: (key: string, visible: boolean) => void;
   onLabelChange: (key: string, newLabel: string) => void;
+  onKeyRename: (key: string) => void;
   onSearchableToggle: (key: string, searchable: boolean) => void;
 }
 
@@ -66,6 +78,7 @@ function SortableItem({
   isSearchable,
   onToggle,
   onLabelChange,
+  onKeyRename,
   onSearchableToggle,
 }: SortableItemProps) {
   const [isEditing, setIsEditing] = useState(false);
@@ -117,7 +130,6 @@ function SortableItem({
             onChange={(e) => setEditLabel(e.target.value)}
             className="h-7 text-sm"
             autoFocus
-            // (input permite selección de texto)
             onKeyDown={(e) => {
               if (e.key === "Enter") handleSaveLabel();
               if (e.key === "Escape") handleCancelEdit();
@@ -136,8 +148,11 @@ function SortableItem({
             {column.label}
             {column.isStandard && <span className="text-xs text-muted-foreground ml-1">(fija)</span>}
           </Label>
-          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setIsEditing(true)}>
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setIsEditing(true)} title="Editar nombre visible">
             <Edit2 className="h-3 w-3" />
+          </Button>
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onKeyRename(column.key)} title="Renombrar clave interna">
+            <KeyRound className="h-3 w-3" />
           </Button>
         </>
       )}
@@ -169,13 +184,23 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
 
   const { updateColumnSchema, renameColumnKey } = useProductLists();
   const isOnline = useOnlineStatus();
+  const queryClient = useQueryClient();
 
   const [open, setOpen] = useState(false);
   const [newViewName, setNewViewName] = useState("");
   const [editingViewId, setEditingViewId] = useState<string | null>(null);
   const [editingViewName, setEditingViewName] = useState("");
+  
+  // Key rename dialog state
+  const [keyRenameDialog, setKeyRenameDialog] = useState<{
+    open: boolean;
+    oldKey: string;
+    newKey: string;
+    column: ColumnSchema | null;
+  }>({ open: false, oldKey: "", newKey: "", column: null });
+  const [isRenaming, setIsRenaming] = useState(false);
 
-  const isMobile = useIsMobile()
+  const isMobile = useIsMobile();
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -209,14 +234,11 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
 
     let updated;
     if (searchable) {
-      // agregar si no existe
       updated = Array.from(new Set([...current, key]));
     } else {
-      // quitar de forma segura
       updated = current.filter((k) => k !== key);
     }
 
-    // asegurar nueva referencia para el store
     setSearchableColumns(listId, [...updated]);
   };
 
@@ -276,94 +298,194 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
     toast.success(`Vista "${view?.name}" eliminada`);
   };
 
+  // Handle LABEL-ONLY change (does NOT rename JSONB keys)
   const handleLabelChange = async (columnKey: string, newLabel: string) => {
-    // Normalize the new key (convert to lowercase, remove special chars)
-    const newKey = newLabel.toLowerCase().replace(/[^a-z0-9áéíóúñü_]/gi, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
-    const oldKey = columnKey;
-    const keyChanged = oldKey !== newKey && newKey.length > 0;
-
-    // Update the schema with new key and label
+    // Update only the label, keep the key unchanged
     const updatedSchema = columnSchema.map((col) => 
-      col.key === oldKey 
-        ? { ...col, key: keyChanged ? newKey : col.key, label: newLabel } 
+      col.key === columnKey 
+        ? { ...col, label: newLabel } 
         : col
     );
 
-    // Update mapping_config references if key changed
-    let updatedMappingConfig = mappingConfig;
-    if (keyChanged && mappingConfig) {
-      updatedMappingConfig = { ...mappingConfig };
+    try {
+      await updateColumnSchema({ listId, columnSchema: updatedSchema, silent: true });
       
-      // Update array references
-      const arrayKeys = ['code_keys', 'name_keys', 'extra_index_keys'];
-      for (const arrayKey of arrayKeys) {
-        if (Array.isArray(updatedMappingConfig[arrayKey])) {
-          updatedMappingConfig[arrayKey] = updatedMappingConfig[arrayKey].map((k: string) => 
-            k === oldKey ? newKey : k
+      // Update local store
+      updateColumnLabel(listId, columnKey, newLabel);
+      
+      // Update product-lists-index cache for /listas page
+      queryClient.setQueryData(
+        ["product-lists-index", isOnline ? "online" : "offline"],
+        (old: any[] | undefined) => {
+          if (!old) return old;
+          return old.map((list) =>
+            list.id === listId ? { ...list, column_schema: updatedSchema } : list
           );
         }
-      }
+      );
       
-      // Update single value references
-      const singleKeys = ['price_primary_key', 'cart_price_column', 'delivery_note_price_column', 'quantity_key'];
-      for (const singleKey of singleKeys) {
-        if (updatedMappingConfig[singleKey] === oldKey) {
-          updatedMappingConfig[singleKey] = newKey;
-        }
-      }
+      toast.success("Nombre visible actualizado");
+    } catch (error) {
+      console.error("Error updating label:", error);
+      toast.error("Error al actualizar nombre");
+    }
+  };
 
-      // Update dollar_conversion target_columns
-      if (updatedMappingConfig.dollar_conversion?.target_columns) {
-        updatedMappingConfig.dollar_conversion.target_columns = 
-          updatedMappingConfig.dollar_conversion.target_columns.map((k: string) => 
-            k === oldKey ? newKey : k
-          );
-      }
+  // Open key rename dialog
+  const handleOpenKeyRename = (key: string) => {
+    const column = columnSchema.find((c) => c.key === key);
+    if (!column) return;
+    
+    setKeyRenameDialog({
+      open: true,
+      oldKey: key,
+      newKey: key,
+      column,
+    });
+  };
 
-      // Update price_modifiers overrides
-      if (updatedMappingConfig.price_modifiers?.overrides?.[oldKey]) {
-        updatedMappingConfig.price_modifiers.overrides[newKey] = 
-          updatedMappingConfig.price_modifiers.overrides[oldKey];
-        delete updatedMappingConfig.price_modifiers.overrides[oldKey];
-      }
-
-      // Update custom_columns base_column references
-      if (updatedMappingConfig.custom_columns) {
-        for (const customKey in updatedMappingConfig.custom_columns) {
-          if (updatedMappingConfig.custom_columns[customKey].base_column === oldKey) {
-            updatedMappingConfig.custom_columns[customKey].base_column = newKey;
-          }
-        }
-      }
+  // Confirm and execute key rename (affects JSONB data)
+  const handleConfirmKeyRename = async () => {
+    const { oldKey, newKey, column } = keyRenameDialog;
+    
+    if (!column || !newKey.trim() || oldKey === newKey) {
+      setKeyRenameDialog({ open: false, oldKey: "", newKey: "", column: null });
+      return;
     }
 
+    // Normalize new key
+    const normalizedNewKey = newKey.toLowerCase()
+      .replace(/[^a-z0-9áéíóúñü_]/gi, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '');
+
+    if (normalizedNewKey === oldKey) {
+      toast.info("La clave normalizada es igual a la actual");
+      setKeyRenameDialog({ open: false, oldKey: "", newKey: "", column: null });
+      return;
+    }
+
+    setIsRenaming(true);
+
     try {
-      if (keyChanged) {
-        // Rename key in JSONB data + schema + mapping_config
-        if (isOnline) {
-          await renameColumnKey({ 
-            listId, 
-            oldKey, 
-            newKey, 
-            updatedSchema, 
-            updatedMappingConfig 
-          });
-        } else {
-          await renameColumnKeyOffline(listId, oldKey, newKey);
-          // Also update schema locally (will sync later)
-          await updateColumnSchema({ listId, columnSchema: updatedSchema, silent: true });
+      if (isOnline) {
+        // Build updated mapping config with key references
+        let updatedMappingConfig = mappingConfig ? { ...mappingConfig } : {};
+        
+        // Update array references
+        const arrayKeys = ['code_keys', 'name_keys', 'extra_index_keys'];
+        for (const arrayKey of arrayKeys) {
+          if (Array.isArray(updatedMappingConfig[arrayKey])) {
+            updatedMappingConfig[arrayKey] = updatedMappingConfig[arrayKey].map((k: string) => 
+              k === oldKey ? normalizedNewKey : k
+            );
+          }
         }
-        console.log(`✅ Columna renombrada: "${oldKey}" → "${newKey}"`);
+        
+        // Update single value references
+        const singleKeys = ['price_primary_key', 'cart_price_column', 'delivery_note_price_column', 'quantity_key'];
+        for (const singleKey of singleKeys) {
+          if (updatedMappingConfig[singleKey] === oldKey) {
+            updatedMappingConfig[singleKey] = normalizedNewKey;
+          }
+        }
+
+        // Update dollar_conversion target_columns
+        if (updatedMappingConfig.dollar_conversion?.target_columns) {
+          updatedMappingConfig.dollar_conversion.target_columns = 
+            updatedMappingConfig.dollar_conversion.target_columns.map((k: string) => 
+              k === oldKey ? normalizedNewKey : k
+            );
+        }
+
+        // Update price_modifiers overrides
+        if (updatedMappingConfig.price_modifiers?.overrides?.[oldKey]) {
+          updatedMappingConfig.price_modifiers.overrides[normalizedNewKey] = 
+            updatedMappingConfig.price_modifiers.overrides[oldKey];
+          delete updatedMappingConfig.price_modifiers.overrides[oldKey];
+        }
+
+        // Update custom_columns base_column references
+        if (updatedMappingConfig.custom_columns) {
+          for (const customKey in updatedMappingConfig.custom_columns) {
+            if (updatedMappingConfig.custom_columns[customKey].base_column === oldKey) {
+              updatedMappingConfig.custom_columns[customKey].base_column = normalizedNewKey;
+            }
+          }
+        }
+
+        // Prepare updated schema (key + label change)
+        const updatedSchema = columnSchema.map((col) => 
+          col.key === oldKey 
+            ? { ...col, key: normalizedNewKey, label: column.label } 
+            : col
+        );
+
+        // Call the mutation - it returns updatedCount
+        const result = await renameColumnKey({ 
+          listId, 
+          oldKey, 
+          newKey: normalizedNewKey, 
+          updatedSchema, 
+          updatedMappingConfig 
+        });
+
+        const updatedCount = result?.updatedCount ?? 0;
+
+        if (updatedCount === 0) {
+          // No data was found to rename - this could mean:
+          // 1. The old key doesn't exist in any product's data
+          // 2. The products haven't been loaded yet
+          toast.warning(`Clave "${normalizedNewKey}" configurada, pero no se encontraron datos para migrar`);
+        } else {
+          toast.success(`Clave renombrada: ${updatedCount} productos actualizados`);
+        }
+
+        // Update local store with new key
+        updateColumnLabel(listId, normalizedNewKey, column.label);
+        
+        // Update product-lists-index cache
+        queryClient.setQueryData(
+          ["product-lists-index", isOnline ? "online" : "offline"],
+          (old: any[] | undefined) => {
+            if (!old) return old;
+            return old.map((list) =>
+              list.id === listId ? { ...list, column_schema: updatedSchema, mapping_config: updatedMappingConfig } : list
+            );
+          }
+        );
+
+        // Invalidate list-products to reload with new keys
+        queryClient.invalidateQueries({ queryKey: ["list-products", listId] });
+        
       } else {
-        // Only update label (no key change)
+        // Offline rename
+        const updatedCount = await renameColumnKeyOffline(listId, oldKey, normalizedNewKey);
+        
+        // Update schema locally
+        const updatedSchema = columnSchema.map((col) => 
+          col.key === oldKey 
+            ? { ...col, key: normalizedNewKey, label: column.label } 
+            : col
+        );
         await updateColumnSchema({ listId, columnSchema: updatedSchema, silent: true });
+        
+        updateColumnLabel(listId, normalizedNewKey, column.label);
+        
+        if (updatedCount === 0) {
+          toast.warning(`Clave configurada (se sincronizará), pero no se encontraron datos locales`);
+        } else {
+          toast.success(`Clave renombrada localmente: ${updatedCount} productos`);
+        }
       }
-      
-      updateColumnLabel(listId, keyChanged ? newKey : columnKey, newLabel);
-      toast.success("Columna actualizada");
+
+      console.log(`✅ Clave renombrada: "${oldKey}" → "${normalizedNewKey}"`);
     } catch (error) {
-      console.error("Error updating column:", error);
-      toast.error("Error al actualizar columna");
+      console.error("Error renaming key:", error);
+      toast.error("Error al renombrar clave");
+    } finally {
+      setIsRenaming(false);
+      setKeyRenameDialog({ open: false, oldKey: "", newKey: "", column: null });
     }
   };
 
@@ -371,90 +493,133 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
   const activeViewName = savedViews[listId]?.find((v) => v.id === currentActiveView)?.name;
 
   return (
-    <Drawer open={open} onOpenChange={setOpen}>
-      <DrawerTrigger asChild>
-        {!isMobile && (
-          <Button variant="outline" size="sm" className="gap-2">
-            <Settings2 className="w-4 h-4" />
-            Columnas
-            {activeViewName && <span className="text-xs text-muted-foreground">({activeViewName})</span>}
-          </Button>
-        )}
-      </DrawerTrigger>
-      <DrawerContent className="max-h-[90vh] select-none">
-        {/* permitir selección en inputs internos */}
-        <DrawerHeader>
-          <DrawerTitle>Configuración de Columnas</DrawerTitle>
-          <DrawerDescription>
-            Personaliza la visibilidad y orden de las columnas. Arrastra para reordenar.
-          </DrawerDescription>
-          {activeViewName && (
-            <div className="text-sm text-muted-foreground mt-2">
-              Vista activa: <span className="font-medium text-foreground">{activeViewName}</span>
-            </div>
+    <>
+      <Drawer open={open} onOpenChange={setOpen}>
+        <DrawerTrigger asChild>
+          {!isMobile && (
+            <Button variant="outline" size="sm" className="gap-2">
+              <Settings2 className="w-4 h-4" />
+              Columnas
+              {activeViewName && <span className="text-xs text-muted-foreground">({activeViewName})</span>}
+            </Button>
           )}
-        </DrawerHeader>
+        </DrawerTrigger>
+        <DrawerContent className="max-h-[90vh] select-none">
+          <DrawerHeader>
+            <DrawerTitle>Configuración de Columnas</DrawerTitle>
+            <DrawerDescription>
+              Personaliza la visibilidad y orden de las columnas. Arrastra para reordenar.
+            </DrawerDescription>
+            {activeViewName && (
+              <div className="text-sm text-muted-foreground mt-2">
+                Vista activa: <span className="font-medium text-foreground">{activeViewName}</span>
+              </div>
+            )}
+          </DrawerHeader>
 
-        <ScrollArea className="h-[50vh] px-4">
-          <div className="space-y-6">
-            {/* Quick Actions */}
-            <div className="space-y-2">
-              <h4 className="text-sm font-semibold">Acciones Rápidas</h4>
-              <div className="flex gap-2 flex-wrap">
-                <Button variant="outline" size="sm" onClick={handleShowAll}>
-                  <Eye className="w-4 h-4 mr-2" />
-                  Mostrar todas
-                </Button>
-                <Button variant="outline" size="sm" onClick={handleHideAll}>
-                  <EyeOff className="w-4 h-4 mr-2" />
-                  Ocultar opcionales
-                </Button>
-                <Button variant="outline" size="sm" onClick={handleReset}>
-                  <RotateCcw className="w-4 h-4 mr-2" />
-                  Reset
-                </Button>
+          <ScrollArea className="h-[50vh] px-4">
+            <div className="space-y-6">
+              {/* Quick Actions */}
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold">Acciones Rápidas</h4>
+                <div className="flex gap-2 flex-wrap">
+                  <Button variant="outline" size="sm" onClick={handleShowAll}>
+                    <Eye className="w-4 h-4 mr-2" />
+                    Mostrar todas
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleHideAll}>
+                    <EyeOff className="w-4 h-4 mr-2" />
+                    Ocultar opcionales
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleReset}>
+                    <RotateCcw className="w-4 h-4 mr-2" />
+                    Reset
+                  </Button>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Column List */}
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold">Columnas</h4>
+                <p className="text-xs text-muted-foreground">
+                  <Edit2 className="w-3 h-3 inline mr-1" /> Editar nombre visible | 
+                  <KeyRound className="w-3 h-3 inline mx-1" /> Renombrar clave interna
+                </p>
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext items={currentOrder} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-2">
+                      {orderedColumns.map((column) => {
+                        const isVisible = columnVisibility[listId]?.[column.key] !== false;
+                        const currentSearchable = searchableColumns[listId] || ["code", "name"];
+                        const isSearchable = currentSearchable.includes(column.key);
+                        return (
+                          <SortableItem
+                            key={column.key}
+                            id={column.key}
+                            column={column}
+                            isVisible={isVisible}
+                            isDisabled={column.isStandard || false}
+                            isSearchable={isSearchable}
+                            onToggle={handleToggleColumn}
+                            onLabelChange={handleLabelChange}
+                            onKeyRename={handleOpenKeyRename}
+                            onSearchableToggle={handleSearchableToggle}
+                          />
+                        );
+                      })}
+                    </div>
+                  </SortableContext>
+                </DndContext>
               </div>
             </div>
+          </ScrollArea>
 
-            <Separator />
+          <DrawerFooter>
+            <DrawerClose asChild>
+              <Button variant="outline">Cerrar</Button>
+            </DrawerClose>
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
 
-            {/* Column List */}
-            <div className="space-y-2">
-              <h4 className="text-sm font-semibold">Columnas</h4>
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                <SortableContext items={currentOrder} strategy={verticalListSortingStrategy}>
-                  <div className="space-y-2">
-                    {orderedColumns.map((column) => {
-                      const isVisible = columnVisibility[listId]?.[column.key] !== false;
-                      const currentSearchable = searchableColumns[listId] || ["code", "name"];
-                      const isSearchable = currentSearchable.includes(column.key);
-                      return (
-                        <SortableItem
-                          key={column.key}
-                          id={column.key}
-                          column={column}
-                          isVisible={isVisible}
-                          isDisabled={column.isStandard || false}
-                          isSearchable={isSearchable}
-                          onToggle={handleToggleColumn}
-                          onLabelChange={handleLabelChange}
-                          onSearchableToggle={handleSearchableToggle}
-                        />
-                      );
-                    })}
-                  </div>
-                </SortableContext>
-              </DndContext>
-            </div>
-          </div>
-        </ScrollArea>
-
-        <DrawerFooter>
-          <DrawerClose asChild>
-            <Button variant="outline">Cerrar</Button>
-          </DrawerClose>
-        </DrawerFooter>
-      </DrawerContent>
-    </Drawer>
+      {/* Key Rename Confirmation Dialog */}
+      <AlertDialog open={keyRenameDialog.open} onOpenChange={(open) => !isRenaming && setKeyRenameDialog(prev => ({ ...prev, open }))}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Renombrar clave interna</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>Esta acción renombrará la clave en todos los productos de esta lista.</p>
+              <div className="p-3 bg-muted rounded-md space-y-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="font-medium">Clave actual:</span>
+                  <code className="px-2 py-1 bg-background rounded">{keyRenameDialog.oldKey}</code>
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="font-medium">Nueva clave:</span>
+                  <Input
+                    value={keyRenameDialog.newKey}
+                    onChange={(e) => setKeyRenameDialog(prev => ({ ...prev, newKey: e.target.value }))}
+                    placeholder="Nueva clave"
+                    className="h-8"
+                    disabled={isRenaming}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-amber-600">
+                ⚠️ Esto afecta los datos almacenados. Usa esta opción solo si necesitas cambiar la estructura de datos.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isRenaming}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmKeyRename} disabled={isRenaming || !keyRenameDialog.newKey.trim()}>
+              {isRenaming ? "Renombrando..." : "Confirmar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 };
