@@ -42,7 +42,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { Settings2, GripVertical, Eye, EyeOff, RotateCcw, Edit2, Check, X } from "lucide-react";
+import {
+  Settings2,
+  GripVertical,
+  Eye,
+  EyeOff,
+  RotateCcw,
+  Edit2,
+  Check,
+  X,
+} from "lucide-react";
 import { ColumnSchema } from "@/types/productList";
 import { useProductListStore } from "@/stores/productListStore";
 import { useProductLists } from "@/hooks/useProductLists";
@@ -82,7 +91,14 @@ function SortableItem({
   const [isEditing, setIsEditing] = useState(false);
   const [editLabel, setEditLabel] = useState(column.label);
 
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
     id,
   });
 
@@ -108,9 +124,15 @@ function SortableItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-2 p-2 rounded-md bg-card border border-border hover:bg-accent/50 transition-colors ${!isEditing ? "select-none" : ""}`}
+      className={`flex items-center gap-2 p-2 rounded-md bg-card border border-border hover:bg-accent/50 transition-colors ${
+        !isEditing ? "select-none" : ""
+      }`}
     >
-      <div {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing select-none">
+      <div
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing select-none"
+      >
         <GripVertical className="w-4 h-4 text-muted-foreground" />
       </div>
       <Checkbox
@@ -133,33 +155,62 @@ function SortableItem({
               if (e.key === "Escape") handleCancelEdit();
             }}
           />
-          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleSaveLabel}>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            onClick={handleSaveLabel}
+          >
             <Check className="h-3 w-3" />
           </Button>
-          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleCancelEdit}>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            onClick={handleCancelEdit}
+          >
             <X className="h-3 w-3" />
           </Button>
         </div>
       ) : (
         <>
-          <Label htmlFor={`col-${column.key}`} className="flex-1 cursor-pointer text-sm select-none">
+          <Label
+            htmlFor={`col-${column.key}`}
+            className="flex-1 cursor-pointer text-sm select-none"
+          >
             {column.label}
-            {column.isStandard && <span className="text-xs text-muted-foreground ml-1">(fija)</span>}
+            {column.isStandard && (
+              <span className="text-xs text-muted-foreground ml-1">(fija)</span>
+            )}
           </Label>
-          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setIsEditing(true)} title="Renombrar columna">
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-7 w-7"
+            onClick={() => setIsEditing(true)}
+            title="Renombrar columna"
+          >
             <Edit2 className="h-3 w-3" />
           </Button>
         </>
       )}
 
       <div className="flex items-center gap-1 select-none">
-        {isVisible ? <Eye className="w-4 h-4 text-muted-foreground" /> : <EyeOff className="w-4 h-4 text-muted-foreground" />}
+        {isVisible ? (
+          <Eye className="w-4 h-4 text-muted-foreground" />
+        ) : (
+          <EyeOff className="w-4 h-4 text-muted-foreground" />
+        )}
       </div>
     </div>
   );
 }
 
-export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: ColumnSettingsDrawerProps) => {
+export const ColumnSettingsDrawer = ({
+  listId,
+  columnSchema,
+  mappingConfig,
+}: ColumnSettingsDrawerProps) => {
   const {
     columnVisibility,
     columnOrder,
@@ -185,7 +236,7 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
   const [newViewName, setNewViewName] = useState("");
   const [editingViewId, setEditingViewId] = useState<string | null>(null);
   const [editingViewName, setEditingViewName] = useState("");
-  
+
   // Key rename dialog state
   const [keyRenameDialog, setKeyRenameDialog] = useState<{
     open: boolean;
@@ -201,7 +252,7 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
-    }),
+    })
   );
 
   const currentOrder = columnOrder[listId] || columnSchema.map((c) => c.key);
@@ -225,7 +276,9 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
   };
 
   const handleSearchableToggle = (key: string, searchable: boolean) => {
-    const current = searchableColumns[listId] ? [...searchableColumns[listId]] : ["code", "name"];
+    const current = searchableColumns[listId]
+      ? [...searchableColumns[listId]]
+      : ["code", "name"];
 
     let updated;
     if (searchable) {
@@ -297,13 +350,14 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
   const handleRename = (columnKey: string, newLabel: string) => {
     const column = columnSchema.find((c) => c.key === columnKey);
     if (!column) return;
-    
+
     // Normalize new key from label
-    const normalizedNewKey = newLabel.toLowerCase()
-      .replace(/[^a-z0-9áéíóúñü_]/gi, '_')
-      .replace(/_+/g, '_')
-      .replace(/^_|_$/g, '');
-    
+    const normalizedNewKey = newLabel
+      .toLowerCase()
+      .replace(/[^a-z0-9áéíóúñü_]/gi, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "");
+
     setKeyRenameDialog({
       open: true,
       oldKey: columnKey,
@@ -315,17 +369,18 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
   // Confirm and execute key rename (affects JSONB data)
   const handleConfirmKeyRename = async () => {
     const { oldKey, newKey, column } = keyRenameDialog;
-    
+
     if (!column || !newKey.trim() || oldKey === newKey) {
       setKeyRenameDialog({ open: false, oldKey: "", newKey: "", column: null });
       return;
     }
 
     // Normalize new key
-    const normalizedNewKey = newKey.toLowerCase()
-      .replace(/[^a-z0-9áéíóúñü_]/gi, '_')
-      .replace(/_+/g, '_')
-      .replace(/^_|_$/g, '');
+    const normalizedNewKey = newKey
+      .toLowerCase()
+      .replace(/[^a-z0-9áéíóúñü_]/gi, "_")
+      .replace(/_+/g, "_")
+      .replace(/^_|_$/g, "");
 
     if (normalizedNewKey === oldKey) {
       toast.info("La clave normalizada es igual a la actual");
@@ -339,19 +394,24 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
       if (isOnline) {
         // Build updated mapping config with key references
         let updatedMappingConfig = mappingConfig ? { ...mappingConfig } : {};
-        
+
         // Update array references
-        const arrayKeys = ['code_keys', 'name_keys', 'extra_index_keys'];
+        const arrayKeys = ["code_keys", "name_keys", "extra_index_keys"];
         for (const arrayKey of arrayKeys) {
           if (Array.isArray(updatedMappingConfig[arrayKey])) {
-            updatedMappingConfig[arrayKey] = updatedMappingConfig[arrayKey].map((k: string) => 
-              k === oldKey ? normalizedNewKey : k
+            updatedMappingConfig[arrayKey] = updatedMappingConfig[arrayKey].map(
+              (k: string) => (k === oldKey ? normalizedNewKey : k)
             );
           }
         }
-        
+
         // Update single value references
-        const singleKeys = ['price_primary_key', 'cart_price_column', 'delivery_note_price_column', 'quantity_key'];
+        const singleKeys = [
+          "price_primary_key",
+          "cart_price_column",
+          "delivery_note_price_column",
+          "quantity_key",
+        ];
         for (const singleKey of singleKeys) {
           if (updatedMappingConfig[singleKey] === oldKey) {
             updatedMappingConfig[singleKey] = normalizedNewKey;
@@ -360,15 +420,15 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
 
         // Update dollar_conversion target_columns
         if (updatedMappingConfig.dollar_conversion?.target_columns) {
-          updatedMappingConfig.dollar_conversion.target_columns = 
-            updatedMappingConfig.dollar_conversion.target_columns.map((k: string) => 
-              k === oldKey ? normalizedNewKey : k
+          updatedMappingConfig.dollar_conversion.target_columns =
+            updatedMappingConfig.dollar_conversion.target_columns.map(
+              (k: string) => (k === oldKey ? normalizedNewKey : k)
             );
         }
 
         // Update price_modifiers overrides
         if (updatedMappingConfig.price_modifiers?.overrides?.[oldKey]) {
-          updatedMappingConfig.price_modifiers.overrides[normalizedNewKey] = 
+          updatedMappingConfig.price_modifiers.overrides[normalizedNewKey] =
             updatedMappingConfig.price_modifiers.overrides[oldKey];
           delete updatedMappingConfig.price_modifiers.overrides[oldKey];
         }
@@ -376,26 +436,35 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
         // Update custom_columns base_column references
         if (updatedMappingConfig.custom_columns) {
           for (const customKey in updatedMappingConfig.custom_columns) {
-            if (updatedMappingConfig.custom_columns[customKey].base_column === oldKey) {
-              updatedMappingConfig.custom_columns[customKey].base_column = normalizedNewKey;
+            if (
+              updatedMappingConfig.custom_columns[customKey].base_column ===
+              oldKey
+            ) {
+              updatedMappingConfig.custom_columns[customKey].base_column =
+                normalizedNewKey;
             }
           }
         }
 
         // Prepare updated schema (key + label change)
-        const updatedSchema = columnSchema.map((col) => 
-          col.key === oldKey 
-            ? { ...col, key: normalizedNewKey, label: column.label } 
+        const updatedSchema = columnSchema.map((col) =>
+          col.key === oldKey
+            ? { ...col, key: normalizedNewKey, label: column.label }
             : col
         );
 
+        // 🚫 Remove stock_threshold column to avoid persisting it in general lists
+        const sanitizedSchema = updatedSchema.filter(
+          (c) => c.key !== "stock_threshold"
+        );
+
         // Call the mutation - it returns updatedCount
-        const result = await renameColumnKey({ 
-          listId, 
-          oldKey, 
-          newKey: normalizedNewKey, 
-          updatedSchema, 
-          updatedMappingConfig 
+        const result = await renameColumnKey({
+          listId,
+          oldKey,
+          newKey: normalizedNewKey,
+          updatedSchema: sanitizedSchema,
+          updatedMappingConfig,
         });
 
         const updatedCount = result?.updatedCount ?? 0;
@@ -403,50 +472,71 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
         if (updatedCount === 0) {
           toast.success(`Columna renombrada a "${column.label}"`);
         } else {
-          toast.success(`Columna renombrada a "${column.label}" (${updatedCount} productos actualizados)`);
+          toast.success(
+            `Columna renombrada a "${column.label}" (${updatedCount} productos actualizados)`
+          );
         }
 
         // Update local store with new key
         updateColumnLabel(listId, normalizedNewKey, column.label);
-        
+
         // Update product-lists-index cache
         queryClient.setQueryData(
           ["product-lists-index", isOnline ? "online" : "offline"],
           (old: any[] | undefined) => {
             if (!old) return old;
             return old.map((list) =>
-              list.id === listId ? { ...list, column_schema: updatedSchema, mapping_config: updatedMappingConfig } : list
+              list.id === listId
+                ? {
+                    ...list,
+                    column_schema: sanitizedSchema,
+                    mapping_config: updatedMappingConfig,
+                  }
+                : list
             );
           }
         );
 
         // Invalidate list-products to reload with new keys
         queryClient.invalidateQueries({ queryKey: ["list-products", listId] });
-        
       } else {
         // Offline rename
-        const updatedCount = await renameColumnKeyOffline(listId, oldKey, normalizedNewKey);
-        
+        const updatedCount = await renameColumnKeyOffline(
+          listId,
+          oldKey,
+          normalizedNewKey
+        );
+
         // Update schema locally
-        const updatedSchema = columnSchema.map((col) => 
-          col.key === oldKey 
-            ? { ...col, key: normalizedNewKey, label: column.label } 
+        const updatedSchema = columnSchema.map((col) =>
+          col.key === oldKey
+            ? { ...col, key: normalizedNewKey, label: column.label }
             : col
         );
-        await updateColumnSchema({ listId, columnSchema: updatedSchema, silent: true });
-        
+        // 🚫 Remove stock_threshold column for offline update
+        const sanitizedSchema = updatedSchema.filter(
+          (c) => c.key !== "stock_threshold"
+        );
+        await updateColumnSchema({
+          listId,
+          columnSchema: sanitizedSchema,
+          silent: true,
+        });
+
         updateColumnLabel(listId, normalizedNewKey, column.label);
-        
+
         if (updatedCount === 0) {
           toast.success(`Columna renombrada a "${column.label}"`);
         } else {
-          toast.success(`Columna renombrada a "${column.label}" (${updatedCount} productos)`);
+          toast.success(
+            `Columna renombrada a "${column.label}" (${updatedCount} productos)`
+          );
         }
       }
 
       console.log(`✅ Clave renombrada: "${oldKey}" → "${normalizedNewKey}"`);
     } catch (error) {
-      console.error("Error renaming key:", error);
+      console.error("Error renombrando clave:", error);
       toast.error("Error al renombrar clave");
     } finally {
       setIsRenaming(false);
@@ -455,7 +545,9 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
   };
 
   const currentActiveView = activeView[listId];
-  const activeViewName = savedViews[listId]?.find((v) => v.id === currentActiveView)?.name;
+  const activeViewName = savedViews[listId]?.find(
+    (v) => v.id === currentActiveView
+  )?.name;
 
   return (
     <>
@@ -465,7 +557,11 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
             <Button variant="outline" size="sm" className="gap-2">
               <Settings2 className="w-4 h-4" />
               Columnas
-              {activeViewName && <span className="text-xs text-muted-foreground">({activeViewName})</span>}
+              {activeViewName && (
+                <span className="text-xs text-muted-foreground">
+                  ({activeViewName})
+                </span>
+              )}
             </Button>
           )}
         </DrawerTrigger>
@@ -473,11 +569,15 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
           <DrawerHeader>
             <DrawerTitle>Configuración de Columnas</DrawerTitle>
             <DrawerDescription>
-              Personaliza la visibilidad y orden de las columnas. Arrastra para reordenar.
+              Personaliza la visibilidad y orden de las columnas. Arrastra para
+              reordenar.
             </DrawerDescription>
             {activeViewName && (
               <div className="text-sm text-muted-foreground mt-2">
-                Vista activa: <span className="font-medium text-foreground">{activeViewName}</span>
+                Vista activa:{" "}
+                <span className="font-medium text-foreground">
+                  {activeViewName}
+                </span>
               </div>
             )}
           </DrawerHeader>
@@ -511,13 +611,26 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
                 <p className="text-xs text-muted-foreground">
                   <Edit2 className="w-3 h-3 inline mr-1" /> Renombrar columna
                 </p>
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                  <SortableContext items={currentOrder} strategy={verticalListSortingStrategy}>
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={currentOrder}
+                    strategy={verticalListSortingStrategy}
+                  >
                     <div className="space-y-2">
                       {orderedColumns.map((column) => {
-                        const isVisible = columnVisibility[listId]?.[column.key] !== false;
-                        const currentSearchable = searchableColumns[listId] || ["code", "name"];
-                        const isSearchable = currentSearchable.includes(column.key);
+                        const isVisible =
+                          columnVisibility[listId]?.[column.key] !== false;
+                        const currentSearchable = searchableColumns[listId] || [
+                          "code",
+                          "name",
+                        ];
+                        const isSearchable = currentSearchable.includes(
+                          column.key
+                        );
                         return (
                           <SortableItem
                             key={column.key}
@@ -548,28 +661,48 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
       </Drawer>
 
       {/* Rename Confirmation Dialog */}
-      <AlertDialog open={keyRenameDialog.open} onOpenChange={(open) => !isRenaming && setKeyRenameDialog(prev => ({ ...prev, open }))}>
+      <AlertDialog
+        open={keyRenameDialog.open}
+        onOpenChange={(open) =>
+          !isRenaming && setKeyRenameDialog((prev) => ({ ...prev, open }))
+        }
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Renombrar columna?</AlertDialogTitle>
             <AlertDialogDescription asChild>
               <div className="space-y-3">
-                <p>Esta acción actualizará el nombre de la columna en todos los productos.</p>
+                <p>
+                  Esta acción actualizará el nombre de la columna en todos los
+                  productos.
+                </p>
                 <div className="p-3 bg-muted rounded-md space-y-2">
                   <div className="flex items-center gap-2 text-sm">
                     <span className="font-medium">Nombre actual:</span>
-                    <span className="text-foreground">{columnSchema.find(c => c.key === keyRenameDialog.oldKey)?.label}</span>
+                    <span className="text-foreground">
+                      {
+                        columnSchema.find(
+                          (c) => c.key === keyRenameDialog.oldKey
+                        )?.label
+                      }
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 text-sm">
                     <span className="font-medium">Nuevo nombre:</span>
-                    <span className="text-foreground font-semibold">{keyRenameDialog.column?.label}</span>
+                    <span className="text-foreground font-semibold">
+                      {keyRenameDialog.column?.label}
+                    </span>
                   </div>
                   <div className="border-t pt-2 mt-2">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span>Clave interna:</span>
-                      <code className="px-1 py-0.5 bg-background rounded">{keyRenameDialog.oldKey}</code>
+                      <code className="px-1 py-0.5 bg-background rounded">
+                        {keyRenameDialog.oldKey}
+                      </code>
                       <span>→</span>
-                      <code className="px-1 py-0.5 bg-background rounded">{keyRenameDialog.newKey}</code>
+                      <code className="px-1 py-0.5 bg-background rounded">
+                        {keyRenameDialog.newKey}
+                      </code>
                     </div>
                   </div>
                 </div>
@@ -577,8 +710,13 @@ export const ColumnSettingsDrawer = ({ listId, columnSchema, mappingConfig }: Co
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isRenaming}>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmKeyRename} disabled={isRenaming}>
+            <AlertDialogCancel disabled={isRenaming}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleConfirmKeyRename}
+              disabled={isRenaming}
+            >
               {isRenaming ? "Renombrando..." : "Confirmar"}
             </AlertDialogAction>
           </AlertDialogFooter>
