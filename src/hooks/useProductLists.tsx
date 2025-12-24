@@ -544,18 +544,29 @@ export const useProductLists = (supplierId?: string) => {
 
       if (updateError) throw updateError;
 
-      return { listId, updatedCount, updatedSchema };
+      return { listId, updatedCount: updatedCount ?? 0, updatedSchema, updatedMappingConfig };
     },
     onSuccess: async (result) => {
-      const { listId, updatedCount, updatedSchema } = result;
+      const { listId, updatedCount, updatedSchema, updatedMappingConfig } = result;
 
-      // Update query cache directly
+      // Update product-lists cache directly
       queryClient.setQueryData(["product-lists", supplierId ?? "all", isOnline ? "online" : "offline"], (old: ProductList[] | undefined) => {
         if (!old) return old;
         return old.map((list) => 
-          list.id === listId ? { ...list, columnSchema: updatedSchema } : list
+          list.id === listId ? { ...list, columnSchema: updatedSchema, mapping_config: updatedMappingConfig } : list
         );
       });
+
+      // ALSO update product-lists-index cache for /listas page
+      queryClient.setQueryData(["product-lists-index", isOnline ? "online" : "offline"], (old: any[] | undefined) => {
+        if (!old) return old;
+        return old.map((list) => 
+          list.id === listId ? { ...list, column_schema: updatedSchema, mapping_config: updatedMappingConfig } : list
+        );
+      });
+
+      // Invalidate list-products to reload with new keys
+      queryClient.invalidateQueries({ queryKey: ["list-products", listId] });
 
       if (isOnline) {
         try {
