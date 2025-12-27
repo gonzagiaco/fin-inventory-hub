@@ -68,28 +68,32 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           const storedToken = await getAuthToken();
           if (storedToken) {
             console.log('🔄 Intentando restaurar sesión desde IndexedDB...');
-            
+
             // Intentar restaurar sesión con refresh token
             const { data, error } = await supabase.auth.setSession({
               refresh_token: storedToken.refreshToken,
               access_token: storedToken.accessToken || storedToken.refreshToken
             });
-            
+
             if (data?.session) {
               setSession(data.session);
               setUser(data.session.user);
               toast.success('Sesión restaurada');
               console.log('✅ Sesión restaurada exitosamente');
-              
+
               // Guardar usuario en localStorage
               localStorage.setItem('offline_user', JSON.stringify(data.session.user));
-              
+
               // Sincronizar datos después de restaurar sesión
-              syncFromSupabase().catch(console.error);
+              try {
+                await syncFromSupabase();
+              } catch (syncError) {
+                console.error(syncError);
+              }
             } else if (error) {
               console.warn('⚠️ No se pudo restaurar sesión:', error.message);
               await clearAuthToken();
-              
+
               // Si estamos offline, intentar cargar usuario desde localStorage
               if (!navigator.onLine) {
                 const storedUser = localStorage.getItem('offline_user');
@@ -120,7 +124,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setSession(session);
         setUser(session.user);
         setLoading(false);
-        
+
         // Asegurar que el token esté guardado en IndexedDB y localStorage
         if (session.refresh_token) {
           await saveAuthToken(
@@ -131,16 +135,20 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           );
           localStorage.setItem('offline_user', JSON.stringify(session.user));
         }
-        
+
         // Sincronizar datos al iniciar con sesión existente
-        syncFromSupabase().catch(console.error);
+        try {
+          await syncFromSupabase();
+        } catch (syncError) {
+          console.error(syncError);
+        }
       }
     });
 
     // Listener para revalidar sesión cuando se recupera conexión
     const handleOnline = async () => {
       console.log('🟢 Conexión restaurada - revalidando sesión...');
-      
+
       // Si hay usuario offline, intentar revalidar con tokens guardados
       if (offlineUser) {
         try {
@@ -150,7 +158,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
               refresh_token: storedToken.refreshToken,
               access_token: storedToken.accessToken || storedToken.refreshToken
             });
-            
+
             if (data?.session) {
               setSession(data.session);
               setUser(data.session.user);
@@ -176,7 +184,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const signUp = async (email: string, password: string, fullName: string) => {
     const redirectUrl = `${window.location.origin}/`;
-    
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -201,7 +209,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         data.session.access_token,
         data.session.expires_at
       );
-      
+
       // Sincronizar datos desde Supabase
       try {
         await syncFromSupabase();
@@ -263,7 +271,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       // Primero cerrar sesión en Supabase
       const { error } = await supabase.auth.signOut();
-      
+
       if (error) {
         toast.error(error.message);
         return;
@@ -271,11 +279,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       // Luego limpiar TODOS los datos locales
       await clearAllLocalData();
-      
+
       // Limpiar usuario offline de localStorage
       localStorage.removeItem('offline_user');
       setOfflineUser(null);
-      
+
       toast.success("Sesión cerrada");
     } catch (error: any) {
       console.error('Error al cerrar sesión:', error);

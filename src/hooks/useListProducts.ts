@@ -23,7 +23,7 @@ async function fetchPage(listId: string, page = 0, q?: string, isOnline?: boolea
   let query = (supabase as any)
     .from("dynamic_products_index")
     .select(
-      "product_id, list_id, code, name, price, quantity, stock_threshold, in_my_stock, calculated_data, dynamic_products(data)",
+      "product_id, list_id, code, name, price, quantity, stock_threshold, calculated_data, dynamic_products(data)",
       { count: "exact" },
     )
     .eq("list_id", listId)
@@ -32,7 +32,34 @@ async function fetchPage(listId: string, page = 0, q?: string, isOnline?: boolea
   if (q) query = query.or(`code.ilike.%${q}%,name.ilike.%${q}%`);
   const { data, count, error } = await query;
   if (error) throw error;
-  return { data, count, nextPage: to + 1 < (count ?? 0) ? page + 1 : undefined };
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let enrichedData = data || [];
+  if (user && data && data.length > 0) {
+    const productIds = data.map((item: any) => item.product_id);
+    const { data: myStockRows, error: myStockError } = await supabase
+      .from("my_stock_products")
+      .select("product_id, stock_threshold")
+      .eq("user_id", user.id)
+      .in("product_id", productIds);
+
+    if (myStockError) throw myStockError;
+
+    const stockMap = new Map((myStockRows || []).map((row: any) => [row.product_id, row]));
+    enrichedData = data.map((item: any) => {
+      const stockEntry = stockMap.get(item.product_id);
+      return {
+        ...item,
+        in_my_stock: !!stockEntry,
+        stock_threshold: stockEntry?.stock_threshold ?? item.stock_threshold ?? 0,
+      };
+    });
+  }
+
+  return { data: enrichedData, count, nextPage: to + 1 < (count ?? 0) ? page + 1 : undefined };
 }
 
 export function useListProducts(listId: string, q?: string) {

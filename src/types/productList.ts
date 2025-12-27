@@ -17,6 +17,7 @@ export interface DynamicProduct {
   price?: number;
   quantity?: number;
   stock_threshold?: number;
+  /** @deprecated Usar my_stock_products para determinar Mi Stock. */
   in_my_stock?: boolean;
   supplierId?: string;
   supplierName?: string;

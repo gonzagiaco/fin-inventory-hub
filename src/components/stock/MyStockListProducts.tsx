@@ -8,8 +8,7 @@ import { StockThresholdCell } from "./StockThresholdCell";
 import { ProductCardView } from "@/components/ProductCardView";
 import { ColumnSchema, DynamicProduct } from "@/types/productList";
 import { normalizeRawPrice, formatARS } from "@/utils/numberParser";
-import { removeFromMyStock } from "@/hooks/useMyStockProducts";
-import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { removeFromMyStock } from "@/lib/localDB";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ColumnSettingsDrawer } from "@/components/ColumnSettingsDrawer";
@@ -58,7 +57,6 @@ export function MyStockListProducts({
 }: MyStockListProductsProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const { columnVisibility, columnOrder, viewMode: storeViewMode, setViewMode } = useProductListStore();
-  const isOnline = useOnlineStatus();
   const queryClient = useQueryClient();
 
   // Default view mode
@@ -68,11 +66,9 @@ export function MyStockListProducts({
   // Handler para quitar de Mi Stock - persist to IndexedDB BEFORE UI update
   const handleRemoveFromStock = async (product: any) => {
     const productId = product.product_id || product.id;
-    const productListId = product.list_id || listId;
-    
     try {
       // 1. FIRST: Persist to IndexedDB (critical for offline persistence)
-      await removeFromMyStock(productId, productListId, isOnline);
+      await removeFromMyStock(productId);
       
       // 2. THEN: Update UI optimistically
       onRemoveProduct?.(productId);
@@ -214,6 +210,7 @@ export function MyStockListProducts({
                   listId={row.original.list_id || listId}
                   value={row.original.quantity}
                   visibleSpan={false}
+                  suppressToasts={true}
                   onOptimisticUpdate={(newQty) => handleQuantityChange(row.original.product_id || row.original.id, newQty)}
                 />
               </div>
@@ -234,6 +231,7 @@ export function MyStockListProducts({
               productId={row.original.product_id || row.original.id}
               listId={row.original.list_id || listId}
               value={row.original.stock_threshold}
+              suppressToasts={true}
               onOptimisticUpdate={(newThreshold) =>
                 handleThresholdChange(row.original.product_id || row.original.id, newThreshold)
               }
@@ -385,6 +383,7 @@ export function MyStockListProducts({
           showLowStockBadge={true}
           showStockThreshold={true}
           onThresholdChange={handleThresholdChange}
+          suppressStockToasts={true}
         />
       </div>
     );

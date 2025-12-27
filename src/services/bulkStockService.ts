@@ -112,6 +112,10 @@ async function bulkAdjustStockOffline(adjustments: StockAdjustment[]): Promise<B
   logBulk("Starting offline bulk adjustment", { count: adjustments.length });
 
   const results: BulkAdjustResult["results"] = [];
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const userId = user?.id;
 
   for (const adj of adjustments) {
     try {
@@ -129,7 +133,6 @@ async function bulkAdjustStockOffline(adjustments: StockAdjustment[]): Promise<B
       // Actualizar dynamic_products_index
       await localDB.dynamic_products_index.update(indexRecord.id!, {
         quantity: newQty,
-        in_my_stock: newQty > 0 ? true : indexRecord.in_my_stock,
         updated_at: new Date().toISOString(),
       });
 
@@ -140,6 +143,31 @@ async function bulkAdjustStockOffline(adjustments: StockAdjustment[]): Promise<B
           quantity: newQty,
           updated_at: new Date().toISOString(),
         });
+      }
+
+      if (userId) {
+        const myStockEntry = await localDB.my_stock_products
+          .where({ user_id: userId, product_id: adj.product_id })
+          .first();
+
+        if (myStockEntry) {
+          await localDB.my_stock_products.update(myStockEntry.id, {
+            quantity: newQty,
+            updated_at: new Date().toISOString(),
+          });
+
+          await localDB.pending_operations.add({
+            table_name: "my_stock_products",
+            operation_type: "UPDATE",
+            record_id: myStockEntry.id,
+            data: {
+              quantity: newQty,
+              updated_at: new Date().toISOString(),
+            },
+            timestamp: Date.now(),
+            retry_count: 0,
+          });
+        }
       }
 
       // Encolar para sincronización (con serialización por producto)
@@ -185,13 +213,17 @@ async function bulkAdjustStockOffline(adjustments: StockAdjustment[]): Promise<B
 async function syncBulkResultsToLocal(results: BulkAdjustResult["results"]): Promise<void> {
   logBulk("Syncing bulk results to IndexedDB", { count: results.length });
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const userId = user?.id;
+
   for (const result of results) {
     const indexRecord = await localDB.dynamic_products_index.where("product_id").equals(result.product_id).first();
 
     if (indexRecord) {
       await localDB.dynamic_products_index.update(indexRecord.id!, {
         quantity: result.new_qty,
-        in_my_stock: result.new_qty > 0 ? true : indexRecord.in_my_stock,
         updated_at: new Date().toISOString(),
       });
     }
@@ -203,6 +235,19 @@ async function syncBulkResultsToLocal(results: BulkAdjustResult["results"]): Pro
         quantity: result.new_qty,
         updated_at: new Date().toISOString(),
       });
+    }
+
+    if (userId) {
+      const myStockEntry = await localDB.my_stock_products
+        .where({ user_id: userId, product_id: result.product_id })
+        .first();
+
+      if (myStockEntry) {
+        await localDB.my_stock_products.update(myStockEntry.id, {
+          quantity: result.new_qty,
+          updated_at: new Date().toISOString(),
+        });
+      }
     }
   }
 

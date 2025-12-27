@@ -1,9 +1,9 @@
-import React from "react";
+﻿import React from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
-import { updateProductQuantityOffline } from "@/lib/localDB";
+import { localDB, updateProductQuantityOffline } from "@/lib/localDB";
 
 type Props = {
   productId: string;
@@ -11,8 +11,9 @@ type Props = {
   value: number | null | undefined;
   /** Opcional: para actualizar inmediatamente la UI del padre (ej. row.original.quantity) */
   onLocalUpdate?: (newQty: number) => void;
-  /** Callback para actualización optimista inmediata */
+  /** Callback para actualizaciÃ³n optimista inmediata */
   onOptimisticUpdate?: (newQty: number) => void;
+  suppressToasts?: boolean;
   visibleSpan: boolean;
 };
 
@@ -22,6 +23,7 @@ export const QuantityCell: React.FC<Props> = ({
   value,
   onLocalUpdate,
   onOptimisticUpdate,
+  suppressToasts,
   visibleSpan
 }) => {
   const queryClient = useQueryClient();
@@ -32,42 +34,74 @@ export const QuantityCell: React.FC<Props> = ({
     const newQty = Number(raw);
     if (Number.isNaN(newQty) || newQty === current) return;
 
-    // 1. Actualización optimista INMEDIATA
+    // 1. ActualizaciÃ³n optimista INMEDIATA
     onOptimisticUpdate?.(newQty);
     onLocalUpdate?.(newQty);
 
     // 2. Toast
-    toast.success(isOnline ? "Stock actualizado" : "Stock actualizado (se sincronizará al reconectar)");
+    if (!suppressToasts) {
+      toast.success(isOnline ? "Stock actualizado" : "Stock actualizado (se sincronizarÃ¡ al reconectar)" );
+    }
 
     // 3. Backend en segundo plano
     queueMicrotask(async () => {
       try {
-        // Preparar datos de actualización - si quantity > 0, agregar a Mi Stock
-        const updateData: { quantity: number; in_my_stock?: boolean; updated_at: string } = {
-          quantity: newQty,
-          updated_at: new Date().toISOString(),
-        };
-        
-        if (newQty > 0) {
-          updateData.in_my_stock = true;
-        }
+        const now = new Date().toISOString();
 
         if (isOnline) {
           const { error } = await supabase
             .from("dynamic_products_index")
-            .update(updateData)
+            .update({ quantity: newQty, updated_at: now })
             .eq("product_id", productId);
 
           if (error) throw error;
+
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+
+          if (user) {
+            if (newQty > 0) {
+              const indexRecord = await localDB.dynamic_products_index
+                .where({ product_id: productId, list_id: listId })
+                .first();
+              const stockThreshold = indexRecord?.stock_threshold ?? 0;
+
+              const { error: myStockError } = await supabase
+                .from("my_stock_products")
+                .upsert(
+                  {
+                    user_id: user.id,
+                    product_id: productId,
+                    quantity: newQty,
+                    stock_threshold: stockThreshold,
+                    updated_at: now,
+                  },
+                  { onConflict: "user_id,product_id" },
+                );
+
+              if (myStockError) throw myStockError;
+            } else {
+              const { error: myStockError } = await supabase
+                .from("my_stock_products")
+                .delete()
+                .eq("user_id", user.id)
+                .eq("product_id", productId);
+
+              if (myStockError) throw myStockError;
+            }
+          }
         }
-        
-        await updateProductQuantityOffline(productId, listId, newQty);
+
+        await updateProductQuantityOffline(productId, listId, newQty, { enqueue: !isOnline });
         queryClient.invalidateQueries({ queryKey: ["global-search"] });
         queryClient.invalidateQueries({ queryKey: ["list-products", listId] });
         queryClient.invalidateQueries({ queryKey: ["my-stock"] });
       } catch (error: any) {
         console.error("Error al actualizar stock:", error);
-        toast.error(`Error al actualizar stock: ${error.message}`);
+        if (!suppressToasts) {
+          toast.error(`Error al actualizar stock: ${error.message}`);
+        }
       }
     });
   };
@@ -93,3 +127,6 @@ export const QuantityCell: React.FC<Props> = ({
     </>
   );
 };
+
+
+

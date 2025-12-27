@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { localDB, updateProductQuantityOffline } from "@/lib/localDB";
+import { localDB } from "@/lib/localDB";
 import { useOnlineStatus } from "./useOnlineStatus";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -12,7 +12,6 @@ export interface MyStockProduct {
   price: number | null;
   quantity: number | null;
   stock_threshold?: number | null;
-  in_my_stock: boolean;
   calculated_data?: Record<string, any>;
   data?: Record<string, any>;
   created_at: string;
@@ -28,12 +27,12 @@ interface UseMyStockProductsOptions {
 // Logging helper
 const logSync = (action: string, details?: any) => {
   const timestamp = new Date().toISOString();
-  console.log(`[MyStock ${timestamp}] ${action}`, details || '');
+  console.log(`[MyStock ${timestamp}] ${action}`, details || "");
 };
 
 /**
  * Hook to fetch products for "My Stock" view.
- * Criteria: in_my_stock = true
+ * Criteria: presence in my_stock_products
  * Uses indexed queries for performance (no full table scans)
  */
 export function useMyStockProducts(options: UseMyStockProductsOptions = {}) {
@@ -45,78 +44,71 @@ export function useMyStockProducts(options: UseMyStockProductsOptions = {}) {
     queryKey: ["my-stock", supplierId, searchTerm, onlyWithStock, isOnline ? "online" : "offline"],
     queryFn: async () => {
       const startTime = performance.now();
-      logSync('Fetching my-stock products', { supplierId, searchTerm, onlyWithStock });
+      logSync("Fetching my-stock products", { supplierId, searchTerm, onlyWithStock });
 
-      // D) OPTIMIZACIÓN: Usar query indexada en lugar de getOfflineData
-      // Filtrar directamente por in_my_stock = true usando índice Dexie
-      let indexedProducts = await localDB.dynamic_products_index
-        .filter(p => p.in_my_stock === true)
-        .toArray();
-      
-      logSync(`Found ${indexedProducts.length} products with in_my_stock=true`);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuario no autenticado");
 
-      const productLists = await localDB.product_lists.toArray();
-      
-      if (!indexedProducts || !productLists) {
+      let myStockEntries = await localDB.my_stock_products.where({ user_id: user.id }).toArray();
+
+      if (!myStockEntries.length) {
         return [];
       }
 
-      // Create a map of list_id to supplier_id
+      const productIds = myStockEntries.map((entry) => entry.product_id);
+      const [fullProducts, indexEntries, productLists] = await Promise.all([
+        localDB.dynamic_products.bulkGet(productIds),
+        localDB.dynamic_products_index.where("product_id").anyOf(productIds).toArray(),
+        localDB.product_lists.toArray(),
+      ]);
+
+      const fullProductsMap = new Map<string, any>();
+      fullProducts.forEach((p) => {
+        if (p) fullProductsMap.set(p.id, p);
+      });
+
+      const indexByProductId = new Map<string, any>();
+      indexEntries.forEach((p) => indexByProductId.set(p.product_id, p));
+
       const listToSupplier = new Map<string, string>();
       productLists.forEach((list: any) => {
         listToSupplier.set(list.id, list.supplier_id);
       });
 
-      // Filter by supplier if specified
-      if (supplierId && supplierId !== "all") {
-        indexedProducts = indexedProducts.filter((p: any) => {
-          const productSupplierId = listToSupplier.get(p.list_id);
-          return productSupplierId === supplierId;
-        });
-      }
+      let enrichedProducts = myStockEntries.map((entry) => {
+        const fullProduct = fullProductsMap.get(entry.product_id);
+        const indexRecord = indexByProductId.get(entry.product_id);
 
-      // Filter by search term
-      if (searchTerm && searchTerm.trim().length >= 1) {
-        const lowerSearch = searchTerm.toLowerCase().trim();
-        indexedProducts = indexedProducts.filter((p: any) => {
-          return (
-            p.code?.toLowerCase().includes(lowerSearch) ||
-            p.name?.toLowerCase().includes(lowerSearch)
-          );
-        });
-      }
-
-      // Filter only products with stock > 0 if option is enabled
-      if (onlyWithStock) {
-        indexedProducts = indexedProducts.filter((p: any) => (p.quantity || 0) > 0);
-      }
-
-      // D) OPTIMIZACIÓN: Bulk get de productos completos solo para los IDs filtrados
-      const productIds = indexedProducts.map((p: any) => p.product_id);
-      const fullProducts = await localDB.dynamic_products
-        .where('id')
-        .anyOf(productIds)
-        .toArray();
-      
-      const productDataMap = new Map<string, any>();
-      fullProducts.forEach((p: any) => {
-        productDataMap.set(p.id, p.data || {});
+        return {
+          ...entry,
+          list_id: fullProduct?.list_id ?? indexRecord?.list_id ?? "",
+          data: fullProduct?.data || {},
+          calculated_data: indexRecord?.calculated_data || {},
+          code: entry.code ?? indexRecord?.code ?? fullProduct?.code ?? "",
+          name: entry.name ?? indexRecord?.name ?? fullProduct?.name ?? "",
+          price: entry.price ?? indexRecord?.price ?? fullProduct?.price ?? null,
+          quantity: entry.quantity ?? 0,
+          stock_threshold: entry.stock_threshold ?? 0,
+        };
       });
 
-      // Enrich products with full data - ensure data and calculated_data are never null
-      const enrichedProducts = indexedProducts.map((p: any) => ({
-        ...p,
-        data: productDataMap.get(p.product_id) || p.data || {},
-        calculated_data: p.calculated_data || {},
-        // Ensure all standard fields have fallback values
-        code: p.code || '',
-        name: p.name || '',
-        price: p.price ?? null,
-        quantity: p.quantity ?? 0,
-        stock_threshold: p.stock_threshold ?? 0,
-      }));
+      if (supplierId && supplierId !== "all") {
+        enrichedProducts = enrichedProducts.filter((p: any) => listToSupplier.get(p.list_id) === supplierId);
+      }
 
-      // Sort by name
+      if (searchTerm && searchTerm.trim().length >= 1) {
+        const lowerSearch = searchTerm.toLowerCase().trim();
+        enrichedProducts = enrichedProducts.filter((p: any) => {
+          return p.code?.toLowerCase().includes(lowerSearch) || p.name?.toLowerCase().includes(lowerSearch);
+        });
+      }
+
+      if (onlyWithStock) {
+        enrichedProducts = enrichedProducts.filter((p: any) => (p.quantity || 0) > 0);
+      }
+
       enrichedProducts.sort((a: any, b: any) => {
         const nameA = a.name || "";
         const nameB = b.name || "";
@@ -124,14 +116,13 @@ export function useMyStockProducts(options: UseMyStockProductsOptions = {}) {
       });
 
       const endTime = performance.now();
-      logSync(`Query completed in ${(endTime - startTime).toFixed(2)}ms`, {
+      logSync(`Query completed in ${(endTime - startTime).toFixed(2)} ms`, {
         totalProducts: enrichedProducts.length,
-        filtered: indexedProducts.length
       });
 
       return enrichedProducts as MyStockProduct[];
     },
-    staleTime: 0,
+    staleTime: Infinity,
   });
 
   const invalidate = () => {
@@ -145,165 +136,53 @@ export function useMyStockProducts(options: UseMyStockProductsOptions = {}) {
 }
 
 /**
- * B) CORREGIDO: addToMyStock usa in_my_stock explícito
- * Sets in_my_stock = true, updates quantity if needed
- */
-export async function addToMyStock(
-  productId: string,
-  listId: string,
-  isOnline: boolean
-): Promise<void> {
-  logSync('addToMyStock', { productId, listId, isOnline });
-  
-  const now = new Date().toISOString();
-  
-  // Get current product data from IndexedDB
-  const indexRecord = await localDB.dynamic_products_index
-    .where({ product_id: productId, list_id: listId })
-    .first();
-  
-  const currentQuantity = indexRecord?.quantity || 0;
-  // Si quantity es 0, poner 1 para que sea visible
-  const newQuantity = currentQuantity > 0 ? currentQuantity : 1;
-  
-  if (isOnline) {
-    // Update via Supabase
-    const { error } = await supabase
-      .from("dynamic_products_index")
-      .update({ 
-        in_my_stock: true,
-        quantity: newQuantity,
-        updated_at: now
-      })
-      .eq("product_id", productId);
-    
-    if (error) {
-      logSync('ERROR addToMyStock Supabase', error);
-      throw error;
-    }
-    logSync('Supabase updated successfully');
-  }
-  
-  // Update IndexedDB (always, for consistency)
-  if (indexRecord) {
-    await localDB.dynamic_products_index.update(indexRecord.id!, {
-      in_my_stock: true,
-      quantity: newQuantity,
-      updated_at: now,
-    });
-    logSync('IndexedDB updated successfully');
-  }
-  
-  // Queue for offline sync if not online
-  if (!isOnline) {
-    await localDB.pending_operations.add({
-      table_name: 'dynamic_products_index',
-      operation_type: 'UPDATE',
-      record_id: productId,
-      data: { in_my_stock: true, quantity: newQuantity },
-      timestamp: Date.now(),
-      retry_count: 0,
-    });
-    logSync('Queued operation for offline sync');
-  }
-}
-
-/**
- * B) CORREGIDO: removeFromMyStock usa in_my_stock = false
- * NO resetea updated_at a created_at (prohibido)
- * Sets in_my_stock = false, quantity = 0
- */
-export async function removeFromMyStock(
-  productId: string,
-  listId: string,
-  isOnline: boolean
-): Promise<void> {
-  logSync('removeFromMyStock', { productId, listId, isOnline });
-  
-  const now = new Date().toISOString();
-  
-  if (isOnline) {
-    // Update Supabase: in_my_stock = false, quantity = 0
-    const { error } = await supabase
-      .from("dynamic_products_index")
-      .update({ 
-        in_my_stock: false,
-        quantity: 0,
-        updated_at: now // NUNCA resetear a created_at
-      })
-      .eq("product_id", productId);
-    
-    if (error) {
-      logSync('ERROR removeFromMyStock Supabase', error);
-      throw error;
-    }
-    logSync('Supabase updated: in_my_stock=false, quantity=0');
-  }
-  
-  // Update IndexedDB (always, for consistency)
-  const indexRecord = await localDB.dynamic_products_index
-    .where({ product_id: productId, list_id: listId })
-    .first();
-    
-  if (indexRecord) {
-    await localDB.dynamic_products_index.update(indexRecord.id!, {
-      in_my_stock: false,
-      quantity: 0,
-      updated_at: now,
-    });
-    logSync('IndexedDB updated: in_my_stock=false, quantity=0');
-  }
-  
-  // Queue for offline sync if not online - use proper record identification
-  if (!isOnline) {
-    await localDB.pending_operations.add({
-      table_name: 'dynamic_products_index',
-      operation_type: 'UPDATE',
-      // Use the actual IndexedDB record ID for proper sync
-      record_id: indexRecord?.id?.toString() || productId,
-      data: { 
-        in_my_stock: false, 
-        quantity: 0,
-        // Include product_id and list_id for Supabase query
-        product_id: productId,
-        list_id: listId,
-      },
-      timestamp: Date.now(),
-      retry_count: 0,
-    });
-    logSync('Queued operation for offline sync with full identifiers');
-  }
-}
-
-/**
- * Sync individual product's in_my_stock state from Supabase to IndexedDB
+ * Sync individual product's my_stock state from Supabase to IndexedDB
  */
 export async function syncProductMyStockState(productId: string): Promise<void> {
-  logSync('syncProductMyStockState', { productId });
-  
+  logSync("syncProductMyStockState", { productId });
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
   const { data, error } = await supabase
-    .from("dynamic_products_index")
-    .select("in_my_stock, quantity, updated_at")
+    .from("my_stock_products")
+    .select("id, product_id, user_id, quantity, stock_threshold, code, name, price, created_at, updated_at")
+    .eq("user_id", user.id)
     .eq("product_id", productId)
     .maybeSingle();
-  
+
   if (error) {
-    logSync('ERROR syncProductMyStockState', error);
+    logSync("ERROR syncProductMyStockState", error);
     return;
   }
-  
-  if (!data) return;
-  
-  const indexRecord = await localDB.dynamic_products_index
-    .where({ product_id: productId })
-    .first();
-    
-  if (indexRecord) {
-    await localDB.dynamic_products_index.update(indexRecord.id!, {
-      in_my_stock: data.in_my_stock,
-      quantity: data.quantity,
+
+  const existing = await localDB.my_stock_products.where({ user_id: user.id, product_id: productId }).first();
+
+  if (!data) {
+    if (existing) {
+      await localDB.my_stock_products.delete(existing.id);
+    }
+    return;
+  }
+
+  if (existing) {
+    await localDB.my_stock_products.update(existing.id, {
+      quantity: data.quantity ?? 0,
+      stock_threshold: data.stock_threshold ?? 0,
+      code: data.code ?? existing.code,
+      name: data.name ?? existing.name,
+      price: data.price ?? existing.price,
       updated_at: data.updated_at,
     });
-    logSync('Synced product state from Supabase', data);
+  } else {
+    await localDB.my_stock_products.add(data);
   }
+
+  await localDB.dynamic_products_index.where({ product_id: productId }).modify({
+    quantity: data.quantity ?? 0,
+    stock_threshold: data.stock_threshold ?? 0,
+    updated_at: data.updated_at,
+  });
 }

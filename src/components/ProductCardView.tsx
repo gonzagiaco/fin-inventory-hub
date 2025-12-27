@@ -36,6 +36,7 @@ interface ProductCardViewProps {
   showLowStockBadge?: boolean;
   showStockThreshold?: boolean;
   onThresholdChange?: (productId: string, newThreshold: number) => void;
+  suppressStockToasts?: boolean;
 }
 
 type SortDirection = 'asc' | 'desc' | null;
@@ -58,6 +59,7 @@ export function ProductCardView({
   showLowStockBadge = false,
   showStockThreshold = false,
   onThresholdChange,
+  suppressStockToasts = false,
 }: ProductCardViewProps) {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [displayCount, setDisplayCount] = useState(10);
@@ -333,8 +335,7 @@ export function ProductCardView({
         {visibleProducts.map((product) => {
           const isExpanded = expandedCards.has(product.id);
           const inMyStockCard =
-            product.in_my_stock === true ||
-            (product.in_my_stock === undefined && (product.quantity ?? 0) > 0);
+            product.in_my_stock === true;
 
           const isLowStockCard =
             showLowStockBadge &&
@@ -362,8 +363,7 @@ export function ProductCardView({
                       const q = product.quantity || 0;
                       const stockThresholdField = product.stock_threshold ?? 0;
                       const inMyStock =
-                        product.in_my_stock === true ||
-                        (product.in_my_stock === undefined && (product.quantity ?? 0) > 0);
+                        product.in_my_stock === true;
 
                       const isLowStockField =
                         showLowStockBadge &&
@@ -424,7 +424,9 @@ export function ProductCardView({
                               value={product.quantity}
                               onLocalUpdate={(newQty) => {
                                 product.quantity = newQty;
+                                product.in_my_stock = newQty > 0;
                               }}
+                              suppressToasts={suppressStockToasts}
                               visibleSpan={true}
                             />
                           </div>
@@ -451,6 +453,7 @@ export function ProductCardView({
                             onLocalUpdate={(newThreshold) => {
                               product.stock_threshold = newThreshold;
                             }}
+                            suppressToasts={suppressStockToasts}
                           />
                         </div>
                       );
@@ -561,3 +564,4 @@ export function ProductCardView({
     </>
   );
 }
+

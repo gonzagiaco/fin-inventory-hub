@@ -11,6 +11,7 @@ type Props = {
   value: number | null | undefined;
   onLocalUpdate?: (newThreshold: number) => void;
   onOptimisticUpdate?: (newThreshold: number) => void;
+  suppressToasts?: boolean;
 };
 
 export const StockThresholdCell: React.FC<Props> = ({
@@ -19,6 +20,7 @@ export const StockThresholdCell: React.FC<Props> = ({
   value,
   onLocalUpdate,
   onOptimisticUpdate,
+  suppressToasts,
 }) => {
   const queryClient = useQueryClient();
   const isOnline = useOnlineStatus();
@@ -32,11 +34,13 @@ export const StockThresholdCell: React.FC<Props> = ({
     onOptimisticUpdate?.(next);
     onLocalUpdate?.(next);
 
-    toast.success(
-      isOnline
-        ? "Stock mínimo actualizado"
-        : "Stock mínimo actualizado (se sincronizará al reconectar)",
-    );
+    if (!suppressToasts) {
+      toast.success(
+        isOnline
+          ? "Stock minimo actualizado"
+          : "Stock minimo actualizado (se sincronizara al reconectar)",
+      );
+    }
 
     queueMicrotask(async () => {
       try {
@@ -66,15 +70,31 @@ export const StockThresholdCell: React.FC<Props> = ({
           ) {
             throw productError;
           }
+
+          const {
+            data: { user },
+          } = await supabase.auth.getUser();
+
+          if (user) {
+            const { error: myStockError } = await supabase
+              .from("my_stock_products")
+              .update({ stock_threshold: next, updated_at: updateData.updated_at })
+              .eq("user_id", user.id)
+              .eq("product_id", productId);
+
+            if (myStockError) throw myStockError;
+          }
         }
 
-        await updateProductThresholdOffline(productId, listId, next);
+        await updateProductThresholdOffline(productId, listId, next, { enqueue: !isOnline });
         queryClient.invalidateQueries({ queryKey: ["list-products", listId] });
         queryClient.invalidateQueries({ queryKey: ["my-stock"] });
         queryClient.invalidateQueries({ queryKey: ["global-search"] });
       } catch (error: any) {
-        console.error("Error al actualizar stock mínimo:", error);
-        toast.error(`Error al actualizar stock mínimo: ${error.message}`);
+        console.error("Error al actualizar stock minimo:", error);
+        if (!suppressToasts) {
+          toast.error(`Error al actualizar stock minimo: ${error.message}`);
+        }
       }
     });
   };

@@ -1,4 +1,4 @@
-export function normalizeRawPrice(input: any): number | null {
+﻿export function normalizeRawPrice(input: any): number | null {
     if (input === null || input === undefined) return null;
     if (typeof input === "number") return isFinite(input) ? Number(input.toFixed(2)) : null;
     let str = String(input).trim();
@@ -17,13 +17,16 @@ export function normalizeRawPrice(input: any): number | null {
     if (decimalSep) {
         const parts = str.split(decimalSep);
         const intPart = parts[0].replace(/[.,]/g, "");
-        const fracPart = parts.slice(1).join("").replace(/[^0-9]/g, "");
-        // Heurística: si sólo hay un separador y la parte "decimal" tiene 3 dígitos,
+        let fracPart = parts.slice(1).join("").replace(/[^0-9]/g, "");
+        // HeurÃ­stica: si sÃ³lo hay un separador y la parte "decimal" tiene 3 dÃ­gitos,
         // es muy probable que sea un separador de miles (ej: "2.500" => 2500)
         const sepCount = (str.match(/[.,]/g) || []).length;
-        if (parts.length === 2 && fracPart.length === 3 && sepCount === 1) {
+        if (parts.length === 2 && fracPart.length === 3 && sepCount === 1 && intPart.length <= 3) {
             str = intPart + fracPart; // tratar como miles
         } else {
+            if (fracPart.length > 2) {
+                fracPart = fracPart.slice(0, 2);
+            }
             str = intPart + "." + fracPart;
         }
     } else {
@@ -62,3 +65,4 @@ export function parseNumber(input: any): number {
     const v = normalizeRawPrice(input);
     return v === null ? NaN : v;
 }
+

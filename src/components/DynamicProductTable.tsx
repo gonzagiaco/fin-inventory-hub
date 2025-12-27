@@ -176,6 +176,7 @@ export const DynamicProductTable = ({
                   value={row.original.quantity}
                   onLocalUpdate={(newQty) => {
                     row.original.quantity = newQty;
+                    row.original.in_my_stock = newQty > 0;
                   }}
                   visibleSpan={false}
                 />

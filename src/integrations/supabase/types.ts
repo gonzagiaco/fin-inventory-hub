@@ -263,6 +263,45 @@ export type Database = {
           },
         ]
       }
+      my_stock_products: {
+        Row: {
+          code: string | null
+          created_at: string | null
+          id: string
+          name: string | null
+          price: number | null
+          product_id: string
+          quantity: number
+          stock_threshold: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string | null
+          id?: string
+          name?: string | null
+          price?: number | null
+          product_id: string
+          quantity?: number
+          stock_threshold?: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          code?: string | null
+          created_at?: string | null
+          id?: string
+          name?: string | null
+          price?: number | null
+          product_id?: string
+          quantity?: number
+          stock_threshold?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       import_records: {
         Row: {
           created_at: string | null

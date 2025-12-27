@@ -1,4 +1,4 @@
-import Dexie, { Table } from "dexie";
+﻿import Dexie, { Table } from "dexie";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { fetchAllFromTable } from "@/utils/fetchAllProducts";
@@ -65,6 +65,19 @@ interface DynamicProductDB {
   quantity?: number;
   stock_threshold?: number;
   data: any;
+  created_at: string;
+  updated_at: string;
+}
+
+interface MyStockProductDB {
+  id: string;
+  product_id: string;
+  user_id: string;
+  quantity: number;
+  stock_threshold: number;
+  code?: string;
+  name?: string;
+  price?: number;
   created_at: string;
   updated_at: string;
 }
@@ -159,6 +172,7 @@ class LocalDatabase extends Dexie {
   product_lists!: Table<ProductListDB, string>;
   dynamic_products_index!: Table<DynamicProductIndexDB, string>;
   dynamic_products!: Table<DynamicProductDB, string>;
+  my_stock_products!: Table<MyStockProductDB, string>;
   delivery_notes!: Table<DeliveryNoteDB, string>;
   delivery_note_items!: Table<DeliveryNoteItemDB, string>;
   request_items!: Table<RequestItemDB, string>;
@@ -186,7 +200,7 @@ class LocalDatabase extends Dexie {
       tokens: "userId, updatedAt",
     });
 
-    // Versión 5: Agregar tablas para mapeo de IDs y compensación de stock
+    // VersiÃ³n 5: Agregar tablas para mapeo de IDs y compensaciÃ³n de stock
     this.version(5).stores({
       suppliers: "id, user_id, name",
       product_lists: "id, user_id, supplier_id, name",
@@ -203,7 +217,7 @@ class LocalDatabase extends Dexie {
       stock_compensations: "++id, operation_id, product_id",
     });
 
-    // Versión 6: Agregar in_my_stock al índice de productos
+    // VersiÃ³n 6: Agregar in_my_stock al Ã­ndice de productos
     this.version(6).stores({
       suppliers: "id, user_id, name",
       product_lists: "id, user_id, supplier_id, name",
@@ -220,7 +234,7 @@ class LocalDatabase extends Dexie {
       stock_compensations: "++id, operation_id, product_id",
     });
 
-    // Versión 7: Agregar stock_threshold al índice de productos
+    // VersiÃ³n 7: Agregar stock_threshold al Ã­ndice de productos
     this.version(7).stores({
       suppliers: "id, user_id, name",
       product_lists: "id, user_id, supplier_id, name",
@@ -237,12 +251,31 @@ class LocalDatabase extends Dexie {
       stock_compensations: "++id, operation_id, product_id",
     });
 
-    // Versión 8: Agregar índice compuesto para fusión de operaciones pendientes
+    // VersiÃ³n 8: Agregar Ã­ndice compuesto para fusiÃ³n de operaciones pendientes
     this.version(8).stores({
       suppliers: "id, user_id, name",
       product_lists: "id, user_id, supplier_id, name",
       dynamic_products_index: "id, user_id, list_id, product_id, code, name, in_my_stock, stock_threshold",
       dynamic_products: "id, user_id, list_id, code, name, stock_threshold",
+      my_stock_products: "id, user_id, product_id, quantity, stock_threshold, code, name, price",
+      delivery_notes: "id, user_id, customer_name, status, issue_date",
+      delivery_note_items: "id, delivery_note_id, product_id",
+      settings: "key, updated_at",
+      request_items: "id, user_id, product_id",
+      stock_items: "id, user_id, code, name, category, supplier_id",
+      pending_operations: "++id, table_name, timestamp, record_id, product_id, operation_type, [table_name+record_id+operation_type]",
+      tokens: "userId, updatedAt",
+      id_mappings: "temp_id, real_id, table_name",
+      stock_compensations: "++id, operation_id, product_id",
+    });
+
+    // VersiÃ“n 9: Agregar tabla my_stock_products
+    this.version(9).stores({
+      suppliers: "id, user_id, name",
+      product_lists: "id, user_id, supplier_id, name",
+      dynamic_products_index: "id, user_id, list_id, product_id, code, name, in_my_stock, stock_threshold",
+      dynamic_products: "id, user_id, list_id, code, name, stock_threshold",
+      my_stock_products: "id, user_id, product_id, quantity, stock_threshold, code, name, price",
       delivery_notes: "id, user_id, customer_name, status, issue_date",
       delivery_note_items: "id, delivery_note_id, product_id",
       settings: "key, updated_at",
@@ -265,6 +298,7 @@ const SYNC_ORDER = [
   "product_lists",
   "dynamic_products",
   "dynamic_products_index",
+  "my_stock_products",
   "stock_items",
   "delivery_notes",
   "delivery_note_items",
@@ -273,7 +307,7 @@ const SYNC_ORDER = [
 
 // ==================== UTILIDADES ====================
 
-// Variable de control para sincronización (mutex)
+// Variable de control para sincronizaciÃ³n (mutex)
 let isSyncInProgress = false;
 
 export function isOnline(): boolean {
@@ -288,23 +322,44 @@ function isTempId(id: string): boolean {
   return id.startsWith("offline-");
 }
 
-// ==================== INICIALIZACIÓN ====================
+// ==================== INICIALIZACIÃ“N ====================
 
 export async function initDB(): Promise<void> {
   try {
     await localDB.open();
-    console.log("✅ IndexedDB inicializada correctamente");
+    console.log("âœ… IndexedDB inicializada correctamente");
   } catch (error) {
-    console.error("❌ Error al inicializar IndexedDB:", error);
+    console.error("âŒ Error al inicializar IndexedDB:", error);
     throw error;
   }
 }
 
-// ==================== SINCRONIZACIÓN DESDE SUPABASE ====================
+// ==================== SINCRONIZACIÃ“N DESDE SUPABASE ====================
+
+export async function syncMyStockFromSupabase(): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error("Usuario no autenticado");
+  }
+
+  const { data, error } = await supabase
+    .from("my_stock_products")
+    .select("id, product_id, user_id, quantity, stock_threshold, code, name, price, created_at, updated_at")
+    .eq("user_id", user.id);
+
+  if (error) throw error;
+
+  await localDB.my_stock_products.clear();
+  if (data && data.length > 0) {
+    await localDB.my_stock_products.bulkAdd(data as MyStockProductDB[]);
+  }
+}
 
 export async function syncFromSupabase(): Promise<void> {
   if (!isOnline()) {
-    console.warn("⚠️ No hay conexión. No se puede sincronizar desde Supabase");
+    console.warn("âš ï¸ No hay conexiÃ³n. No se puede sincronizar desde Supabase");
     return;
   }
 
@@ -316,7 +371,7 @@ export async function syncFromSupabase(): Promise<void> {
       throw new Error("Usuario no autenticado");
     }
 
-    console.log("🔄 Iniciando sincronización desde Supabase...");
+    console.log("ðŸ”„ Iniciando sincronizaciÃ³n desde Supabase...");
 
     // Sincronizar suppliers
     const { data: suppliers, error: suppliersError } = await supabase
@@ -329,9 +384,9 @@ export async function syncFromSupabase(): Promise<void> {
       await localDB.suppliers.clear(); // limpia proveedores viejos
       if (suppliers.length > 0) {
         await localDB.suppliers.bulkAdd(suppliers as SupplierDB[]);
-        console.log(`✅ ${suppliers.length} proveedores sincronizados`);
+        console.log(`âœ… ${suppliers.length} proveedores sincronizados`);
       } else {
-        console.log("✅ 0 proveedores sincronizados (tabla vacía)");
+        console.log("âœ… 0 proveedores sincronizados (tabla vacÃ­a)");
       }
     }
 
@@ -346,13 +401,13 @@ export async function syncFromSupabase(): Promise<void> {
       await localDB.product_lists.clear(); // limpia listas viejas
       if (productLists.length > 0) {
         await localDB.product_lists.bulkAdd(productLists as ProductListDB[]);
-        console.log(`✅ ${productLists.length} listas de productos sincronizadas`);
+        console.log(`âœ… ${productLists.length} listas de productos sincronizadas`);
       } else {
-        console.log("✅ 0 listas de productos sincronizadas (tabla vacía)");
+        console.log("âœ… 0 listas de productos sincronizadas (tabla vacÃ­a)");
       }
     }
 
-    // Sincronizar dynamic_products_index (CON PAGINACIÓN)
+    // Sincronizar dynamic_products_index (CON PAGINACIÃ“N)
     let productsIndex: any[] = [];
     try {
       productsIndex = await fetchAllFromTable("dynamic_products_index", undefined, user.id);
@@ -360,16 +415,16 @@ export async function syncFromSupabase(): Promise<void> {
       await localDB.dynamic_products_index.clear(); // limpia index viejo
       if (productsIndex.length > 0) {
         await localDB.dynamic_products_index.bulkAdd(productsIndex as DynamicProductIndexDB[]);
-        console.log(`✅ ${productsIndex.length} productos (index) sincronizados`);
+        console.log(`âœ… ${productsIndex.length} productos (index) sincronizados`);
       } else {
-        console.log("✅ 0 productos (index) sincronizados (tabla vacía)");
+        console.log("âœ… 0 productos (index) sincronizados (tabla vacÃ­a)");
       }
     } catch (indexError) {
       console.error("Error sincronizando products_index:", indexError);
       throw indexError;
     }
 
-    // Sincronizar dynamic_products (CON PAGINACIÓN)
+    // Sincronizar dynamic_products (CON PAGINACIÃ“N)
     let products: any[] = [];
     try {
       products = await fetchAllFromTable("dynamic_products", undefined, user.id);
@@ -377,14 +432,16 @@ export async function syncFromSupabase(): Promise<void> {
       await localDB.dynamic_products.clear(); // limpia productos viejos
       if (products.length > 0) {
         await localDB.dynamic_products.bulkAdd(products as DynamicProductDB[]);
-        console.log(`✅ ${products.length} productos completos sincronizados`);
+        console.log(`âœ… ${products.length} productos completos sincronizados`);
       } else {
-        console.log("✅ 0 productos completos sincronizados (tabla vacía)");
+        console.log("âœ… 0 productos completos sincronizados (tabla vacÃ­a)");
       }
     } catch (productsError) {
       console.error("Error sincronizando dynamic_products:", productsError);
       throw productsError;
     }
+
+    await syncMyStockFromSupabase();
 
     // Sincronizar delivery_notes
     const { data: deliveryNotes, error: notesError } = await supabase
@@ -397,9 +454,9 @@ export async function syncFromSupabase(): Promise<void> {
       await localDB.delivery_notes.clear(); // limpia remitos viejos
       if (deliveryNotes.length > 0) {
         await localDB.delivery_notes.bulkAdd(deliveryNotes as DeliveryNoteDB[]);
-        console.log(`✅ ${deliveryNotes.length} remitos sincronizados`);
+        console.log(`âœ… ${deliveryNotes.length} remitos sincronizados`);
       } else {
-        console.log("✅ 0 remitos sincronizados (tabla vacía)");
+        console.log("âœ… 0 remitos sincronizados (tabla vacÃ­a)");
       }
     }
 
@@ -411,9 +468,9 @@ export async function syncFromSupabase(): Promise<void> {
       await localDB.delivery_note_items.clear(); // limpia items viejos
       if (noteItems.length > 0) {
         await localDB.delivery_note_items.bulkAdd(noteItems as DeliveryNoteItemDB[]);
-        console.log(`✅ ${noteItems.length} items de remitos sincronizados`);
+        console.log(`âœ… ${noteItems.length} items de remitos sincronizados`);
       } else {
-        console.log("✅ 0 items de remitos sincronizados (tabla vacía)");
+        console.log("âœ… 0 items de remitos sincronizados (tabla vacÃ­a)");
       }
     }
 
@@ -428,9 +485,9 @@ export async function syncFromSupabase(): Promise<void> {
       await localDB.request_items.clear(); // limpia items del carrito viejos
       if (requestItems.length > 0) {
         await localDB.request_items.bulkAdd(requestItems as RequestItemDB[]);
-        console.log(`✅ ${requestItems.length} items del carrito sincronizados`);
+        console.log(`âœ… ${requestItems.length} items del carrito sincronizados`);
       } else {
-        console.log("✅ 0 items del carrito sincronizados (tabla vacía)");
+        console.log("âœ… 0 items del carrito sincronizados (tabla vacÃ­a)");
       }
     }
 
@@ -445,14 +502,14 @@ export async function syncFromSupabase(): Promise<void> {
       await localDB.stock_items.clear(); // limpia stock viejo
       if (stockItems.length > 0) {
         await localDB.stock_items.bulkAdd(stockItems as StockItemDB[]);
-        console.log(`✅ ${stockItems.length} productos de stock sincronizados`);
+        console.log(`âœ… ${stockItems.length} productos de stock sincronizados`);
       } else {
-        console.log("✅ 0 productos de stock sincronizados (tabla vacía)");
+        console.log("âœ… 0 productos de stock sincronizados (tabla vacÃ­a)");
       }
     }
 
-    // Sincronizar settings (dólar oficial, etc.)
-    console.log("📥 Sincronizando settings...");
+    // Sincronizar settings (dÃ³lar oficial, etc.)
+    console.log("ðŸ“¥ Sincronizando settings...");
     const { data: settingsData, error: settingsError } = await supabase.from("settings").select("*");
     if (settingsError) throw settingsError;
 
@@ -467,19 +524,19 @@ export async function syncFromSupabase(): Promise<void> {
             created_at: s.created_at,
           })),
         );
-        console.log(`✅ ${settingsData.length} setting(s) sincronizado(s)`);
+        console.log(`âœ… ${settingsData.length} setting(s) sincronizado(s)`);
       } else {
-        console.log("✅ 0 settings sincronizados (tabla vacía)");
+        console.log("âœ… 0 settings sincronizados (tabla vacÃ­a)");
       }
     }
 
-    console.log("✅ Sincronización completa desde Supabase");
+    console.log("âœ… SincronizaciÃ³n completa desde Supabase");
     // const totalItems = (suppliers?.length || 0) + (productLists?.length || 0) + (productsIndex?.length || 0);
     // if (totalItems > 0) {
     //   toast.success(`${totalItems} elementos sincronizados para uso offline`);
     // }
   } catch (error) {
-    console.error("❌ Error al sincronizar desde Supabase:", error);
+    console.error("âŒ Error al sincronizar desde Supabase:", error);
     toast.error("Error al sincronizar datos");
     throw error;
   }
@@ -488,7 +545,7 @@ export async function syncFromSupabase(): Promise<void> {
 // ==================== COLA DE OPERACIONES PENDIENTES ====================
 
 /**
- * Sanitiza datos según la tabla destino
+ * Sanitiza datos segÃºn la tabla destino
  */
 function sanitizeDataForSync(tableName: string, operationType: string, data: any): any {
   const cleanData = { ...data };
@@ -519,7 +576,7 @@ function sanitizeDataForSync(tableName: string, operationType: string, data: any
   if (tableName === "delivery_note_items") {
     // Para items, reemplazar delivery_note_id temporal por el real si existe
     if (cleanData.delivery_note_id && isTempId(cleanData.delivery_note_id)) {
-      // Se resolverá en executeOperation
+      // Se resolverÃ¡ en executeOperation
     }
 
     if (cleanData.quantity !== undefined) {
@@ -553,11 +610,11 @@ export async function queueOperation(
   };
 
   await localDB.pending_operations.add(operation);
-  console.log(`📝 Operación encolada: ${operationType} en ${tableName}`);
+  console.log(`ðŸ“ OperaciÃ³n encolada: ${operationType} en ${tableName}`);
 }
 
 /**
- * Versión de queueOperation que retorna el ID de la operación
+ * VersiÃ³n de queueOperation que retorna el ID de la operaciÃ³n
  */
 async function queueOperationWithId(
   tableName: string,
@@ -577,7 +634,7 @@ async function queueOperationWithId(
   };
 
   const id = await localDB.pending_operations.add(operation);
-  console.log(`📝 Operación encolada: ${operationType} ${tableName} ${recordId} (id=${id})`);
+  console.log(`ðŸ“ OperaciÃ³n encolada: ${operationType} ${tableName} ${recordId} (id=${id})`);
   return id as number;
 }
 
@@ -593,7 +650,7 @@ async function resolveRecordId(tableName: string, recordId: string): Promise<str
 
 /**
  * Deduplica operaciones pendientes antes de sincronizar
- * Mantiene solo la operación más reciente para cada combinación de table_name + record_id + operation_type
+ * Mantiene solo la operaciÃ³n mÃ¡s reciente para cada combinaciÃ³n de table_name + record_id + operation_type
  */
 async function deduplicatePendingOperations(operations: PendingOperation[]): Promise<void> {
   const operationsByKey = new Map<string, PendingOperation[]>();
@@ -610,10 +667,10 @@ async function deduplicatePendingOperations(operations: PendingOperation[]): Pro
 
   for (const [key, ops] of operationsByKey.entries()) {
     if (ops.length > 1) {
-      console.log(`⚠️ Detectadas ${ops.length} operaciones duplicadas para ${key}`);
-      // Ordenar por timestamp y mantener solo la última
+      console.log(`âš ï¸ Detectadas ${ops.length} operaciones duplicadas para ${key}`);
+      // Ordenar por timestamp y mantener solo la Ãºltima
       ops.sort((a, b) => a.timestamp - b.timestamp);
-      const toDelete = ops.slice(0, -1); // Eliminar todas excepto la última
+      const toDelete = ops.slice(0, -1); // Eliminar todas excepto la Ãºltima
 
       for (const dupOp of toDelete) {
         await localDB.pending_operations.delete(dupOp.id!);
@@ -623,12 +680,12 @@ async function deduplicatePendingOperations(operations: PendingOperation[]): Pro
   }
 
   if (deletedCount > 0) {
-    console.log(`🗑️ Eliminadas ${deletedCount} operaciones duplicadas`);
+    console.log(`ðŸ—‘ï¸ Eliminadas ${deletedCount} operaciones duplicadas`);
   }
 }
 
 /**
- * Verifica si un remito ya existe en Supabase basándose en datos únicos
+ * Verifica si un remito ya existe en Supabase basÃ¡ndose en datos Ãºnicos
  * Retorna el ID real si existe, null si no
  */
 async function checkDeliveryNoteExistsInSupabase(data: any): Promise<string | null> {
@@ -643,22 +700,22 @@ async function checkDeliveryNoteExistsInSupabase(data: any): Promise<string | nu
       .maybeSingle();
 
     if (error) {
-      console.warn("⚠️ Error verificando duplicado en Supabase:", error);
+      console.warn("âš ï¸ Error verificando duplicado en Supabase:", error);
       return null;
     }
 
     return existingNote?.id || null;
   } catch (e) {
-    console.warn("⚠️ Error verificando duplicado:", e);
+    console.warn("âš ï¸ Error verificando duplicado:", e);
     return null;
   }
 }
 
 /**
- * Actualiza referencias locales después de crear registro en Supabase
+ * Actualiza referencias locales despuÃ©s de crear registro en Supabase
  */
 async function updateLocalRecordId(tableName: string, tempId: string, realId: string): Promise<void> {
-  console.log(`🔄 Mapeando ID: ${tempId} -> ${realId}`);
+  console.log(`ðŸ”„ Mapeando ID: ${tempId} -> ${realId}`);
 
   await localDB.id_mappings.put({
     temp_id: tempId,
@@ -701,13 +758,13 @@ async function updateLocalRecordId(tableName: string, tempId: string, realId: st
 
 export async function syncPendingOperations(): Promise<void> {
   if (!isOnline()) {
-    console.warn("⚠️ No hay conexión. No se pueden sincronizar operaciones pendientes");
+    console.warn("âš ï¸ No hay conexiÃ³n. No se pueden sincronizar operaciones pendientes");
     return;
   }
 
-  // Prevenir ejecución simultánea (mutex)
+  // Prevenir ejecuciÃ³n simultÃ¡nea (mutex)
   if (isSyncInProgress) {
-    console.log("⏳ Sincronización ya en progreso, saltando...");
+    console.log("â³ SincronizaciÃ³n ya en progreso, saltando...");
     return;
   }
 
@@ -717,19 +774,19 @@ export async function syncPendingOperations(): Promise<void> {
     const operations = await localDB.pending_operations.toArray();
 
     if (operations.length === 0) {
-      console.log("✅ No hay operaciones pendientes");
+      console.log("âœ… No hay operaciones pendientes");
       return;
     }
 
-    console.log(`🔄 Sincronizando ${operations.length} operaciones pendientes...`);
+    console.log(`ðŸ”„ Sincronizando ${operations.length} operaciones pendientes...`);
 
     // Deduplicar operaciones antes de procesar
     await deduplicatePendingOperations(operations);
 
-    // Re-obtener después de deduplicación
+    // Re-obtener despuÃ©s de deduplicaciÃ³n
     const dedupedOps = await localDB.pending_operations.toArray();
 
-    // Ordenar por timestamp para respetar orden de creación
+    // Ordenar por timestamp para respetar orden de creaciÃ³n
     const sortedOps = dedupedOps.sort((a, b) => a.timestamp - b.timestamp);
 
     let successCount = 0;
@@ -741,9 +798,9 @@ export async function syncPendingOperations(): Promise<void> {
         const result = await executeOperation(op);
 
         if (result === "skipped") {
-          // La operación fue saltada porque depende de un ID temporal no resuelto aún
+          // La operaciÃ³n fue saltada porque depende de un ID temporal no resuelto aÃºn
           skippedCount++;
-          console.log(`⏭️ Operación ${op.id} saltada (depende de ID temporal)`);
+          console.log(`â­ï¸ OperaciÃ³n ${op.id} saltada (depende de ID temporal)`);
           continue;
         }
 
@@ -752,7 +809,7 @@ export async function syncPendingOperations(): Promise<void> {
         successCount++;
       } catch (error: any) {
         errorCount++;
-        console.error(`❌ Error al sincronizar operación ${op.id}:`, error);
+        console.error(`âŒ Error al sincronizar operaciÃ³n ${op.id}:`, error);
 
         const updatedOp = await localDB.pending_operations.get(op.id!);
         if (updatedOp) {
@@ -765,34 +822,34 @@ export async function syncPendingOperations(): Promise<void> {
           });
 
           if (newRetryCount >= 3) {
-            console.error(`❌ Operación ${op.id} descartada después de 3 intentos`);
+            console.error(`âŒ OperaciÃ³n ${op.id} descartada despuÃ©s de 3 intentos`);
             await rollbackStockCompensation(op.id!);
 
-            // 🆕 Rollback especial para DELETE de delivery_notes con snapshot
+            // ðŸ†• Rollback especial para DELETE de delivery_notes con snapshot
             if (op.table_name === "delivery_notes" && op.operation_type === "DELETE" && op.data?._snapshot) {
               await rollbackDeliveryNoteDelete(op.data._snapshot);
             }
 
-            // 🆕 Rollback especial para UPDATE de delivery_notes con snapshot
+            // ðŸ†• Rollback especial para UPDATE de delivery_notes con snapshot
             if (op.table_name === "delivery_notes" && op.operation_type === "UPDATE" && op.data?._snapshot) {
               await rollbackDeliveryNoteUpdate(op.data._snapshot);
             }
 
             await localDB.pending_operations.delete(op.id!);
-            // Solo mostrar toast de error crítico
-            toast.error(`Operación fallida: ${op.table_name}`);
+            // Solo mostrar toast de error crÃ­tico
+            toast.error(`OperaciÃ³n fallida: ${op.table_name}`);
           }
         }
       }
     }
 
     console.log(
-      `✅ Sincronización completada: ${successCount} exitosas, ${errorCount} fallidas, ${skippedCount} saltadas`,
+      `âœ… SincronizaciÃ³n completada: ${successCount} exitosas, ${errorCount} fallidas, ${skippedCount} saltadas`,
     );
 
-    // Si hubo operaciones saltadas, hacer otra pasada después de un momento
+    // Si hubo operaciones saltadas, hacer otra pasada despuÃ©s de un momento
     if (skippedCount > 0 && successCount > 0) {
-      console.log(`🔄 Re-ejecutando sincronización para operaciones saltadas...`);
+      console.log(`ðŸ”„ Re-ejecutando sincronizaciÃ³n para operaciones saltadas...`);
       setTimeout(() => syncPendingOperations(), 500);
       return;
     }
@@ -807,26 +864,26 @@ export async function syncPendingOperations(): Promise<void> {
 }
 
 async function executeOperation(op: PendingOperation): Promise<"success" | "skipped"> {
-  console.log(`🔄 Ejecutando: ${op.operation_type} ${op.table_name} ${op.record_id}`);
+  console.log(`ðŸ”„ Ejecutando: ${op.operation_type} ${op.table_name} ${op.record_id}`);
 
   // Resolver ID temporal a ID real si existe mapeo
   const realId = await resolveRecordId(op.table_name, op.record_id);
 
   if (op.operation_type === "INSERT") {
     if (!isTempId(op.record_id) && op.record_id === realId) {
-      console.log(`✅ Skip INSERT: registro ya existe (${realId})`);
+      console.log(`âœ… Skip INSERT: registro ya existe (${realId})`);
       return "success";
     }
     if (!isTempId(realId) && op.record_id !== realId) {
-      console.log(`✅ Skip INSERT: ID temporal ya mapeado (${realId})`);
+      console.log(`âœ… Skip INSERT: ID temporal ya mapeado (${realId})`);
       return "success";
     }
 
-    // 🆕 Para delivery_notes, verificar si ya existe en Supabase antes de insertar
+    // ðŸ†• Para delivery_notes, verificar si ya existe en Supabase antes de insertar
     if (op.table_name === "delivery_notes") {
       const existingId = await checkDeliveryNoteExistsInSupabase(op.data);
       if (existingId) {
-        console.log(`✅ Skip INSERT: remito ya existe en Supabase (${existingId})`);
+        console.log(`âœ… Skip INSERT: remito ya existe en Supabase (${existingId})`);
         await updateLocalRecordId(op.table_name, op.record_id, existingId);
         return "success";
       }
@@ -842,8 +899,8 @@ async function executeOperation(op: PendingOperation): Promise<"success" | "skip
       const realNoteId = await resolveRecordId("delivery_notes", insertData.delivery_note_id);
 
       if (isTempId(realNoteId)) {
-        // El remito padre aún no se ha sincronizado, saltar esta operación
-        console.log(`⏭️ Item depende de remito no sincronizado: ${insertData.delivery_note_id}`);
+        // El remito padre aÃºn no se ha sincronizado, saltar esta operaciÃ³n
+        console.log(`â­ï¸ Item depende de remito no sincronizado: ${insertData.delivery_note_id}`);
         return "skipped";
       }
 
@@ -864,18 +921,18 @@ async function executeOperation(op: PendingOperation): Promise<"success" | "skip
     }
   } else if (op.operation_type === "UPDATE") {
     if (isTempId(realId)) {
-      // El registro aún no existe en Supabase, saltar hasta que se sincronice el INSERT
-      console.log(`⏭️ UPDATE depende de INSERT pendiente: ${realId}`);
+      // El registro aÃºn no existe en Supabase, saltar hasta que se sincronice el INSERT
+      console.log(`â­ï¸ UPDATE depende de INSERT pendiente: ${realId}`);
       return "skipped";
     }
 
-    // 🆕 MANEJO ESPECIAL: delivery_notes con snapshot de items
+    // ðŸ†• MANEJO ESPECIAL: delivery_notes con snapshot de items
     if (op.table_name === "delivery_notes" && op.data?._snapshot?.newItems) {
       await executeDeliveryNoteUpdateWithItems(realId, op.data);
       return "success";
     }
 
-    // Preparar datos de actualización (remover campos internos)
+    // Preparar datos de actualizaciÃ³n (remover campos internos)
     let updateData = { ...op.data };
     delete updateData._snapshot;
 
@@ -895,8 +952,8 @@ async function executeOperation(op: PendingOperation): Promise<"success" | "skip
     if (error) throw error;
   } else if (op.operation_type === "DELETE") {
     if (isTempId(realId)) {
-      // El registro nunca existió en Supabase, simplemente marcar como completado
-      console.log(`✅ Skip DELETE de registro que nunca existió en servidor: ${realId}`);
+      // El registro nunca existiÃ³ en Supabase, simplemente marcar como completado
+      console.log(`âœ… Skip DELETE de registro que nunca existiÃ³ en servidor: ${realId}`);
       return "success";
     }
 
@@ -908,11 +965,11 @@ async function executeOperation(op: PendingOperation): Promise<"success" | "skip
     if (error) throw error;
   }
 
-  console.log(`✅ Operación completada: ${op.operation_type} ${op.table_name}`);
+  console.log(`âœ… OperaciÃ³n completada: ${op.operation_type} ${op.table_name}`);
   try {
     await syncDeliveryNoteAfterOperation(op, realId);
   } catch (error) {
-    console.warn("⚠️ Error al sincronizar remito post-operación:", error);
+    console.warn("âš ï¸ Error al sincronizar remito post-operaciÃ³n:", error);
   }
   return "success";
 }
@@ -935,11 +992,11 @@ async function syncDeliveryNoteAfterOperation(op: PendingOperation, realId: stri
 }
 
 /**
- * Ejecuta actualización atómica de delivery_note con items
- * Esto sincroniza la nota y reemplaza todos sus items en una transacción lógica
+ * Ejecuta actualizaciÃ³n atÃ³mica de delivery_note con items
+ * Esto sincroniza la nota y reemplaza todos sus items en una transacciÃ³n lÃ³gica
  */
 async function executeDeliveryNoteUpdateWithItems(noteId: string, data: any): Promise<void> {
-  console.log(`🔄 Sincronización atómica de remito ${noteId} con items...`);
+  console.log(`ðŸ”„ SincronizaciÃ³n atÃ³mica de remito ${noteId} con items...`);
 
   const snapshot = data._snapshot;
   const newItems = snapshot?.newItems;
@@ -953,19 +1010,19 @@ async function executeDeliveryNoteUpdateWithItems(noteId: string, data: any): Pr
   const { error: noteError } = await supabase.from("delivery_notes").update(noteUpdateData).eq("id", noteId);
 
   if (noteError) {
-    console.error(`❌ Error actualizando nota ${noteId}:`, noteError);
+    console.error(`âŒ Error actualizando nota ${noteId}:`, noteError);
     throw noteError;
   }
 
   // PASO 3: Si hay nuevos items, reemplazar los existentes
   if (newItems && newItems.length > 0) {
-    console.log(`  📦 Reemplazando ${newItems.length} items...`);
+    console.log(`  ðŸ“¦ Reemplazando ${newItems.length} items...`);
 
     // Eliminar items existentes
     const { error: deleteError } = await supabase.from("delivery_note_items").delete().eq("delivery_note_id", noteId);
 
     if (deleteError) {
-      console.error(`❌ Error eliminando items antiguos:`, deleteError);
+      console.error(`âŒ Error eliminando items antiguos:`, deleteError);
       throw deleteError;
     }
 
@@ -982,11 +1039,11 @@ async function executeDeliveryNoteUpdateWithItems(noteId: string, data: any): Pr
     const { error: insertError } = await supabase.from("delivery_note_items").insert(itemsToInsert);
 
     if (insertError) {
-      console.error(`❌ Error insertando items nuevos:`, insertError);
+      console.error(`âŒ Error insertando items nuevos:`, insertError);
       throw insertError;
     }
 
-    console.log(`  ✅ ${itemsToInsert.length} items sincronizados`);
+    console.log(`  âœ… ${itemsToInsert.length} items sincronizados`);
   }
 
   // PASO 4: Sincronizar stock en Supabase usando bulk_adjust_stock
@@ -1000,46 +1057,46 @@ async function executeDeliveryNoteUpdateWithItems(noteId: string, data: any): Pr
       }));
 
     if (adjustments.length > 0) {
-      console.log(`  📊 Sincronizando ${adjustments.length} ajustes de stock...`);
+      console.log(`  ðŸ“Š Sincronizando ${adjustments.length} ajustes de stock...`);
 
       const { error: stockError } = await supabase.rpc("bulk_adjust_stock", {
         p_adjustments: adjustments,
       });
 
       if (stockError) {
-        console.error(`❌ Error sincronizando stock:`, stockError);
-        // No lanzar error aquí para no fallar toda la operación
-        // El stock local ya está correcto
+        console.error(`âŒ Error sincronizando stock:`, stockError);
+        // No lanzar error aquÃ­ para no fallar toda la operaciÃ³n
+        // El stock local ya estÃ¡ correcto
       } else {
-        console.log(`  ✅ Stock sincronizado`);
+        console.log(`  âœ… Stock sincronizado`);
       }
     }
   }
 
-  console.log(`✅ Remito ${noteId} sincronizado atómicamente`);
+  console.log(`âœ… Remito ${noteId} sincronizado atÃ³micamente`);
 }
 
 /**
- * Refresca el índice de productos de una lista específica
+ * Refresca el Ã­ndice de productos de una lista especÃ­fica
  */
 async function refreshProductListIndex(listId: string): Promise<void> {
-  console.log(`🔄 Refrescando índice para lista: ${listId}`);
+  console.log(`ðŸ”„ Refrescando Ã­ndice para lista: ${listId}`);
 
   const { error } = await supabase.rpc("refresh_list_index", { p_list_id: listId });
 
   if (error) {
-    console.error("❌ Error al refrescar índice:", error);
+    console.error("âŒ Error al refrescar Ã­ndice:", error);
     throw error;
   }
 
-  console.log(`✅ Índice refrescado para lista: ${listId}`);
+  console.log(`âœ… Ãndice refrescado para lista: ${listId}`);
 }
 
 /**
- * Refresca índices de productos afectados por un remito
+ * Refresca Ã­ndices de productos afectados por un remito
  */
 async function refreshAffectedProductsIndex(deliveryNoteId: string): Promise<void> {
-  console.log(`🔄 Refrescando índices de productos del remito: ${deliveryNoteId}`);
+  console.log(`ðŸ”„ Refrescando Ã­ndices de productos del remito: ${deliveryNoteId}`);
 
   // Obtener items del remito
   const { data: items, error } = await supabase
@@ -1048,11 +1105,11 @@ async function refreshAffectedProductsIndex(deliveryNoteId: string): Promise<voi
     .eq("delivery_note_id", deliveryNoteId);
 
   if (error) {
-    console.error("❌ Error al obtener items del remito:", error);
+    console.error("âŒ Error al obtener items del remito:", error);
     return;
   }
 
-  // Obtener listas únicas afectadas
+  // Obtener listas Ãºnicas afectadas
   const affectedLists = new Set<string>();
   items?.forEach((item: any) => {
     if (item.dynamic_products?.list_id) {
@@ -1060,19 +1117,19 @@ async function refreshAffectedProductsIndex(deliveryNoteId: string): Promise<voi
     }
   });
 
-  // Refrescar índice de cada lista
+  // Refrescar Ã­ndice de cada lista
   for (const listId of affectedLists) {
     await refreshProductListIndex(listId);
   }
 
-  console.log(`✅ Índices refrescados para ${affectedLists.size} listas`);
+  console.log(`âœ… Ãndices refrescados para ${affectedLists.size} listas`);
 }
 
 /**
- * Sincroniza un remito específico desde Supabase a IndexedDB
+ * Sincroniza un remito especÃ­fico desde Supabase a IndexedDB
  */
 export async function syncDeliveryNoteById(noteId: string): Promise<void> {
-  console.log(`🔄 Sincronizando remito ${noteId} a IndexedDB...`);
+  console.log(`ðŸ”„ Sincronizando remito ${noteId} a IndexedDB...`);
 
   const { data: noteData, error: noteError } = await supabase
     .from("delivery_notes")
@@ -1086,7 +1143,7 @@ export async function syncDeliveryNoteById(noteId: string): Promise<void> {
     // Si no existe en Supabase, eliminar de IndexedDB
     await localDB.delivery_notes.delete(noteId);
     await localDB.delivery_note_items.where("delivery_note_id").equals(noteId).delete();
-    console.log(`✅ Remito ${noteId} eliminado de IndexedDB`);
+    console.log(`âœ… Remito ${noteId} eliminado de IndexedDB`);
     return;
   }
 
@@ -1109,11 +1166,11 @@ export async function syncDeliveryNoteById(noteId: string): Promise<void> {
     await localDB.delivery_note_items.bulkAdd(itemsData as DeliveryNoteItemDB[]);
   }
 
-  console.log(`✅ Remito ${noteId} sincronizado a IndexedDB con ${itemsData?.length || 0} items`);
+  console.log(`âœ… Remito ${noteId} sincronizado a IndexedDB con ${itemsData?.length || 0} items`);
 }
 
 /**
- * Sincroniza múltiples remitos a IndexedDB (útil después de operaciones masivas)
+ * Sincroniza mÃºltiples remitos a IndexedDB (Ãºtil despuÃ©s de operaciones masivas)
  */
 export async function syncDeliveryNotesToLocal(): Promise<void> {
   const {
@@ -1121,7 +1178,7 @@ export async function syncDeliveryNotesToLocal(): Promise<void> {
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Usuario no autenticado");
 
-  console.log("🔄 Sincronizando todos los remitos a IndexedDB...");
+  console.log("ðŸ”„ Sincronizando todos los remitos a IndexedDB...");
 
   // Sincronizar delivery_notes
   const { data: notes, error: notesError } = await supabase.from("delivery_notes").select("*").eq("user_id", user.id);
@@ -1143,11 +1200,11 @@ export async function syncDeliveryNotesToLocal(): Promise<void> {
     await localDB.delivery_note_items.bulkAdd(items as DeliveryNoteItemDB[]);
   }
 
-  console.log(`✅ ${notes?.length || 0} remitos y ${items?.length || 0} items sincronizados a IndexedDB`);
+  console.log(`âœ… ${notes?.length || 0} remitos y ${items?.length || 0} items sincronizados a IndexedDB`);
 }
 
 /**
- * Refresca los datos de remitos en memoria después de operaciones offline
+ * Refresca los datos de remitos en memoria despuÃ©s de operaciones offline
  */
 export async function refreshDeliveryNotesCache(): Promise<DeliveryNoteDB[]> {
   const notes = await localDB.delivery_notes.toArray();
@@ -1236,7 +1293,7 @@ export async function createProductListOffline(data: {
 
   await localDB.dynamic_products.bulkAdd(productsToAdd);
 
-  // Encolar operación de productos (se sincronizarán cuando se cree la lista)
+  // Encolar operaciÃ³n de productos (se sincronizarÃ¡n cuando se cree la lista)
   for (const product of productsToAdd) {
     await queueOperation("dynamic_products", "INSERT", product.id, product);
   }
@@ -1285,7 +1342,7 @@ export async function updateProductListOffline(
   // 3. UPSERT: Actualizar existentes e insertar nuevos
   for (const product of data.products) {
     if (product.code && existingByCode.has(product.code)) {
-      // ✅ UPDATE: Producto existe
+      // âœ… UPDATE: Producto existe
       const existing = existingByCode.get(product.code)!;
       updatedIds.add(existing.id);
 
@@ -1303,7 +1360,7 @@ export async function updateProductListOffline(
         updated_at: now,
       });
     } else {
-      // ✅ INSERT: Producto nuevo
+      // âœ… INSERT: Producto nuevo
       const newId = crypto.randomUUID();
       updatedIds.add(newId);
 
@@ -1333,12 +1390,12 @@ export async function updateProductListOffline(
     await queueOperation("dynamic_products", "DELETE", id, {});
   }
 
-  // 5. Limpiar y regenerar índice local
+  // 5. Limpiar y regenerar Ã­ndice local
   await localDB.dynamic_products_index.where("list_id").equals(listId).delete();
 
   const updatedProducts = await localDB.dynamic_products.where("list_id").equals(listId).toArray();
 
-  // Mapear productos al formato de índice
+  // Mapear productos al formato de Ã­ndice
   const indexEntries = updatedProducts.map((p) => ({
     id: crypto.randomUUID(),
     user_id: p.user_id,
@@ -1348,7 +1405,7 @@ export async function updateProductListOffline(
     name: p.name,
     price: p.price,
     quantity: p.quantity,
-    in_my_stock: (p.quantity || 0) > 0, // Inicializar basado en cantidad
+    in_my_stock: false, // Deprecado: se determina por my_stock_products
     created_at: p.created_at,
     updated_at: p.updated_at,
   }));
@@ -1356,7 +1413,7 @@ export async function updateProductListOffline(
   await localDB.dynamic_products_index.bulkAdd(indexEntries);
 
   console.log(
-    `✅ [Offline] UPSERT completado: ${updatedIds.size} productos actualizados/insertados, ${idsToDelete.length} eliminados`,
+    `âœ… [Offline] UPSERT completado: ${updatedIds.size} productos actualizados/insertados, ${idsToDelete.length} eliminados`,
   );
 }
 
@@ -1367,7 +1424,7 @@ export async function deleteProductListOffline(listId: string): Promise<void> {
   await queueOperation("product_lists", "DELETE", listId, {});
 }
 
-// Helpers para sincronización puntual de listas de productos
+// Helpers para sincronizaciÃ³n puntual de listas de productos
 export async function upsertProductListLocalRecord(
   list: Pick<ProductListDB, "id"> & Partial<Omit<ProductListDB, "id">>,
 ): Promise<void> {
@@ -1418,7 +1475,7 @@ export async function replaceListProductsLocalData(
 
 export async function syncProductListById(listId: string): Promise<void> {
   if (!isOnline()) {
-    console.warn("⚠️ Sin conexión. No se puede sincronizar la lista", listId);
+    console.warn("âš ï¸ Sin conexiÃ³n. No se puede sincronizar la lista", listId);
     return;
   }
 
@@ -1479,7 +1536,7 @@ export async function deleteSupplierOffline(id: string): Promise<void> {
   await queueOperation("suppliers", "DELETE", id, {});
 }
 
-// Helpers para sincronizar proveedores específicos cuando hay conexión
+// Helpers para sincronizar proveedores especÃ­ficos cuando hay conexiÃ³n
 export async function upsertSupplierLocalRecord(
   supplier: Pick<SupplierDB, "id" | "name"> &
     Partial<Pick<SupplierDB, "logo_url" | "user_id" | "created_at" | "updated_at">>,
@@ -1504,7 +1561,7 @@ export async function deleteSupplierLocalRecord(id: string): Promise<void> {
 }
 
 /**
- * Actualiza stock y registra compensación para rollback
+ * Actualiza stock y registra compensaciÃ³n para rollback
  */
 async function updateProductQuantityDeltaWithCompensation(
   productId: string,
@@ -1520,20 +1577,20 @@ async function updateProductQuantityDeltaWithCompensation(
     timestamp: Date.now(),
   });
 
-  console.log(`📊Compensación registrada: producto=${productId}, delta=${quantityDelta}`);
+  console.log(`ðŸ“ŠCompensaciÃ³n registrada: producto=${productId}, delta=${quantityDelta}`);
 }
 
 /**
- * Revierte cambios de stock si la operación falla
+ * Revierte cambios de stock si la operaciÃ³n falla
  */
 async function rollbackStockCompensation(operationId: number): Promise<void> {
   const compensations = await localDB.stock_compensations.where("operation_id").equals(operationId).toArray();
 
-  console.log(`🔄 Revirtiendo ${compensations.length} cambios de stock...`);
+  console.log(`ðŸ”„ Revirtiendo ${compensations.length} cambios de stock...`);
 
   for (const comp of compensations) {
     await updateProductQuantityDelta(comp.product_id, -comp.quantity_delta, { enqueue: false });
-    console.log(`  ✅ Revertido: producto=${comp.product_id}, delta=${-comp.quantity_delta}`);
+    console.log(`  âœ… Revertido: producto=${comp.product_id}, delta=${-comp.quantity_delta}`);
   }
 
   await localDB.stock_compensations.where("operation_id").equals(operationId).delete();
@@ -1549,40 +1606,40 @@ async function clearStockCompensation(operationId: number): Promise<void> {
 /**
  * Rollback para DELETE de delivery_notes fallido
  * Restaura el remito y sus items desde el snapshot
- * Si se había revertido stock, deshace esa reversión
+ * Si se habÃ­a revertido stock, deshace esa reversiÃ³n
  */
 async function rollbackDeliveryNoteDelete(snapshot: {
   note: DeliveryNoteDB;
   items: DeliveryNoteItemDB[];
   shouldRevertStock: boolean;
 }): Promise<void> {
-  console.log(`🔄 Rollback de eliminación de remito: ${snapshot.note.id}`);
+  console.log(`ðŸ”„ Rollback de eliminaciÃ³n de remito: ${snapshot.note.id}`);
 
   try {
     // PASO 1: Restaurar el remito en IndexedDB
     await localDB.delivery_notes.put(snapshot.note);
-    console.log(`  ✅ Remito restaurado: ${snapshot.note.id}`);
+    console.log(`  âœ… Remito restaurado: ${snapshot.note.id}`);
 
     // PASO 2: Restaurar los items
     for (const item of snapshot.items) {
       await localDB.delivery_note_items.put(item);
     }
-    console.log(`  ✅ ${snapshot.items.length} items restaurados`);
+    console.log(`  âœ… ${snapshot.items.length} items restaurados`);
 
-    // PASO 3: Si se había revertido stock, deshacer esa reversión (restar cantidades)
+    // PASO 3: Si se habÃ­a revertido stock, deshacer esa reversiÃ³n (restar cantidades)
     if (snapshot.shouldRevertStock) {
-      console.log(`  🔄 Deshaciendo reversión de stock...`);
+      console.log(`  ðŸ”„ Deshaciendo reversiÃ³n de stock...`);
       for (const item of snapshot.items) {
         if (item.product_id) {
-          console.log(`    ⬇️ Restando: ${item.product_name} (-${item.quantity})`);
+          console.log(`    â¬‡ï¸ Restando: ${item.product_name} (-${item.quantity})`);
           await updateProductQuantityDelta(item.product_id, -item.quantity, { enqueue: false });
         }
       }
     }
 
-    console.log(`✅ Rollback completado para remito ${snapshot.note.id}`);
+    console.log(`âœ… Rollback completado para remito ${snapshot.note.id}`);
   } catch (error) {
-    console.error(`❌ Error en rollback de remito:`, error);
+    console.error(`âŒ Error en rollback de remito:`, error);
   }
 }
 
@@ -1598,12 +1655,12 @@ async function rollbackDeliveryNoteUpdate(snapshot: {
   stockAdjustments: Array<{ id: string; delta: number }>;
 }): Promise<void> {
   const noteId = snapshot.previousNote.id;
-  console.log(`🔄 Rollback de actualización de remito: ${noteId}`);
+  console.log(`ðŸ”„ Rollback de actualizaciÃ³n de remito: ${noteId}`);
 
   try {
     // PASO 1: Restaurar el remito al estado anterior
     await localDB.delivery_notes.put(snapshot.previousNote);
-    console.log(`  ✅ Remito restaurado al estado anterior`);
+    console.log(`  âœ… Remito restaurado al estado anterior`);
 
     // PASO 2: Eliminar items actuales y restaurar los anteriores
     await localDB.delivery_note_items.where("delivery_note_id").equals(noteId).delete();
@@ -1611,23 +1668,23 @@ async function rollbackDeliveryNoteUpdate(snapshot: {
     for (const item of snapshot.previousItems) {
       await localDB.delivery_note_items.put(item);
     }
-    console.log(`  ✅ ${snapshot.previousItems.length} items restaurados`);
+    console.log(`  âœ… ${snapshot.previousItems.length} items restaurados`);
 
     // PASO 3: Revertir ajustes de stock (invertir los deltas)
     if (snapshot.stockAdjustments && snapshot.stockAdjustments.length > 0) {
-      console.log(`  🔄 Revirtiendo ${snapshot.stockAdjustments.length} ajustes de stock...`);
+      console.log(`  ðŸ”„ Revirtiendo ${snapshot.stockAdjustments.length} ajustes de stock...`);
       for (const adj of snapshot.stockAdjustments) {
         if (adj.delta !== 0) {
           // Invertir el delta para revertir el cambio
-          console.log(`    📦 Revirtiendo: ${adj.id} (${adj.delta > 0 ? "-" : "+"}${Math.abs(adj.delta)})`);
+          console.log(`    ðŸ“¦ Revirtiendo: ${adj.id} (${adj.delta > 0 ? "-" : "+"}${Math.abs(adj.delta)})`);
           await updateProductQuantityDelta(adj.id, -adj.delta, { enqueue: false });
         }
       }
     }
 
-    console.log(`✅ Rollback de actualización completado para remito ${noteId}`);
+    console.log(`âœ… Rollback de actualizaciÃ³n completado para remito ${noteId}`);
   } catch (error) {
-    console.error(`❌ Error en rollback de actualización de remito:`, error);
+    console.error(`âŒ Error en rollback de actualizaciÃ³n de remito:`, error);
   }
 }
 
@@ -1673,7 +1730,7 @@ export async function createDeliveryNoteOffline(
     }
   }
 
-  console.log(`✅ Remito ${tempNoteId} creado offline con compensación de stock`);
+  console.log(`âœ… Remito ${tempNoteId} creado offline con compensaciÃ³n de stock`);
   return tempNoteId;
 }
 
@@ -1697,7 +1754,7 @@ export async function updateDeliveryNoteOffline(
     newItems: [] as DeliveryNoteItemDB[],
   };
 
-  console.log(`🔄 Actualizando remito offline ${id}:`);
+  console.log(`ðŸ”„ Actualizando remito offline ${id}:`);
   console.log(`  Items antiguos: ${oldItems.length}`);
   console.log(`  Items nuevos: ${items?.length ?? "sin cambios"}`);
 
@@ -1712,7 +1769,7 @@ export async function updateDeliveryNoteOffline(
 
     console.log(`  Total anterior: ${existing.total_amount}, Nuevo total: ${newTotal}`);
 
-    // PASO 3: Calcular ajustes NETOS de stock (una sola operación atómica)
+    // PASO 3: Calcular ajustes NETOS de stock (una sola operaciÃ³n atÃ³mica)
     // Sumar cantidades originales (devuelven stock = delta positivo)
     for (const oldItem of oldItems) {
       if (oldItem.product_id) {
@@ -1729,10 +1786,10 @@ export async function updateDeliveryNoteOffline(
       }
     }
 
-    // PASO 4: Aplicar solo los deltas netos en IndexedDB (SIN encolar para evitar duplicación en sync)
+    // PASO 4: Aplicar solo los deltas netos en IndexedDB (SIN encolar para evitar duplicaciÃ³n en sync)
     for (const [productId, delta] of stockAdjustmentsMap.entries()) {
       if (delta !== 0) {
-        console.log(`  📦 Ajuste neto: ${productId} (${delta > 0 ? "+" : ""}${delta})`);
+        console.log(`  ðŸ“¦ Ajuste neto: ${productId} (${delta > 0 ? "+" : ""}${delta})`);
         await updateProductQuantityDelta(productId, delta, { enqueue: false });
       }
     }
@@ -1757,7 +1814,7 @@ export async function updateDeliveryNoteOffline(
       await localDB.delivery_note_items.bulkAdd(newItemsToSave);
     }
 
-    // Guardar nuevos items en snapshot para sincronización
+    // Guardar nuevos items en snapshot para sincronizaciÃ³n
     snapshot.newItems = newItemsToSave;
   }
 
@@ -1766,7 +1823,7 @@ export async function updateDeliveryNoteOffline(
   const newRemainingBalance = newTotal - newPaidAmount;
   const newStatus = newPaidAmount >= newTotal ? "paid" : "pending";
 
-  console.log(`  💰 Financiero: pagado=${newPaidAmount}, restante=${newRemainingBalance}, status=${newStatus}`);
+  console.log(`  ðŸ’° Financiero: pagado=${newPaidAmount}, restante=${newRemainingBalance}, status=${newStatus}`);
 
   // PASO 8: Actualizar nota principal en IndexedDB
   const updated: DeliveryNoteDB = {
@@ -1781,8 +1838,8 @@ export async function updateDeliveryNoteOffline(
 
   await localDB.delivery_notes.put(updated);
 
-  // PASO 9: Encolar UNA SOLA operación atómica con snapshot completo
-  // Esta operación incluye la nota y todos los items para sincronización atómica
+  // PASO 9: Encolar UNA SOLA operaciÃ³n atÃ³mica con snapshot completo
+  // Esta operaciÃ³n incluye la nota y todos los items para sincronizaciÃ³n atÃ³mica
   const syncData = {
     // Datos para actualizar en Supabase
     customer_name: updates.customer_name ?? existing.customer_name,
@@ -1795,7 +1852,7 @@ export async function updateDeliveryNoteOffline(
     notes: updates.notes ?? existing.notes,
     extra_fields: updates.extra_fields ?? existing.extra_fields,
     updated_at: now,
-    // Snapshot para sincronización atómica y rollback
+    // Snapshot para sincronizaciÃ³n atÃ³mica y rollback
     _snapshot: {
       previousNote: snapshot.note,
       previousItems: snapshot.items,
@@ -1815,33 +1872,33 @@ export async function updateDeliveryNoteOffline(
 
   await queueOperation("delivery_notes", "UPDATE", id, syncData);
 
-  console.log(`✅ Remito ${id} actualizado offline con operación atómica`);
+  console.log(`âœ… Remito ${id} actualizado offline con operaciÃ³n atÃ³mica`);
 }
 
 export async function deleteDeliveryNoteOffline(id: string): Promise<void> {
   const note = await localDB.delivery_notes.get(id);
   if (!note) throw new Error("Remito no encontrado");
 
-  console.log(`🗑️ Eliminando remito offline: ${id}, status: ${note.status}`);
+  console.log(`ðŸ—‘ï¸ Eliminando remito offline: ${id}, status: ${note.status}`);
 
-  // PASO 1: Obtener items para snapshot y posible reversión de stock
+  // PASO 1: Obtener items para snapshot y posible reversiÃ³n de stock
   const items = await localDB.delivery_note_items.where("delivery_note_id").equals(id).toArray();
 
-  // PASO 2: Determinar si se debe revertir stock (SOLO si NO está pagado)
+  // PASO 2: Determinar si se debe revertir stock (SOLO si NO estÃ¡ pagado)
   const shouldRevertStock = note.status !== "paid";
 
   console.log(`  shouldRevertStock: ${shouldRevertStock} (status=${note.status})`);
 
-  // PASO 3: Si corresponde, revertir stock (delta POSITIVO) - SIN encolar para evitar duplicación
+  // PASO 3: Si corresponde, revertir stock (delta POSITIVO) - SIN encolar para evitar duplicaciÃ³n
   if (shouldRevertStock) {
     for (const item of items) {
       if (item.product_id) {
-        console.log(`  ⬆️ Revirtiendo: ${item.product_name} (+${item.quantity})`);
+        console.log(`  â¬†ï¸ Revirtiendo: ${item.product_name} (+${item.quantity})`);
         await updateProductQuantityDelta(item.product_id, item.quantity, { enqueue: false });
       }
     }
   } else {
-    console.log(`  ℹ️ Remito pagado: NO se revierte stock`);
+    console.log(`  â„¹ï¸ Remito pagado: NO se revierte stock`);
   }
 
   // PASO 4: Eliminar items de la base de datos
@@ -1855,7 +1912,7 @@ export async function deleteDeliveryNoteOffline(id: string): Promise<void> {
   await localDB.delivery_notes.delete(id);
 
   // PASO 6: Encolar DELETE con snapshot para posible rollback
-  // El snapshot incluye la nota, items y si se revirtió stock
+  // El snapshot incluye la nota, items y si se revirtiÃ³ stock
   const snapshot = {
     note: note,
     items: items,
@@ -1864,7 +1921,7 @@ export async function deleteDeliveryNoteOffline(id: string): Promise<void> {
 
   await queueOperation("delivery_notes", "DELETE", id, { _snapshot: snapshot });
 
-  console.log(`✅ Remito ${id} eliminado offline ${shouldRevertStock ? "con" : "sin"} reversión de stock`);
+  console.log(`âœ… Remito ${id} eliminado offline ${shouldRevertStock ? "con" : "sin"} reversiÃ³n de stock`);
 }
 
 export async function markDeliveryNoteAsPaidOffline(id: string, paidAmount: number): Promise<void> {
@@ -1888,15 +1945,15 @@ export async function markDeliveryNoteAsPaidOffline(id: string, paidAmount: numb
     ...localUpdates,
   });
 
-  // BUSCAR operación UPDATE pendiente para este remito (índice compuesto)
+  // BUSCAR operaciÃ³n UPDATE pendiente para este remito (Ã­ndice compuesto)
   const pendingOp = await localDB.pending_operations
     .where("[table_name+record_id+operation_type]")
     .equals(["delivery_notes", id, "UPDATE"])
     .first();
 
   if (pendingOp) {
-    // FUSIONAR con la operación existente (mantener snapshot e items)
-    console.log(`🔄 Fusionando pago con operación UPDATE existente para remito ${id}`);
+    // FUSIONAR con la operaciÃ³n existente (mantener snapshot e items)
+    console.log(`ðŸ”„ Fusionando pago con operaciÃ³n UPDATE existente para remito ${id}`);
     
     const mergedData = {
       ...pendingOp.data,
@@ -1910,8 +1967,8 @@ export async function markDeliveryNoteAsPaidOffline(id: string, paidAmount: numb
       timestamp: Date.now(),
     });
   } else {
-    // No hay operación pendiente, encolar nueva
-    console.log(`➕ Encolando nueva operación de pago para remito ${id}`);
+    // No hay operaciÃ³n pendiente, encolar nueva
+    console.log(`âž• Encolando nueva operaciÃ³n de pago para remito ${id}`);
     
     await queueOperation("delivery_notes", "UPDATE", id, {
       paid_amount: paidAmount,
@@ -1934,13 +1991,13 @@ async function updateProductQuantityDelta(
   const enqueue = options.enqueue !== false;
   const now = new Date().toISOString();
 
-  console.log(`📦 Actualizando stock offline: productId=${productId}, delta=${quantityDelta}, enqueue=${enqueue}`);
+  console.log(`ÐY"Ý Actualizando stock offline: productId=${productId}, delta=${quantityDelta}, enqueue=${enqueue}`);
 
   // PASO 1: Buscar en dynamic_products_index usando product_id
   const indexRecord = await localDB.dynamic_products_index.where({ product_id: productId }).first();
 
   if (!indexRecord) {
-    console.warn(`⚠️ Producto ${productId} no encontrado en índice local`);
+    console.warn(`ƒsÿ‹÷? Producto ${productId} no encontrado en Çðndice local`);
     return;
   }
 
@@ -1973,38 +2030,63 @@ async function updateProductQuantityDelta(
     });
 
     if (enqueue) {
-      // PASO 5: Encolar operación para sincronizar cuando haya conexión
+      // PASO 5: Encolar operaciÇün para sincronizar cuando haya conexiÇün
       await queueOperation("dynamic_products", "UPDATE", productId, {
         quantity: newQuantity,
         updated_at: now,
       });
     }
 
-    console.log(`✅ Stock actualizado offline: ${productId} -> ${newQuantity}`);
+    console.log(`ƒo. Stock actualizado offline: ${productId} -> ${newQuantity}`);
   } else {
-    console.warn(`⚠️ Producto ${productId} no encontrado en dynamic_products`);
+    console.warn(`ƒsÿ‹÷? Producto ${productId} no encontrado en dynamic_products`);
+  }
+
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (user) {
+    const myStockEntry = await localDB.my_stock_products.where({ user_id: user.id, product_id: productId }).first();
+    if (myStockEntry) {
+      await localDB.my_stock_products.update(myStockEntry.id, {
+        quantity: newQuantity,
+        updated_at: now,
+      });
+
+      if (enqueue) {
+        await queueOperation("my_stock_products", "UPDATE", myStockEntry.id, {
+          quantity: newQuantity,
+          updated_at: now,
+        });
+      }
+    }
   }
 }
-
-// DYNAMIC PRODUCTS - Operaciones offline públicas
+// DYNAMIC PRODUCTS - Operaciones offline pÃºblicas
 export async function updateProductQuantityOffline(
   productId: string,
   listId: string,
   newQuantity: number,
+  options: { enqueue?: boolean } = {},
 ): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Usuario no autenticado");
+
+  const now = new Date().toISOString();
+  const enqueue = options.enqueue !== false;
+
   // Actualizar en dynamic_products_index
   const indexRecord = await localDB.dynamic_products_index.where({ product_id: productId, list_id: listId }).first();
-
-  // Determinar si debe agregarse a Mi Stock (quantity > 0)
-  const shouldAddToMyStock = newQuantity > 0;
 
   if (indexRecord) {
     await localDB.dynamic_products_index.put({
       ...indexRecord,
       quantity: newQuantity,
-      // Si quantity > 0, agregar a Mi Stock automáticamente
-      in_my_stock: shouldAddToMyStock ? true : indexRecord.in_my_stock,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     });
   }
 
@@ -2014,17 +2096,58 @@ export async function updateProductQuantityOffline(
     await localDB.dynamic_products.put({
       ...productRecord,
       quantity: newQuantity,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     });
   }
 
-  // Encolar operación para sincronizar (incluir in_my_stock si corresponde)
-  if (indexRecord) {
-    const updateData: { quantity: number; in_my_stock?: boolean } = { quantity: newQuantity };
-    if (shouldAddToMyStock) {
-      updateData.in_my_stock = true;
+  const myStockEntry = await localDB.my_stock_products.where({ user_id: user.id, product_id: productId }).first();
+  const shouldBeInMyStock = newQuantity > 0;
+
+  if (myStockEntry && !shouldBeInMyStock) {
+    await localDB.my_stock_products.delete(myStockEntry.id);
+
+    if (enqueue) {
+      await queueOperation("my_stock_products", "DELETE", myStockEntry.id, {});
     }
-    await queueOperation("dynamic_products_index", "UPDATE", indexRecord.id!, updateData);
+  } else if (myStockEntry) {
+    await localDB.my_stock_products.update(myStockEntry.id, {
+      quantity: newQuantity,
+      updated_at: now,
+    });
+
+    if (enqueue) {
+      await queueOperation("my_stock_products", "UPDATE", myStockEntry.id, {
+        quantity: newQuantity,
+        updated_at: now,
+      });
+    }
+  } else if (shouldBeInMyStock) {
+    const newEntry: MyStockProductDB = {
+      id: isOnline() ? crypto.randomUUID() : generateTempId(),
+      user_id: user.id,
+      product_id: productId,
+      quantity: newQuantity,
+      stock_threshold: indexRecord?.stock_threshold ?? 0,
+      code: indexRecord?.code ?? "",
+      name: indexRecord?.name ?? "",
+      price: indexRecord?.price ?? 0,
+      created_at: now,
+      updated_at: now,
+    };
+
+    await localDB.my_stock_products.add(newEntry);
+
+    if (enqueue) {
+      await queueOperation("my_stock_products", "INSERT", newEntry.id, newEntry);
+    }
+  }
+
+  // Encolar operaciÇün para sincronizar
+  if (indexRecord && enqueue) {
+    await queueOperation("dynamic_products_index", "UPDATE", indexRecord.id!, {
+      quantity: newQuantity,
+      updated_at: now,
+    });
   }
 }
 
@@ -2032,8 +2155,16 @@ export async function updateProductThresholdOffline(
   productId: string,
   listId: string,
   newThreshold: number,
+  options: { enqueue?: boolean } = {},
 ): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Usuario no autenticado");
+
   const normalizedThreshold = Math.max(0, newThreshold);
+  const now = new Date().toISOString();
+  const enqueue = options.enqueue !== false;
 
   const indexRecord = await localDB.dynamic_products_index.where({ product_id: productId, list_id: listId }).first();
 
@@ -2041,12 +2172,15 @@ export async function updateProductThresholdOffline(
     await localDB.dynamic_products_index.put({
       ...indexRecord,
       stock_threshold: normalizedThreshold,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     });
 
-    await queueOperation("dynamic_products_index", "UPDATE", indexRecord.id!, {
-      stock_threshold: normalizedThreshold,
-    });
+    if (enqueue) {
+      await queueOperation("dynamic_products_index", "UPDATE", indexRecord.id!, {
+        stock_threshold: normalizedThreshold,
+        updated_at: now,
+      });
+    }
   }
 
   const productRecord = await localDB.dynamic_products.get(productId);
@@ -2054,11 +2188,179 @@ export async function updateProductThresholdOffline(
     await localDB.dynamic_products.put({
       ...productRecord,
       stock_threshold: normalizedThreshold,
-      updated_at: new Date().toISOString(),
+      updated_at: now,
     });
+  }
+
+  const myStockEntry = await localDB.my_stock_products.where({ user_id: user.id, product_id: productId }).first();
+  if (myStockEntry) {
+    await localDB.my_stock_products.update(myStockEntry.id, {
+      stock_threshold: normalizedThreshold,
+      updated_at: now,
+    });
+
+    if (enqueue) {
+      await queueOperation("my_stock_products", "UPDATE", myStockEntry.id, {
+        stock_threshold: normalizedThreshold,
+        updated_at: now,
+      });
+    }
   }
 }
 
+export async function addToMyStock(
+  productId: string,
+  quantity: number,
+  stockThreshold: number = 0,
+): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Usuario no autenticado");
+
+  const now = new Date().toISOString();
+  const existing = await localDB.my_stock_products.where({ user_id: user.id, product_id: productId }).first();
+  const indexRecord = await localDB.dynamic_products_index.where({ product_id: productId }).first();
+
+  const newQuantity = (existing?.quantity || 0) + quantity;
+  const nextThreshold = stockThreshold ?? existing?.stock_threshold ?? 0;
+
+  if (existing) {
+    await localDB.my_stock_products.update(existing.id, {
+      quantity: newQuantity,
+      stock_threshold: nextThreshold,
+      updated_at: now,
+    });
+  } else {
+    const newEntry: MyStockProductDB = {
+      id: isOnline() ? crypto.randomUUID() : generateTempId(),
+      user_id: user.id,
+      product_id: productId,
+      quantity: newQuantity,
+      stock_threshold: nextThreshold,
+      code: indexRecord?.code ?? "",
+      name: indexRecord?.name ?? "",
+      price: indexRecord?.price ?? 0,
+      created_at: now,
+      updated_at: now,
+    };
+
+    await localDB.my_stock_products.add(newEntry);
+  }
+
+  await localDB.dynamic_products_index.where({ product_id: productId }).modify({
+    quantity: newQuantity,
+    updated_at: now,
+  });
+
+  await localDB.dynamic_products.update(productId, {
+    quantity: newQuantity,
+    updated_at: now,
+  });
+
+  if (isOnline()) {
+    if (existing) {
+      const { error } = await supabase
+        .from("my_stock_products")
+        .update({
+          quantity: newQuantity,
+          stock_threshold: nextThreshold,
+          updated_at: now,
+        })
+        .eq("id", existing.id);
+
+      if (error) throw error;
+    } else {
+      const inserted = await localDB.my_stock_products.where({ user_id: user.id, product_id: productId }).first();
+      if (inserted) {
+        const { error } = await supabase.from("my_stock_products").insert([
+          {
+            id: inserted.id,
+            user_id: inserted.user_id,
+            product_id: inserted.product_id,
+            quantity: inserted.quantity,
+            stock_threshold: inserted.stock_threshold,
+            code: inserted.code,
+            name: inserted.name,
+            price: inserted.price,
+            created_at: inserted.created_at,
+            updated_at: inserted.updated_at,
+          },
+        ]);
+        if (error) throw error;
+      }
+    }
+
+    await supabase
+      .from("dynamic_products_index")
+      .update({ quantity: newQuantity, updated_at: now })
+      .eq("product_id", productId);
+  } else {
+    if (existing) {
+      await queueOperation("my_stock_products", "UPDATE", existing.id, {
+        quantity: newQuantity,
+        stock_threshold: nextThreshold,
+        updated_at: now,
+      });
+    } else {
+      const inserted = await localDB.my_stock_products.where({ user_id: user.id, product_id: productId }).first();
+      if (inserted) {
+        await queueOperation("my_stock_products", "INSERT", inserted.id, inserted);
+      }
+    }
+
+    const indexRecordForQueue = await localDB.dynamic_products_index.where({ product_id: productId }).first();
+    if (indexRecordForQueue) {
+      await queueOperation("dynamic_products_index", "UPDATE", indexRecordForQueue.id, {
+        quantity: newQuantity,
+        updated_at: now,
+      });
+    }
+  }
+}
+
+export async function removeFromMyStock(productId: string): Promise<void> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Usuario no autenticado");
+
+  const now = new Date().toISOString();
+  const existing = await localDB.my_stock_products.where({ user_id: user.id, product_id: productId }).first();
+  const indexRecord = await localDB.dynamic_products_index.where({ product_id: productId }).first();
+
+  if (!existing) return;
+
+  await localDB.my_stock_products.delete(existing.id);
+  await localDB.dynamic_products_index.where({ product_id: productId }).modify({
+    quantity: 0,
+    updated_at: now,
+  });
+
+  await localDB.dynamic_products.update(productId, {
+    quantity: 0,
+    updated_at: now,
+  });
+
+  if (isOnline()) {
+    const { error } = await supabase.from("my_stock_products").delete().eq("id", existing.id);
+    if (error) throw error;
+
+    await supabase
+      .from("dynamic_products_index")
+      .update({ quantity: 0, updated_at: now })
+      .eq("product_id", productId);
+  } else {
+    await queueOperation("my_stock_products", "DELETE", existing.id, {});
+
+    if (indexRecord) {
+      await queueOperation("dynamic_products_index", "UPDATE", indexRecord.id, {
+        quantity: 0,
+        updated_at: now,
+      });
+    }
+  }
+}
 // Rename a column key in JSONB data for all products in a list (offline)
 export async function renameColumnKeyOffline(
   listId: string,
@@ -2100,7 +2402,7 @@ export async function renameColumnKeyOffline(
     }
   }
 
-  console.log(`🔄 Offline: Renamed key "${oldKey}" to "${newKey}" in ${updatedCount} products`);
+  console.log(`ðŸ”„ Offline: Renamed key "${oldKey}" to "${newKey}" in ${updatedCount} products`);
   return updatedCount;
 }
 
@@ -2119,19 +2421,22 @@ export async function getProductsForListOffline(
   const listRecord = await localDB.product_lists.get(listId);
   const mappingConfig = listRecord?.mapping_config;
 
+  const myStockEntries = await localDB.my_stock_products.where({ user_id: user.id }).toArray();
+  const myStockByProductId = new Map(myStockEntries.map((entry) => [entry.product_id, entry]));
+
   // Obtener todos los productos del list_id del usuario
   let allRecords = await localDB.dynamic_products_index.where({ list_id: listId, user_id: user.id }).toArray();
 
-  // Aplicar búsqueda si existe (mínimo 2 caracteres)
+  // Aplicar bÃºsqueda si existe (mÃ­nimo 2 caracteres)
   if (searchQuery && searchQuery.trim().length >= 2) {
     const lowerQuery = searchQuery.toLowerCase().trim();
 
-    // Obtener productos completos para búsqueda más profunda
+    // Obtener productos completos para bÃºsqueda mÃ¡s profunda
     const fullProducts = await localDB.dynamic_products.where({ list_id: listId }).toArray();
     const fullProductsMap = new Map(fullProducts.map((p: any) => [p.id, p]));
 
     allRecords = allRecords.filter((r) => {
-      // Buscar en campos del índice (code y name)
+      // Buscar en campos del Ã­ndice (code y name)
       if (r.code?.toLowerCase().includes(lowerQuery) || r.name?.toLowerCase().includes(lowerQuery)) {
         return true;
       }
@@ -2167,7 +2472,7 @@ export async function getProductsForListOffline(
         }
       }
 
-      // Búsqueda adicional en todos los campos de data (fallback)
+      // BÃºsqueda adicional en todos los campos de data (fallback)
       for (const [, value] of Object.entries(fullProduct.data)) {
         if (value && typeof value === "string" && value.toLowerCase().includes(lowerQuery)) {
           return true;
@@ -2200,8 +2505,8 @@ export async function getProductsForListOffline(
         name: indexRecord.name,
         price: indexRecord.price,
         quantity: indexRecord.quantity,
-        stock_threshold: indexRecord.stock_threshold ?? 0,
-        in_my_stock: indexRecord.in_my_stock,
+        stock_threshold: myStockByProductId.get(indexRecord.product_id)?.stock_threshold ?? indexRecord.stock_threshold ?? 0,
+        in_my_stock: myStockByProductId.has(indexRecord.product_id),
         calculated_data: (indexRecord as any).calculated_data ?? {},
         dynamic_products: fullProduct ? { data: fullProduct.data } : null,
       };
@@ -2314,7 +2619,7 @@ export async function deleteStockItemOffline(id: string): Promise<void> {
   await queueOperation("stock_items", "DELETE", id, {});
 }
 
-// ==================== MANEJO DE TOKENS DE SESIÓN ====================
+// ==================== MANEJO DE TOKENS DE SESIÃ“N ====================
 
 export async function saveAuthToken(
   userId: string,
@@ -2331,7 +2636,7 @@ export async function saveAuthToken(
   };
 
   await localDB.tokens.put(tokenData);
-  console.log("🔐 Token de sesión guardado en IndexedDB");
+  console.log("ðŸ” Token de sesiÃ³n guardado en IndexedDB");
 }
 
 export async function getAuthToken(): Promise<AuthTokenDB | undefined> {
@@ -2341,23 +2646,23 @@ export async function getAuthToken(): Promise<AuthTokenDB | undefined> {
 
 export async function clearAuthToken(): Promise<void> {
   await localDB.tokens.clear();
-  console.log("🗑️ Tokens de sesión eliminados de IndexedDB");
+  console.log("ðŸ—‘ï¸ Tokens de sesiÃ³n eliminados de IndexedDB");
 }
 
 export async function clearAllLocalData(): Promise<void> {
-  console.log("🗑️ Limpiando todos los datos locales...");
+  console.log("ðŸ—‘ï¸ Limpiando todos los datos locales...");
 
   try {
     await localDB.delete();
     await localDB.open();
-    console.log("✅ Todos los datos locales eliminados");
+    console.log("âœ… Todos los datos locales eliminados");
   } catch (error) {
-    console.error("❌ Error al limpiar datos locales:", error);
+    console.error("âŒ Error al limpiar datos locales:", error);
     throw error;
   }
 }
 
-// Helper para obtener dólar oficial offline
+// Helper para obtener dÃ³lar oficial offline
 export async function getOfficialDollarRate(): Promise<number> {
   try {
     const setting = await localDB.settings.get("dollar_official");
@@ -2366,13 +2671,13 @@ export async function getOfficialDollarRate(): Promise<number> {
     }
     return setting.value.rate;
   } catch (error) {
-    console.error("Error obteniendo dólar oficial offline:", error);
+    console.error("Error obteniendo dÃ³lar oficial offline:", error);
     return 0;
   }
 }
 
 /**
- * Limpia operaciones pendientes muy antiguas (más de 7 días)
+ * Limpia operaciones pendientes muy antiguas (mÃ¡s de 7 dÃ­as)
  */
 export async function cleanupOldOperations(): Promise<void> {
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
@@ -2381,7 +2686,7 @@ export async function cleanupOldOperations(): Promise<void> {
 
   if (oldOps.length === 0) return;
 
-  console.log(`🗑️ Limpiando ${oldOps.length} operaciones antiguas...`);
+  console.log(`ðŸ—‘ï¸ Limpiando ${oldOps.length} operaciones antiguas...`);
 
   for (const op of oldOps) {
     await rollbackStockCompensation(op.id!);
@@ -2402,6 +2707,8 @@ export async function getOfflineData<T>(tableName: string): Promise<T[]> {
       return (await localDB.dynamic_products_index.toArray()) as any;
     case "dynamic_products":
       return (await localDB.dynamic_products.toArray()) as any;
+    case "my_stock_products":
+      return (await localDB.my_stock_products.toArray()) as any;
     case "delivery_notes":
       return (await localDB.delivery_notes.toArray()) as any;
     case "delivery_note_items":
@@ -2415,17 +2722,17 @@ export async function getOfflineData<T>(tableName: string): Promise<T[]> {
   }
 }
 
-// ==================== AUTO-SINCRONIZACIÓN ====================
+// ==================== AUTO-SINCRONIZACIÃ“N ====================
 
 // Variable de control para debounce del evento online
 let onlineSyncTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
-// Escuchar eventos de conexión
+// Escuchar eventos de conexiÃ³n
 if (typeof window !== "undefined") {
   window.addEventListener("online", () => {
-    console.log("🌐 Conexión restaurada. Programando sincronización...");
+    console.log("ðŸŒ ConexiÃ³n restaurada. Programando sincronizaciÃ³n...");
 
-    // Debounce de 2 segundos para evitar múltiples ejecuciones
+    // Debounce de 2 segundos para evitar mÃºltiples ejecuciones
     if (onlineSyncTimeoutId) {
       clearTimeout(onlineSyncTimeoutId);
     }
@@ -2437,19 +2744,31 @@ if (typeof window !== "undefined") {
         await syncPendingOperations();
         await syncFromSupabase();
       } catch (error) {
-        console.error("Error en sincronización automática:", error);
+        console.error("Error en sincronizaciÃ³n automÃ¡tica:", error);
       }
     }, 2000);
   });
 
   window.addEventListener("offline", () => {
-    console.log("📡 Sin conexión. Trabajando en modo offline");
+    console.log("ðŸ“¡ Sin conexiÃ³n. Trabajando en modo offline");
   });
 }
 
 /**
- * Getter para estado de sincronización (útil para UI)
+ * Getter para estado de sincronizaciÃ³n (Ãºtil para UI)
  */
 export function isSyncing(): boolean {
   return isSyncInProgress;
 }
+
+
+
+
+
+
+
+
+
+
+
+

@@ -23,10 +23,10 @@ export default function MiStock() {
   const [onlyWithStock, setOnlyWithStock] = useState(false);
   const [requestList, setRequestList] = useState<RequestItem[]>([]);
   const [isCartCollapsed, setIsCartCollapsed] = useState(true);
-  
+
   // Estado local para actualizaciones optimistas
   const [localProducts, setLocalProducts] = useState<any[]>([]);
-  
+
   // Estado para controlar la hidratación completa
   const [isHydrated, setIsHydrated] = useState(false);
 
@@ -35,7 +35,12 @@ export default function MiStock() {
   const isOnline = useOnlineStatus();
   const isMobile = useIsMobile();
 
-  const { data: myStockProducts = [], isLoading: isLoadingProducts } = useMyStockProducts({
+  const {
+    data: myStockProducts,
+    isLoading: isLoadingProducts,
+    isFetching: isFetchingProducts,
+    isSuccess: isSuccessProducts,
+  } = useMyStockProducts({
     supplierId: supplierFilter,
     searchTerm,
     onlyWithStock,
@@ -51,19 +56,19 @@ export default function MiStock() {
   // Controlar hidratación completa antes de renderizar
   useEffect(() => {
     if (
-      !isLoadingProducts &&
+      isSuccessProducts &&
       !isLoadingLists &&
       !isLoadingSuppliers &&
-      lists.length >= 0 // Las listas pueden estar vacías pero deben haber cargado
+      lists.length >= 0
     ) {
       setIsHydrated(true);
     }
-  }, [isLoadingProducts, isLoadingLists, isLoadingSuppliers, lists]);
+  }, [isSuccessProducts, isLoadingLists, isLoadingSuppliers, lists]);
 
   // Handler para actualizar cantidad localmente (optimista)
   const handleUpdateQuantity = (productId: string, newQuantity: number) => {
-    setLocalProducts(prev => 
-      prev.map(p => 
+    setLocalProducts(prev =>
+      prev.map(p =>
         (p.product_id === productId) ? { ...p, quantity: newQuantity } : p
       )
     );
@@ -79,7 +84,7 @@ export default function MiStock() {
 
   // Handler para eliminar producto localmente (optimista)
   const handleRemoveProduct = (productId: string) => {
-    setLocalProducts(prev => 
+    setLocalProducts(prev =>
       prev.filter(p => p.product_id !== productId)
     );
   };
@@ -88,7 +93,10 @@ export default function MiStock() {
   const isLoading = !isHydrated || isLoadingSuppliers || isLoadingLists || isLoadingProducts;
 
   // Usar localProducts en lugar de myStockProducts para UI
-  const productsToDisplay = localProducts.length > 0 ? localProducts : myStockProducts;
+  const productsToDisplay =
+    localProducts.length > 0
+      ? localProducts
+      : (myStockProducts || []);
 
   // Group products by supplier and then by list
   const supplierSections = useMemo(() => {
@@ -105,6 +113,7 @@ export default function MiStock() {
             mappingConfig: any;
             columnSchema: any[];
             products: any[];
+            lastStockUpdate: number;
           }
         >;
       }
@@ -139,10 +148,15 @@ export default function MiStock() {
           mappingConfig: listInfo.mapping_config,
           columnSchema: listInfo.column_schema || [],
           products: [],
+          lastStockUpdate: 0,
         });
       }
 
-      section.lists.get(listInfo.id)!.products.push({
+      const listEntry = section.lists.get(listInfo.id)!;
+      const updatedAt = Date.parse(product.updated_at || "") || 0;
+      listEntry.lastStockUpdate = Math.max(listEntry.lastStockUpdate, updatedAt);
+
+      listEntry.products.push({
         id: product.product_id,
         product_id: product.product_id,
         listId: product.list_id,
@@ -321,18 +335,18 @@ export default function MiStock() {
             </Card>
           ) : (
             <div className="space-y-6">
-              {visibleSupplierSections.map(([supplierId, section]) => (
-                  <MyStockSupplierSection
-                    key={supplierId}
-                    supplierName={section.supplierName}
-                    supplierLogo={section.supplierLogo}
-                    lists={Array.from(section.lists.values())}
-                    onAddToRequest={handleAddToRequest}
-                    onQuantityChange={handleUpdateQuantity}
-                    onThresholdChange={handleUpdateThreshold}
-                    onRemoveProduct={handleRemoveProduct}
-                    isMobile={isMobile}
-                  />
+          {visibleSupplierSections.map(([supplierId, section]) => (
+                <MyStockSupplierSection
+                  key={supplierId}
+                  supplierName={section.supplierName}
+                  supplierLogo={section.supplierLogo}
+                  lists={Array.from(section.lists.values()).sort((a, b) => b.lastStockUpdate - a.lastStockUpdate)}
+                  onAddToRequest={handleAddToRequest}
+                  onQuantityChange={handleUpdateQuantity}
+                  onThresholdChange={handleUpdateThreshold}
+                  onRemoveProduct={handleRemoveProduct}
+                  isMobile={isMobile}
+                />
               ))}
             </div>
           )}

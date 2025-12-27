@@ -2,8 +2,7 @@ import { useState } from "react";
 import { ShoppingCart, Package, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { useOnlineStatus } from "@/hooks/useOnlineStatus";
-import { addToMyStock, removeFromMyStock } from "@/hooks/useMyStockProducts";
+import { addToMyStock, removeFromMyStock } from "@/lib/localDB";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Tooltip,
@@ -28,7 +27,6 @@ export function AddProductDropdown({
   showAddToStock = true,
   showRemoveFromStock = false,
 }: AddProductDropdownProps) {
-  const isOnline = useOnlineStatus();
   const queryClient = useQueryClient();
   const location = useLocation();
   const isInMyStockPath = location.pathname === "/";
@@ -36,8 +34,6 @@ export function AddProductDropdown({
   const [hasBeenAddedToStock, setHasBeenAddedToStock] = useState(false);
 
   const productId = product.product_id || product.id;
-  const listId = product.list_id || product.listId;
-
   const handleAddToStock = async () => {
     toast.success("Agregado a Mi Stock");
     setHasBeenAddedToStock(true);
@@ -45,7 +41,7 @@ export function AddProductDropdown({
 
     queueMicrotask(async () => {
       try {
-        await addToMyStock(productId, listId, isOnline);
+        await addToMyStock(productId, 1);
       } catch (error) {
         console.error("Error al agregar a Mi Stock:", error);
       }
@@ -56,7 +52,7 @@ export function AddProductDropdown({
     toast.success("Producto quitado de Mi Stock");
 
     try {
-      await removeFromMyStock(productId, listId, isOnline);
+      await removeFromMyStock(productId);
       queryClient.invalidateQueries({ queryKey: ["my-stock"] });
     } catch (error: any) {
       console.error("Error removing from stock:", error);
@@ -64,12 +60,7 @@ export function AddProductDropdown({
     }
   };
 
-  // Considerar en Mi Stock si:
-  // - in_my_stock === true explícitamente, O
-  // - in_my_stock es undefined (offline fallback) Y quantity > 0
-  const productQuantity = product.quantity ?? 0;
-  const isInMyStock =
-    product.in_my_stock === true || (product.in_my_stock === undefined && productQuantity > 0);
+  const isInMyStock = product.in_my_stock === true;
   const shouldDisableAddToStock = isInMyStock || hasBeenAddedToStock;
 
   // Página Mi Stock: mostrar botones para agregar al pedido y quitar del stock

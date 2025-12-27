@@ -87,8 +87,30 @@ async function searchOnline(
   const hasMore = data && data.length === pageSize;
   const nextPage = hasMore ? pageParam + 1 : undefined;
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let enrichedData = data || [];
+  if (user && data && data.length > 0) {
+    const productIds = data.map((item: any) => item.product_id);
+    const { data: myStockRows, error: myStockError } = await supabase
+      .from("my_stock_products")
+      .select("product_id")
+      .eq("user_id", user.id)
+      .in("product_id", productIds);
+
+    if (myStockError) throw myStockError;
+
+    const stockIds = new Set((myStockRows || []).map((row: any) => row.product_id));
+    enrichedData = data.map((item: any) => ({
+      ...item,
+      in_my_stock: stockIds.has(item.product_id),
+    }));
+  }
+
   return {
-    data: data || [],
+    data: enrichedData,
     count: count || 0,
     nextPage,
   };
@@ -106,6 +128,8 @@ async function searchOffline(
   const indexedProducts = (await getOfflineData("dynamic_products_index")) as any[];
   const fullProducts = (await getOfflineData("dynamic_products")) as any[];
   const productLists = (await getOfflineData("product_lists")) as any[];
+  const myStockEntries = (await getOfflineData("my_stock_products")) as any[];
+  const myStockIds = new Set(myStockEntries.map((entry: any) => entry.product_id));
   
   const searchTermLower = searchTerm.trim().toLowerCase();
 
@@ -153,7 +177,10 @@ async function searchOffline(
   // Paginación
   const start = pageParam * pageSize;
   const end = start + pageSize;
-  const paginatedData = filtered.slice(start, end);
+  const paginatedData = filtered.slice(start, end).map((item: any) => ({
+    ...item,
+    in_my_stock: myStockIds.has(item.product_id),
+  }));
 
   return {
     data: paginatedData,
@@ -161,3 +188,5 @@ async function searchOffline(
     nextPage: end < filtered.length ? pageParam + 1 : undefined,
   };
 }
+
+
