@@ -23,6 +23,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ListUpdateDialog } from "@/components/ListUpdateDialog";
 import { parseNumber } from "@/utils/numberParser";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { OfflineActionDialog } from "@/components/OfflineActionDialog";
 
 interface SupplierListsViewProps {
   supplierId: string;
@@ -33,8 +35,10 @@ interface SupplierListsViewProps {
 export function SupplierListsView({ supplierId, supplierName, onConfigureList }: SupplierListsViewProps) {
   const [isUploading, setIsUploading] = useState(false);
   const isMobile = useIsMobile();
+  const isOnline = useOnlineStatus();
   const [listToDelete, setListToDelete] = useState<string | null>(null);
   const [similarWarning, setSimilarWarning] = useState<string | null>(null);
+  const [showOfflineWarning, setShowOfflineWarning] = useState(false);
   const [pendingUpload, setPendingUpload] = useState<{
     fileName: string;
     columnSchema: ColumnSchema[];
@@ -51,6 +55,15 @@ export function SupplierListsView({ supplierId, supplierName, onConfigureList }:
       initializeCollapsedState(listIds);
     }
   }, [productLists, initializeCollapsedState]);
+
+  // Handler for import button - check offline status first
+  const handleImportClick = () => {
+    if (!isOnline) {
+      setShowOfflineWarning(true);
+      return;
+    }
+    fileInputRef.current?.click();
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -344,7 +357,7 @@ export function SupplierListsView({ supplierId, supplierName, onConfigureList }:
             className="hidden"
             id="file-upload-lists"
           />
-          <Button onClick={() => fileInputRef.current?.click()} disabled={isUploading} className="w-full">
+          <Button onClick={handleImportClick} disabled={isUploading} className="w-full">
             {isUploading ? "Procesando..." : "Seleccionar Archivo"}
           </Button>
         </CardContent>
@@ -448,6 +461,13 @@ export function SupplierListsView({ supplierId, supplierName, onConfigureList }:
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <OfflineActionDialog
+        open={showOfflineWarning}
+        onOpenChange={setShowOfflineWarning}
+        title="Importación no disponible offline"
+        description="La importación de listas requiere conexión a internet. Por favor, conéctate y vuelve a intentarlo."
+      />
     </div>
   );
 }
