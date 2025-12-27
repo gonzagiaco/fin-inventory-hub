@@ -65,26 +65,29 @@ export function MyStockListProducts({
   const defaultViewMode = isMobile ? "cards" : "table";
   const currentViewMode = storeViewMode[listId] || defaultViewMode;
 
-  // Handler para quitar de Mi Stock (optimista)
-  const handleRemoveFromStock = (product: any) => {
+  // Handler para quitar de Mi Stock - persist to IndexedDB BEFORE UI update
+  const handleRemoveFromStock = async (product: any) => {
     const productId = product.product_id || product.id;
     const productListId = product.list_id || listId;
     
-    // 1. Actualización optimista INMEDIATA
-    onRemoveProduct?.(productId);
-    
-    // 2. Toast
-    toast.success("Producto quitado de Mi Stock");
-    
-    // 3. Backend en segundo plano
-    queueMicrotask(async () => {
-      try {
-        await removeFromMyStock(productId, productListId, isOnline);
+    try {
+      // 1. FIRST: Persist to IndexedDB (critical for offline persistence)
+      await removeFromMyStock(productId, productListId, isOnline);
+      
+      // 2. THEN: Update UI optimistically
+      onRemoveProduct?.(productId);
+      
+      // 3. Toast feedback
+      toast.success("Producto quitado de Mi Stock");
+      
+      // 4. Invalidate queries in background
+      queueMicrotask(() => {
         queryClient.invalidateQueries({ queryKey: ["my-stock"] });
-      } catch (error) {
-        console.error("Error al quitar de Mi Stock:", error);
-      }
-    });
+      });
+    } catch (error) {
+      console.error("Error al quitar de Mi Stock:", error);
+      toast.error("Error al quitar producto");
+    }
   };
 
   // Handler para actualizar cantidad (optimista)

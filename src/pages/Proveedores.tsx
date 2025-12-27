@@ -12,6 +12,8 @@ import { useProductListsIndex } from "@/hooks/useProductListsIndex";
 import { SupplierBreadcrumbs } from "@/components/suppliers/SupplierBreadcrumbs";
 import { SupplierListsView } from "@/components/suppliers/SupplierListsView";
 import { ListConfigurationView } from "@/components/suppliers/ListConfigurationView";
+import { OfflineActionDialog } from "@/components/OfflineActionDialog";
+import { useOnlineStatus } from "@/hooks/useOnlineStatus";
 
 type ViewState = 
   | { type: 'suppliers' }
@@ -24,10 +26,12 @@ const Proveedores = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [supplierToDelete, setSupplierToDelete] = useState<Supplier | null>(null);
+  const [showOfflineWarning, setShowOfflineWarning] = useState(false);
 
   const { suppliers, isLoading: isLoadingSuppliers, createSupplier, updateSupplier, deleteSupplier } = useSuppliers();
   const { data: lists = [] } = useProductListsIndex();
   const location = useLocation();
+  const isOnline = useOnlineStatus();
 
   const handleCreateSupplier = () => {
     setSelectedSupplier(null);
@@ -87,6 +91,12 @@ const Proveedores = () => {
   }, [location.search, suppliers]);
 
   const handleConfigureList = (listId: string, listName: string) => {
+    // Block list configuration when offline
+    if (!isOnline) {
+      setShowOfflineWarning(true);
+      return;
+    }
+    
     if (currentView.type === 'supplier-lists') {
       setCurrentView({ 
         type: 'list-config', 
@@ -257,6 +267,13 @@ const Proveedores = () => {
           onConfirm={handleDeleteConfirm}
           title="¿Eliminar proveedor?"
           description={`¿Estás seguro de que deseas eliminar a ${supplierToDelete?.name}? Esto también eliminará todos los productos asociados.`}
+        />
+
+        <OfflineActionDialog
+          open={showOfflineWarning}
+          onOpenChange={setShowOfflineWarning}
+          title="Configuración no disponible offline"
+          description="La configuración de listas requiere conexión a internet. Por favor, conéctate y vuelve a intentarlo."
         />
       </div>
     </div>

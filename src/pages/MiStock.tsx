@@ -26,6 +26,9 @@ export default function MiStock() {
   
   // Estado local para actualizaciones optimistas
   const [localProducts, setLocalProducts] = useState<any[]>([]);
+  
+  // Estado para controlar la hidratación completa
+  const [isHydrated, setIsHydrated] = useState(false);
 
   const { suppliers = [], isLoading: isLoadingSuppliers } = useSuppliers();
   const { data: lists = [], isLoading: isLoadingLists } = useProductListsIndex();
@@ -44,6 +47,18 @@ export default function MiStock() {
       setLocalProducts(myStockProducts);
     }
   }, [myStockProducts]);
+
+  // Controlar hidratación completa antes de renderizar
+  useEffect(() => {
+    if (
+      !isLoadingProducts &&
+      !isLoadingLists &&
+      !isLoadingSuppliers &&
+      lists.length >= 0 // Las listas pueden estar vacías pero deben haber cargado
+    ) {
+      setIsHydrated(true);
+    }
+  }, [isLoadingProducts, isLoadingLists, isLoadingSuppliers, lists]);
 
   // Handler para actualizar cantidad localmente (optimista)
   const handleUpdateQuantity = (productId: string, newQuantity: number) => {
@@ -69,7 +84,8 @@ export default function MiStock() {
     );
   };
 
-  const isLoading = isLoadingSuppliers || isLoadingLists || isLoadingProducts;
+  // Usar isHydrated para controlar el loading state inicial
+  const isLoading = !isHydrated || isLoadingSuppliers || isLoadingLists || isLoadingProducts;
 
   // Usar localProducts en lugar de myStockProducts para UI
   const productsToDisplay = localProducts.length > 0 ? localProducts : myStockProducts;

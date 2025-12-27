@@ -103,10 +103,17 @@ export function useMyStockProducts(options: UseMyStockProductsOptions = {}) {
         productDataMap.set(p.id, p.data || {});
       });
 
-      // Enrich products with full data
+      // Enrich products with full data - ensure data and calculated_data are never null
       const enrichedProducts = indexedProducts.map((p: any) => ({
         ...p,
-        data: productDataMap.get(p.product_id) || {},
+        data: productDataMap.get(p.product_id) || p.data || {},
+        calculated_data: p.calculated_data || {},
+        // Ensure all standard fields have fallback values
+        code: p.code || '',
+        name: p.name || '',
+        price: p.price ?? null,
+        quantity: p.quantity ?? 0,
+        stock_threshold: p.stock_threshold ?? 0,
       }));
 
       // Sort by name
@@ -247,17 +254,24 @@ export async function removeFromMyStock(
     logSync('IndexedDB updated: in_my_stock=false, quantity=0');
   }
   
-  // Queue for offline sync if not online
+  // Queue for offline sync if not online - use proper record identification
   if (!isOnline) {
     await localDB.pending_operations.add({
       table_name: 'dynamic_products_index',
       operation_type: 'UPDATE',
-      record_id: productId,
-      data: { in_my_stock: false, quantity: 0 },
+      // Use the actual IndexedDB record ID for proper sync
+      record_id: indexRecord?.id?.toString() || productId,
+      data: { 
+        in_my_stock: false, 
+        quantity: 0,
+        // Include product_id and list_id for Supabase query
+        product_id: productId,
+        list_id: listId,
+      },
       timestamp: Date.now(),
       retry_count: 0,
     });
-    logSync('Queued operation for offline sync');
+    logSync('Queued operation for offline sync with full identifiers');
   }
 }
 
