@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { ProductList } from "@/types/productList";
+import { Loader2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -26,6 +27,7 @@ interface ListUpdateDialogProps {
   newProductCount: number;
   onUpdate: (listId: string) => void;
   onCreateNew: () => void;
+  isUpdating?: boolean;
 }
 
 export function ListUpdateDialog({
@@ -35,6 +37,7 @@ export function ListUpdateDialog({
   newProductCount,
   onUpdate,
   onCreateNew,
+  isUpdating = false,
 }: ListUpdateDialogProps) {
   const [selectedListId, setSelectedListId] = useState<string>("");
 
@@ -42,8 +45,13 @@ export function ListUpdateDialog({
 
   const selectedList = availableLists.find(list => list.id === selectedListId);
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (isUpdating) return;
+    onOpenChange(nextOpen);
+  };
+
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog open={open} onOpenChange={handleOpenChange}>
       <AlertDialogContent className="max-w-md">
         <AlertDialogHeader>
           <AlertDialogTitle>Actualizar o Crear Nueva Lista</AlertDialogTitle>
@@ -56,7 +64,7 @@ export function ListUpdateDialog({
               <label className="text-sm font-medium text-foreground">
                 Selecciona una lista para actualizar:
               </label>
-              <Select value={selectedListId} onValueChange={setSelectedListId}>
+              <Select value={selectedListId} onValueChange={setSelectedListId} disabled={isUpdating}>
                 <SelectTrigger>
                   <SelectValue placeholder="Elegir lista..." />
                 </SelectTrigger>
@@ -102,15 +110,22 @@ export function ListUpdateDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-          <AlertDialogCancel onClick={onCreateNew}>
+          <AlertDialogCancel onClick={onCreateNew} disabled={isUpdating}>
             Crear Nueva Lista
           </AlertDialogCancel>
           <AlertDialogAction 
             onClick={() => selectedListId && onUpdate(selectedListId)} 
-            disabled={!selectedListId}
+            disabled={!selectedListId || isUpdating}
             className="bg-primary"
           >
-            Actualizar Seleccionada
+            {isUpdating ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                Actualizando...
+              </>
+            ) : (
+              "Actualizar Seleccionada"
+            )}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

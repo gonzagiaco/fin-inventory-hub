@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import { Filter, Package } from "lucide-react";
+import { Filter, Package, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -90,6 +90,7 @@ export default function MiStock() {
 
   // Usar isHydrated para controlar el loading state inicial
   const isLoading = !isHydrated || isLoadingSuppliers || isLoadingLists || isLoadingProducts;
+  const isRefreshing = isHydrated && isFetchingProducts;
 
   // Usar localProducts en lugar de myStockProducts para UI
   const productsToDisplay =
@@ -258,12 +259,24 @@ export default function MiStock() {
 
           <div className="flex flex-col md:flex-row gap-4 mb-4">
             <div className="flex flex-1 gap-2">
-              <Input
-                placeholder="Buscar en mi stock..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full"
-              />
+              <div className="relative w-full">
+                <Input
+                  placeholder="Buscar en mi stock..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pr-10"
+                />
+                {searchTerm.trim().length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7588eb]"
+                    aria-label="Limpiar búsqueda"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </div>
             <div className="flex gap-2 flex-wrap">
               <Select value={supplierFilter} onValueChange={setSupplierFilter}>
@@ -300,6 +313,12 @@ export default function MiStock() {
             </span>
             {!isOnline && <span className="text-amber-500">(modo offline)</span>}
           </div>
+          {isRefreshing && (
+            <div className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-primary"></div>
+              Actualizando mi stock...
+            </div>
+          )}
         </div>
       </header>
 

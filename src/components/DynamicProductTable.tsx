@@ -10,7 +10,7 @@ import {
 } from "@tanstack/react-table";
 import { DynamicProduct, ColumnSchema, ProductList } from "@/types/productList";
 import { Input } from "@/components/ui/input";
-import { Search, ChevronDown, ChevronUp, Plus } from "lucide-react";
+import { Search, ChevronDown, ChevronUp, Plus, X } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useProductListStore } from "@/stores/productListStore";
 import { ColumnSettingsDrawer } from "./ColumnSettingsDrawer";
@@ -301,10 +301,20 @@ export const DynamicProductTable = ({
               placeholder="Buscar en todos los productos... (mín. 2 caracteres)"
               value={globalFilter}
               onChange={(e) => setGlobalFilter(e.target.value)}
-              className="pl-10"
+              className="pl-10 pr-14"
             />
+            {globalFilter.trim().length > 0 && (
+              <button
+                type="button"
+                onClick={() => setGlobalFilter("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7588eb]"
+                aria-label="Limpiar búsqueda"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
             {isSearchLoading && isSearchActive && (
-              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
+              <Loader2 className="absolute right-9 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />
             )}
           </div>
           {/* Indicador de resultados de búsqueda */}

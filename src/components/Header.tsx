@@ -1,5 +1,5 @@
-import { Search } from "lucide-react";
-import { ReactNode } from "react";
+import { Search, X } from "lucide-react";
+import { ReactNode, useState } from "react";
 
 interface HeaderProps {
   title: string;
@@ -9,6 +9,8 @@ interface HeaderProps {
 }
 
 const Header = ({ title, subtitle, showSearch = true, icon }: HeaderProps) => {
+  const [searchValue, setSearchValue] = useState("");
+
   return (
     <header className="mb-8">
       <div className="flex items-center justify-between flex-wrap gap-4">
@@ -26,10 +28,22 @@ const Header = ({ title, subtitle, showSearch = true, icon }: HeaderProps) => {
               <Search className="h-5 w-5 text-muted-foreground" />
             </div>
             <input
-              className="w-full rounded-lg border-transparent bg-muted/50 backdrop-blur-sm py-3 pl-12 pr-4 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-sm"
+              className="w-full rounded-lg border-transparent bg-muted/50 backdrop-blur-sm py-3 pl-12 pr-12 text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary focus:border-transparent transition-all duration-300 shadow-sm"
               placeholder="Buscar por código, nombre..."
               type="text"
+              value={searchValue}
+              onChange={(event) => setSearchValue(event.target.value)}
             />
+            {searchValue.trim().length > 0 && (
+              <button
+                type="button"
+                onClick={() => setSearchValue("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7588eb]"
+                aria-label="Limpiar búsqueda"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
         )}
       </div>

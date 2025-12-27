@@ -26,7 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import DeliveryNoteDialog from "@/components/DeliveryNoteDialog";
 import { generateDeliveryNotePDF } from "@/utils/deliveryNotePdfGenerator";
 import { uploadDeliveryNotePDF } from "@/services/pdfStorageService";
-import { Plus, Download, MessageCircle, Trash2, CheckCircle, Edit, Loader2, FileText } from "lucide-react";
+import { Plus, Download, MessageCircle, Trash2, CheckCircle, Edit, Loader2, Receipt, X } from "lucide-react";
 import { format } from "date-fns";
 import { formatARS } from "@/utils/numberParser";
 import { DeliveryNote } from "@/types";
@@ -173,7 +173,7 @@ const Remitos = () => {
         <Header
           title="Remitos de Venta"
           subtitle="Gestiona remitos, descuenta stock automáticamente y comunica con clientes" showSearch={false}
-          icon={<FileText className="h-8 w-8" />}
+          icon={<Receipt className="h-8 w-8" />}
         />
       </div>
 
@@ -197,11 +197,24 @@ const Remitos = () => {
           <CardContent className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
             <div className="space-y-1">
               <span className="text-sm font-medium">Cliente</span>
-              <Input
-                placeholder="Buscar por cliente..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
+              <div className="relative">
+                <Input
+                  placeholder="Buscar por cliente..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pr-10"
+                />
+                {searchQuery.trim().length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7588eb]"
+                    aria-label="Limpiar búsqueda"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </div>
             <div className="space-y-1">
               <span className="text-sm font-medium">Estado</span>

@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import {
-  Package2,
+  NotebookText,
   Users,
   Warehouse,
   Menu,
@@ -8,7 +8,7 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
-  FileText,
+  Receipt,
   CircleHelp,
   Package,
 } from "lucide-react";
@@ -34,9 +34,9 @@ const CollapsibleSidebar = () => {
 
   const navigation = [
     { name: "Mi Stock", href: "/", icon: Package },
-    { name: "Listas", href: "/listas", icon: Package2 },
+    { name: "Listas", href: "/listas", icon: NotebookText },
     { name: "Proveedores", href: "/proveedores", icon: Warehouse },
-    { name: "Remitos", href: "/remitos", icon: FileText },
+    { name: "Remitos", href: "/remitos", icon: Receipt },
     { name: "Ayuda", href: "/ayuda", icon: CircleHelp },
   ];
 

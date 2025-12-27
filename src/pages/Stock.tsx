@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Filter, FileDown, Plus, Package2 } from "lucide-react";
+import { Filter, FileDown, Plus, NotebookText, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import RequestCart from "@/components/RequestCart";
@@ -337,18 +337,30 @@ export default function Stock() {
       >
         <div className="w-full px-4 pt-5 pb-10 lg:pl-4 max-w-full overflow-hidden">
           <div className="flex items-center gap-3 mb-6">
-            <Package2 className="h-8 w-8 text-primary" />
+            <NotebookText className="h-8 w-8 text-primary" />
             <h1 className="text-3xl font-bold">Listas de proveedores</h1>
           </div>
 
           <div className="flex flex-col md:flex-row gap-4 mb-4">
             <div className="flex flex-1 gap-2">
-              <Input
-                placeholder="Buscar en todos los productos..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full"
-              />
+              <div className="relative w-full">
+                <Input
+                  placeholder="Buscar en todos los productos..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pr-10"
+                />
+                {searchTerm.trim().length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7588eb]"
+                    aria-label="Limpiar búsqueda"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
             </div>
             <div className="flex gap-2 w-[250px] md:w-1/3">
               <Select value={supplierFilter} onValueChange={setSupplierFilter}>

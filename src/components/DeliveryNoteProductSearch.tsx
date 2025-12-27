@@ -1,11 +1,12 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { Search, Loader2 } from "lucide-react";
+import { Search, Loader2, X } from "lucide-react";
 import { formatARS } from "@/utils/numberParser";
 import { useGlobalProductSearch } from "@/hooks/useGlobalProductSearch";
 import { useProductLists } from "@/hooks/useProductLists";
 import { useOnlineStatus } from "@/hooks/useOnlineStatus";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { MappingConfig } from "@/components/suppliers/ListConfigurationView";
 import { localDB } from "@/lib/localDB";
 import { supabase } from "@/integrations/supabase/client";
@@ -17,9 +18,11 @@ interface ProductSearchProps {
 const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
   const [query, setQuery] = useState("");
   const [isFocused, setIsFocused] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   const { productLists } = useProductLists();
   const isOnline = useOnlineStatus();
+  const isMobile = useIsMobile();
 
   const {
     data: searchData, 
@@ -162,7 +165,7 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
   const showResults = isFocused && query.length >= 2;
 
   return (
-    <div className="relative">
+    <div className="relative" ref={containerRef}>
       <div className="flex gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -170,13 +173,30 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
             placeholder="Buscar por código o nombre..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onFocus={() => setIsFocused(true)}
+            onFocus={() => {
+              setIsFocused(true);
+              if (isMobile) {
+                requestAnimationFrame(() => {
+                  containerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                });
+              }
+            }}
             onBlur={() => {
               // Delay para permitir click en resultados
               setTimeout(() => setIsFocused(false), 200);
             }}
-            className="pl-9"
+            className="pl-9 pr-10"
           />
+          {query.trim().length > 0 && (
+            <button
+              type="button"
+              onClick={() => setQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7588eb]"
+              aria-label="Limpiar búsqueda"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -190,7 +210,7 @@ const DeliveryNoteProductSearch = ({ onSelect }: ProductSearchProps) => {
       )}
 
       {!isLoading && showResults && results.length > 0 && (
-        <Card className="absolute z-50 mt-1 w-full max-h-80 overflow-y-auto shadow-lg">
+        <Card className="absolute z-50 mt-1 w-full max-h-[45vh] sm:max-h-80 overflow-y-auto shadow-lg">
           <div className="divide-y">
             {results.map((product: any) => (
               <div

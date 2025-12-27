@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
-import { List, LayoutGrid, ChevronUp, ChevronDown, Trash2, ShoppingCart } from "lucide-react";
+import { List, LayoutGrid, ChevronUp, ChevronDown, Trash2, ShoppingCart, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { QuantityCell } from "./QuantityCell";
 import { StockThresholdCell } from "./StockThresholdCell";
@@ -14,6 +15,7 @@ import { toast } from "sonner";
 import { ColumnSettingsDrawer } from "@/components/ColumnSettingsDrawer";
 import { CardPreviewSettings } from "@/components/CardPreviewSettings";
 import { useProductListStore } from "@/stores/productListStore";
+import { useDebounce } from "@/hooks/useDebounce";
 import {
   useReactTable,
   getCoreRowModel,
@@ -56,8 +58,10 @@ export function MyStockListProducts({
   isMobile,
 }: MyStockListProductsProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [localFilter, setLocalFilter] = useState("");
   const { columnVisibility, columnOrder, viewMode: storeViewMode, setViewMode } = useProductListStore();
   const queryClient = useQueryClient();
+  const debouncedFilter = useDebounce(localFilter, 200);
 
   // Default view mode
   const defaultViewMode = isMobile ? "cards" : "table";
@@ -316,8 +320,27 @@ export function MyStockListProducts({
     }));
   }, [products, mappingConfig, listId]);
 
+  const filteredProducts = useMemo(() => {
+    const term = debouncedFilter.trim().toLowerCase();
+    if (!term) return products;
+
+    return products.filter((product) => {
+      const code = String(product.code ?? "").toLowerCase();
+      const name = String(product.name ?? "").toLowerCase();
+      if (code.includes(term) || name.includes(term)) return true;
+
+      const dataValues = Object.values(product.data ?? {});
+      const calculatedValues = Object.values(product.calculated_data ?? {});
+      const allValues = [...dataValues, ...calculatedValues];
+
+      return allValues.some((value) => String(value ?? "").toLowerCase().includes(term));
+    });
+  }, [products, debouncedFilter]);
+
+  const isFiltering = debouncedFilter.trim().length > 0;
+
   const table = useReactTable({
-    data: products,
+    data: filteredProducts,
     columns: visibleColumns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -332,6 +355,8 @@ export function MyStockListProducts({
       </div>
     );
   }
+
+  const isFilteredEmpty = filteredProducts.length === 0;
 
   const ViewToggle = () => (
     <div className="flex gap-1.5">
@@ -354,44 +379,28 @@ export function MyStockListProducts({
     </div>
   );
 
-  if (currentViewMode === "cards") {
-    return (
-      <div className="p-4 border-t">
-        <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
-          <div className="flex gap-1.5">
-            <CardPreviewSettings
-              listId={listId}
-              columnSchema={processedSchema}
-              fixedKeys={["quantity", STOCK_THRESHOLD_COLUMN.key]}
-            />
-            <ColumnSettingsDrawer listId={listId} columnSchema={processedSchema} mappingConfig={mappingConfig} />
-          </div>
-          <ViewToggle />
-        </div>
-        <ProductCardView
-          listId={listId}
-          products={table.getRowModel().rows.map((row) => row.original as any)}
-          columnSchema={processedSchema}
-          mappingConfig={mappingConfig}
-          onAddToRequest={(product) => onAddToRequest(product, mappingConfig)}
-          showActions={true}
-          showRemoveFromStock={true}
-          onRemoveFromStock={handleRemoveFromStock}
-          sortColumn={sortColumn}
-          sortDirection={sortDirection}
-          onSortChange={handleSortChange}
-          showLowStockBadge={true}
-          showStockThreshold={true}
-          onThresholdChange={handleThresholdChange}
-          suppressStockToasts={true}
+  const filterControls = (
+    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="relative w-full md:max-w-sm">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Buscar en esta lista..."
+          value={localFilter}
+          onChange={(e) => setLocalFilter(e.target.value)}
+          className="pl-9 pr-10"
         />
+        {localFilter.trim().length > 0 && (
+          <button
+            type="button"
+            onClick={() => setLocalFilter("")}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#7588eb]"
+            aria-label="Limpiar búsqueda"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
       </div>
-    );
-  }
-
-  return (
-    <div className="p-4 border-t">
-      <div className="flex justify-between items-center mb-4 flex-wrap gap-2">
+      <div className="flex items-center gap-2 flex-wrap justify-between">
         <div className="flex gap-1.5">
           <CardPreviewSettings
             listId={listId}
@@ -402,43 +411,86 @@ export function MyStockListProducts({
         </div>
         <ViewToggle />
       </div>
+    </div>
+  );
 
-      <div className="w-full border rounded-lg overflow-hidden">
-        <div className="max-h-[600px] overflow-auto relative">
-          <Table className="min-w-full">
-            <TableHeader>
-              <TableRow>
-                {table.getHeaderGroups()[0]?.headers.map((header) => (
-                  <TableHead
-                    key={header.id}
-                    className="cursor-pointer select-none bg-background"
-                    onClick={header.column.getToggleSortingHandler()}
-                  >
-                    <div className="flex items-center gap-2">
-                      {flexRender(header.column.columnDef.header, header.getContext())}
-                      {{
-                        asc: <ChevronUp className="w-4 h-4" />,
-                        desc: <ChevronDown className="w-4 h-4" />,
-                      }[header.column.getIsSorted() as string] ?? null}
-                    </div>
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
+  if (currentViewMode === "cards") {
+    return (
+      <div className="p-4 border-t space-y-4">
+        {filterControls}
+        {isFilteredEmpty ? (
+          <div className="text-center text-muted-foreground py-6">
+            No se encontraron productos{isFiltering ? ` para "${debouncedFilter}"` : ""}
+          </div>
+        ) : (
+          <ProductCardView
+            listId={listId}
+            products={table.getRowModel().rows.map((row) => row.original as any)}
+            columnSchema={processedSchema}
+            mappingConfig={mappingConfig}
+            onAddToRequest={(product) => onAddToRequest(product, mappingConfig)}
+            showActions={true}
+            showRemoveFromStock={true}
+            onRemoveFromStock={handleRemoveFromStock}
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
+            onSortChange={handleSortChange}
+            showLowStockBadge={true}
+            showStockThreshold={true}
+            onThresholdChange={handleThresholdChange}
+            suppressStockToasts={true}
+          />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 border-t space-y-4">
+      {filterControls}
+
+      {isFilteredEmpty ? (
+        <div className="text-center text-muted-foreground py-6">
+          No se encontraron productos{isFiltering ? ` para "${debouncedFilter}"` : ""}
+        </div>
+      ) : (
+        <div className="w-full border rounded-lg overflow-hidden">
+          <div className="max-h-[600px] overflow-auto relative">
+            <Table className="min-w-full">
+              <TableHeader>
+                <TableRow>
+                  {table.getHeaderGroups()[0]?.headers.map((header) => (
+                    <TableHead
+                      key={header.id}
+                      className="cursor-pointer select-none bg-background"
+                      onClick={header.column.getToggleSortingHandler()}
+                    >
+                      <div className="flex items-center gap-2">
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {{
+                          asc: <ChevronUp className="w-4 h-4" />,
+                          desc: <ChevronDown className="w-4 h-4" />,
+                        }[header.column.getIsSorted() as string] ?? null}
+                      </div>
+                    </TableHead>
                   ))}
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {table.getRowModel().rows.map((row) => (
+                  <TableRow key={row.id}>
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

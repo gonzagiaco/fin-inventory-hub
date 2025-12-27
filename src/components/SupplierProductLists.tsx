@@ -3,7 +3,7 @@ import { useListProducts } from "@/hooks/useListProducts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Upload, ChevronDown, ChevronRight, Trash2, AlertTriangle, FileText, Settings } from "lucide-react";
+import { Upload, ChevronDown, ChevronRight, Trash2, AlertTriangle, FileText, Settings, Loader2 } from "lucide-react";
 import { useProductLists } from "@/hooks/useProductLists";
 import { useProductListStore } from "@/stores/productListStore";
 import { DynamicProductTable } from "./DynamicProductTable";
@@ -105,6 +105,7 @@ const SupplierListProducts = ({
 
 export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProductListsProps) => {
   const [isUploading, setIsUploading] = useState(false);
+  const [isUpdatingList, setIsUpdatingList] = useState(false);
   const isMobile = useIsMobile();
   const [listToDelete, setListToDelete] = useState<string | null>(null);
   const [listToMap, setListToMap] = useState<string | null>(null);
@@ -118,7 +119,7 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
-  const { productLists, isLoading, createList, deleteList, updateList, findSimilarList } = useProductLists(supplierId);
+  const { productLists, isLoading, createList, deleteListAsync, updateList, findSimilarList, isDeleting } = useProductLists(supplierId);
   const { collapsedLists, toggleListCollapse, initializeCollapsedState } = useProductListStore();
 
   // Inicializar listas como colapsadas cuando se cargan por primera vez
@@ -299,16 +300,21 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
     }
   };
 
-  const handleDeleteList = () => {
+  const handleDeleteList = async () => {
     if (listToDelete) {
-      deleteList(listToDelete);
-      setListToDelete(null);
+      try {
+        await deleteListAsync(listToDelete);
+        setListToDelete(null);
+      } catch (error) {
+        console.error("Error al eliminar lista:", error);
+      }
     }
   };
 
   const handleUpdateExisting = async (listId: string) => {
     if (!pendingUpload) return;
 
+    setIsUpdatingList(true);
     try {
       const existingList = productLists.find((list) => list.id === listId);
 
@@ -398,10 +404,12 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
       setPendingUpload(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
 
-      toast.success("Lista actualizada correctamente");
+      
     } catch (error: any) {
       console.error("Error actualizando lista:", error);
       toast.error(error.message || "Error al actualizar lista");
+    } finally {
+      setIsUpdatingList(false);
     }
   };
 
@@ -574,6 +582,7 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
         newProductCount={pendingUpload?.products.length || 0}
         onUpdate={handleUpdateExisting}
         onCreateNew={handleCreateNew}
+        isUpdating={isUpdatingList}
       />
 
       {/* Mapping Wizard Dialog */}
@@ -616,7 +625,7 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
       </Dialog>
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!listToDelete} onOpenChange={() => setListToDelete(null)}>
+      <AlertDialog open={!!listToDelete} onOpenChange={() => !isDeleting && setListToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar lista?</AlertDialogTitle>
@@ -625,9 +634,16 @@ export const SupplierProductLists = ({ supplierId, supplierName }: SupplierProdu
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteList} className="bg-red-500 hover:bg-red-600">
-              Eliminar
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteList} className="bg-red-500 hover:bg-red-600" disabled={isDeleting}>
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Eliminando...
+                </>
+              ) : (
+                "Eliminar"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

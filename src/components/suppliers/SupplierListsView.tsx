@@ -2,7 +2,7 @@ import { useState, useRef, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Upload, ChevronDown, ChevronRight, Trash2, AlertTriangle, FileText, Settings } from "lucide-react";
+import { Upload, ChevronDown, ChevronRight, Trash2, AlertTriangle, FileText, Settings, Loader2 } from "lucide-react";
 import { useProductLists } from "@/hooks/useProductLists";
 import { useProductListStore } from "@/stores/productListStore";
 import { toast } from "sonner";
@@ -34,6 +34,8 @@ interface SupplierListsViewProps {
 
 export function SupplierListsView({ supplierId, supplierName, onConfigureList }: SupplierListsViewProps) {
   const [isUploading, setIsUploading] = useState(false);
+  const [isUpdatingList, setIsUpdatingList] = useState(false);
+  const [updatingListId, setUpdatingListId] = useState<string | null>(null);
   const isMobile = useIsMobile();
   const isOnline = useOnlineStatus();
   const [listToDelete, setListToDelete] = useState<string | null>(null);
@@ -46,7 +48,7 @@ export function SupplierListsView({ supplierId, supplierName, onConfigureList }:
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { productLists, isLoading, createList, deleteList, updateList } = useProductLists(supplierId);
+  const { productLists, isLoading, createList, deleteListAsync, updateList, isDeleting } = useProductLists(supplierId);
   const { collapsedLists, toggleListCollapse, initializeCollapsedState } = useProductListStore();
 
   useEffect(() => {
@@ -218,16 +220,22 @@ export function SupplierListsView({ supplierId, supplierName, onConfigureList }:
     }
   };
 
-  const handleDeleteList = () => {
+  const handleDeleteList = async () => {
     if (listToDelete) {
-      deleteList(listToDelete);
-      setListToDelete(null);
+      try {
+        await deleteListAsync(listToDelete);
+        setListToDelete(null);
+      } catch (error) {
+        console.error("Error al eliminar lista:", error);
+      }
     }
   };
 
   const handleUpdateExisting = async (listId: string) => {
     if (!pendingUpload) return;
 
+    setIsUpdatingList(true);
+    setUpdatingListId(listId);
     try {
       const existingList = productLists.find((list) => list.id === listId);
       if (!existingList) {
@@ -295,10 +303,13 @@ export function SupplierListsView({ supplierId, supplierName, onConfigureList }:
       setPendingUpload(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
 
-      toast.success("Lista actualizada correctamente");
+
     } catch (error: any) {
       console.error("Error actualizando lista:", error);
       toast.error(error.message || "Error al actualizar lista");
+    } finally {
+      setIsUpdatingList(false);
+      setUpdatingListId(null);
     }
   };
 
@@ -384,6 +395,8 @@ export function SupplierListsView({ supplierId, supplierName, onConfigureList }:
           {productLists.map((list) => {
             const isCollapsed = collapsedLists.has(list.id);
             const isMapped = !!list.mapping_config;
+            const isUpdatingThisList = isUpdatingList && updatingListId === list.id;
+            const isDeletingThisList = isDeleting && listToDelete === list.id;
 
             return (
               <Card key={list.id} className="glassmorphism border-primary/20 hover:border-primary/40 transition-colors">
@@ -410,6 +423,12 @@ export function SupplierListsView({ supplierId, supplierName, onConfigureList }:
                           </span>
                           <span className="text-xs text-muted-foreground">{list.productCount} productos</span>
                         </div>
+                        {(isUpdatingThisList || isDeletingThisList) && (
+                          <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            {isUpdatingThisList ? "Actualizando lista..." : "Eliminando lista..."}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
@@ -442,10 +461,11 @@ export function SupplierListsView({ supplierId, supplierName, onConfigureList }:
         newProductCount={pendingUpload?.products.length || 0}
         onUpdate={handleUpdateExisting}
         onCreateNew={handleCreateNew}
+        isUpdating={isUpdatingList}
       />
 
       {/* Delete Confirmation */}
-      <AlertDialog open={!!listToDelete} onOpenChange={() => setListToDelete(null)}>
+      <AlertDialog open={!!listToDelete} onOpenChange={() => !isDeleting && setListToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>¿Eliminar lista?</AlertDialogTitle>
@@ -454,9 +474,16 @@ export function SupplierListsView({ supplierId, supplierName, onConfigureList }:
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteList} className="bg-red-500 hover:bg-red-600">
-              Eliminar
+            <AlertDialogCancel disabled={isDeleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteList} className="bg-red-500 hover:bg-red-600" disabled={isDeleting}>
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Eliminando...
+                </>
+              ) : (
+                "Eliminar"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

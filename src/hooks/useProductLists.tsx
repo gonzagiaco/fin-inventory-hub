@@ -612,6 +612,8 @@ export const useProductLists = (supplierId?: string) => {
     isLoading,
     createList: createListMutation.mutateAsync,
     deleteList: deleteListMutation.mutate,
+    deleteListAsync: deleteListMutation.mutateAsync,
+    isDeleting: deleteListMutation.isPending,
     updateColumnSchema: updateColumnSchemaMutation.mutateAsync,
     updateList: updateListMutation.mutateAsync,
     renameColumnKey: renameColumnKeyMutation.mutateAsync,
