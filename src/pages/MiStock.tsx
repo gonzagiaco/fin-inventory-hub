@@ -48,10 +48,9 @@ export default function MiStock() {
 
   // Sincronizar estado local con datos de la query
   useEffect(() => {
-    if (myStockProducts && myStockProducts.length > 0) {
-      setLocalProducts(myStockProducts);
-    }
-  }, [myStockProducts]);
+    if (!isSuccessProducts) return;
+    setLocalProducts(myStockProducts ?? []);
+  }, [isSuccessProducts, myStockProducts]);
 
   // Controlar hidratación completa antes de renderizar
   useEffect(() => {

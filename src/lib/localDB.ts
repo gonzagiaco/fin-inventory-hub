@@ -351,10 +351,12 @@ export async function syncMyStockFromSupabase(): Promise<void> {
 
   if (error) throw error;
 
-  await localDB.my_stock_products.clear();
-  if (data && data.length > 0) {
-    await localDB.my_stock_products.bulkAdd(data as MyStockProductDB[]);
-  }
+  await localDB.transaction("rw", localDB.my_stock_products, async () => {
+    await localDB.my_stock_products.clear();
+    if (data && data.length > 0) {
+      await localDB.my_stock_products.bulkPut(data as MyStockProductDB[]);
+    }
+  });
 }
 
 export async function syncFromSupabase(): Promise<void> {
