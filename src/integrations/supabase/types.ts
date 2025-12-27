@@ -409,6 +409,53 @@ export type Database = {
           },
         ]
       }
+      my_stock_products: {
+        Row: {
+          code: string | null
+          created_at: string
+          id: string
+          name: string | null
+          price: number | null
+          product_id: string
+          quantity: number
+          stock_threshold: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          code?: string | null
+          created_at?: string
+          id?: string
+          name?: string | null
+          price?: number | null
+          product_id: string
+          quantity?: number
+          stock_threshold?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          code?: string | null
+          created_at?: string
+          id?: string
+          name?: string | null
+          price?: number | null
+          product_id?: string
+          quantity?: number
+          stock_threshold?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "my_stock_products_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "dynamic_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payments: {
         Row: {
           amount: number
