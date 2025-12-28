@@ -8,6 +8,7 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { Upload } from "lucide-react";
 import { uploadProfileLogo } from "@/services/userProfileService";
 import { toast } from "sonner";
+import { ImagePreviewDialog } from "@/components/user/ImagePreviewDialog";
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -28,6 +29,7 @@ export function UserProfileOnboardingDialog() {
   const [draftUserName, setDraftUserName] = useState("");
   const [draftCompanyName, setDraftCompanyName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLogoPreviewOpen, setIsLogoPreviewOpen] = useState(false);
 
   useEffect(() => {
     if (!userId) return;
@@ -124,10 +126,19 @@ export function UserProfileOnboardingDialog() {
                   </p>
 
                   <div className="mt-6 flex flex-col items-center">
-                    <Avatar className="h-24 w-24">
-                      <AvatarImage className="object-cover" src={draftLogoPreview} alt="Foto de perfil" />
-                      <AvatarFallback className="rounded-full bg-primary/15 text-primary">{initials}</AvatarFallback>
-                    </Avatar>
+                    <button
+                      type="button"
+                      className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      onClick={() => {
+                        if (draftLogoPreview) setIsLogoPreviewOpen(true);
+                      }}
+                      aria-label="Ver foto de perfil en grande"
+                    >
+                      <Avatar className="h-24 w-24">
+                        <AvatarImage className="object-cover" src={draftLogoPreview} alt="Foto de perfil" />
+                        <AvatarFallback className="rounded-full bg-primary/15 text-primary">{initials}</AvatarFallback>
+                      </Avatar>
+                    </button>
 
                     <div className="mt-4 w-full flex justify-center">
                       <FilePickerButton
@@ -207,6 +218,12 @@ export function UserProfileOnboardingDialog() {
           </p>
         </div>
       </DialogContent>
+      <ImagePreviewDialog
+        open={isLogoPreviewOpen}
+        onOpenChange={setIsLogoPreviewOpen}
+        src={draftLogoPreview}
+        title="Foto de perfil / Logo"
+      />
     </Dialog>
   );
 }

@@ -8,6 +8,7 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { Upload } from "lucide-react";
 import { uploadProfileLogo } from "@/services/userProfileService";
 import { toast } from "sonner";
+import { ImagePreviewDialog } from "@/components/user/ImagePreviewDialog";
 
 type UserProfileSettingsDialogProps = {
   open: boolean;
@@ -30,6 +31,7 @@ export function UserProfileSettingsDialog({ open, onOpenChange }: UserProfileSet
   const [draftLogoPreview, setDraftLogoPreview] = useState<string | undefined>(undefined);
   const [draftLogoFile, setDraftLogoFile] = useState<File | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLogoPreviewOpen, setIsLogoPreviewOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -90,10 +92,19 @@ export function UserProfileSettingsDialog({ open, onOpenChange }: UserProfileSet
 
         <div className="space-y-6">
           <div className="flex items-center gap-4">
-            <Avatar className="h-16 w-16">
-              <AvatarImage className="object-cover" src={draftLogoPreview} alt={draftCompanyName || draftUserName || "Logo"} />
-              <AvatarFallback className="rounded-full bg-primary/15 text-primary">{initials}</AvatarFallback>
-            </Avatar>
+            <button
+              type="button"
+              className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              onClick={() => {
+                if (draftLogoPreview) setIsLogoPreviewOpen(true);
+              }}
+              aria-label="Ver logo en grande"
+            >
+              <Avatar className="h-16 w-16">
+                <AvatarImage className="object-cover" src={draftLogoPreview} alt={draftCompanyName || draftUserName || "Logo"} />
+                <AvatarFallback className="rounded-full bg-primary/15 text-primary">{initials}</AvatarFallback>
+              </Avatar>
+            </button>
             <div className="flex-1">
               <Label htmlFor="companyLogo">Logo / Foto de perfil</Label>
               <div className="mt-1">
@@ -142,6 +153,12 @@ export function UserProfileSettingsDialog({ open, onOpenChange }: UserProfileSet
           </Button>
         </DialogFooter>
       </DialogContent>
+      <ImagePreviewDialog
+        open={isLogoPreviewOpen}
+        onOpenChange={setIsLogoPreviewOpen}
+        src={draftLogoPreview}
+        title="Logo de la empresa"
+      />
     </Dialog>
   );
 }
