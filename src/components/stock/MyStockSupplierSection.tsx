@@ -32,7 +32,7 @@ export function MyStockSupplierSection({
   onRemoveProduct,
   isMobile,
 }: MyStockSupplierSectionProps) {
-  const [isExpanded, setIsExpanded] = useState(true);
+  const [isExpanded, setIsExpanded] = useState(false);
 
   const totalProducts = lists.reduce((sum, list) => sum + list.products.length, 0);
 

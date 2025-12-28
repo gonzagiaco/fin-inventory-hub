@@ -25,7 +25,7 @@ export const uploadDeliveryNotePDF = async (
 ): Promise<{ url: string; error: string | null }> => {
   try {
     // Usar la función del generador existente
-    const doc = generateDeliveryNotePDFDocument(note);
+    const doc = await generateDeliveryNotePDFDocument(note);
     const pdfBlob = doc.output("blob");
     const fileName = generateFileName(note);
     const filePath = `remitos/${fileName}`;

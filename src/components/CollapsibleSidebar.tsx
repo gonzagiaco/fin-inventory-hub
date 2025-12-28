@@ -1,35 +1,38 @@
 import { Link, useLocation } from "react-router-dom";
 import {
   NotebookText,
-  Users,
   Warehouse,
   Menu,
   X,
   LogOut,
+  Settings,
   ChevronLeft,
   ChevronRight,
   Receipt,
   CircleHelp,
   Package,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { Button } from "@/components/ui/button";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { UserProfileSettingsDialog } from "@/components/user/UserProfileSettingsDialog";
+import { useUserProfile } from "@/hooks/useUserProfile";
 
 const CollapsibleSidebar = () => {
   const location = useLocation();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [showLogout, setShowLogout] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const { user, signOut } = useAuth();
+  const { companyLogoUrl, companyName, userName } = useUserProfile();
 
   const getUserInitials = () => {
-    if (user?.user_metadata?.full_name) {
-      const names = user.user_metadata.full_name.split(" ");
-      return names.length > 1 ? `${names[0][0]}${names[names.length - 1][0]}`.toUpperCase() : names[0][0].toUpperCase();
-    }
-    return user?.email?.[0].toUpperCase() || "U";
+    const baseName = companyName || userName || user?.user_metadata?.full_name || user?.email || "U";
+    const parts = baseName.split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return "U";
+    if (parts.length === 1) return parts[0][0]?.toUpperCase() ?? "U";
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
   };
 
   const navigation = [
@@ -43,10 +46,7 @@ const CollapsibleSidebar = () => {
   const isActive = (path: string) => location.pathname === path;
 
   useEffect(() => {
-    // Si se expande el sidebar, cerramos el panel de logout flotante
-    if (!isCollapsed) {
-      setShowLogout(false);
-    }
+    if (!isCollapsed) setIsSettingsOpen(false);
   }, [isCollapsed]);
 
   return (
@@ -91,7 +91,7 @@ const CollapsibleSidebar = () => {
 
       <aside
         className={`
-          fixed lg:sticky top-0 lg:safe-top-fixed right-0 lg:left-0 lg:right-auto min-h-[100dvh] lg:h-screen bg-background/70 backdrop-blur-xl border-l lg:border-r border-primary/20 
+          fixed lg:sticky top-0 lg:safe-top-fixed right-0 lg:left-0 lg:right-auto min-h-[100dvh] lg:h-screen bg-background/70 backdrop-blur-xl border-l lg:border-r border-primary/20
           flex flex-col p-6 z-40 transition-all duration-300
           ${isMobileOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0"}
           ${isCollapsed ? "lg:w-32" : "w-64"}
@@ -107,11 +107,7 @@ const CollapsibleSidebar = () => {
           onClick={() => setIsCollapsed(!isCollapsed)}
           className="hidden lg:flex absolute -right-3 top-8 p-1.5 rounded-full glassmorphism hover:bg-primary/20 transition-colors z-40"
         >
-          {isCollapsed ? (
-            <ChevronRight className="h-4 w-4 text-primary" />
-          ) : (
-            <ChevronLeft className="h-4 w-4 text-primary" />
-          )}
+          {isCollapsed ? <ChevronRight className="h-4 w-4 text-primary" /> : <ChevronLeft className="h-4 w-4 text-primary" />}
         </button>
 
         {/* Logo */}
@@ -152,57 +148,65 @@ const CollapsibleSidebar = () => {
         <div className={`mt-auto ${isCollapsed ? "space-y-2" : "space-y-4"}`}>
           <div className={`glassmorphism rounded-xl ${isCollapsed ? "p-2" : "p-4"}`}>
             {isCollapsed ? (
-              <div className="relative">
-                {/* Avatar centrado y clickeable */}
-                <div className="flex justify-center">
-                  <button
-                    type="button"
-                    onClick={() => setShowLogout((prev) => !prev)}
-                    className="rounded-full focus:outline-none"
-                  >
-                    <Avatar className="w-12 h-12 cursor-pointer">
-                      <AvatarFallback className="bg-primary/20 text-primary text-xs">
-                        {getUserInitials()}
-                      </AvatarFallback>
-                    </Avatar>
-                  </button>
-                </div>
-
-                {/* Panel flotante de logout arriba del Avatar */}
-                {showLogout && (
-                  <div className="absolute inset-x-16 -top-3 translate-y-[-100%] flex justify-center">
-                    <button
-                      type="button"
-                      onClick={signOut}
-                      className="glassmorphism rounded-xl px-4 py-4 flex items-center gap-2 text-xs shadow-lg min-w-[150px] justify-center"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      <span>Cerrar sesión</span>
+              <div className="flex justify-center">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" className="rounded-full focus:outline-none">
+                      <Avatar className="w-12 h-12 cursor-pointer">
+                        <AvatarImage className="object-cover" src={companyLogoUrl} alt={companyName || userName || "Logo"} />
+                        <AvatarFallback className="bg-primary/20 text-primary text-xs">{getUserInitials()}</AvatarFallback>
+                      </Avatar>
                     </button>
-                  </div>
-                )}
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="top" align="center" className="min-w-[200px]">
+                    <DropdownMenuItem onClick={() => setIsSettingsOpen(true)}>
+                      <Settings className="h-4 w-4 mr-2" />
+                      Configuración de usuario
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={signOut}>
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Cerrar sesión
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             ) : (
-              <>
-                <div className="flex items-center gap-3 mb-3">
-                  <Avatar>
-                    <AvatarFallback className="bg-primary/20 text-primary">{getUserInitials()}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 overflow-hidden">
-                    <p className="text-sm font-medium text-foreground truncate">
-                      {user?.user_metadata?.full_name || user?.email}
-                    </p>
-                    <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
-                  </div>
+              <div className="flex items-center gap-3">
+                <Avatar>
+                  <AvatarImage className="object-cover" src={companyLogoUrl} alt={companyName || userName || "Logo"} />
+                  <AvatarFallback className="bg-primary/20 text-primary">{getUserInitials()}</AvatarFallback>
+                </Avatar>
+                <div className="flex-1 overflow-hidden">
+                  <p className="text-sm font-medium text-foreground truncate">{companyName || "Tu empresa"}</p>
+                  <p className="text-xs text-muted-foreground truncate">{userName || user?.email}</p>
                 </div>
-                <Button variant="outline" size="sm" className="w-full" onClick={signOut}>
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Cerrar Sesión
-                </Button>
-              </>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      className="h-9 w-9 inline-flex items-center justify-center rounded-md hover:bg-primary/10 transition-colors"
+                      aria-label="Menú de usuario"
+                    >
+                      <Settings className="h-5 w-5 text-muted-foreground" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="top" align="end" className="min-w-[220px]">
+                    <DropdownMenuItem onClick={() => setIsSettingsOpen(true)}>
+                      <Settings className="h-4 w-4 mr-2" />
+                      Configuración de usuario
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={signOut}>
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Cerrar sesión
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             )}
           </div>
         </div>
+
+        <UserProfileSettingsDialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen} />
       </aside>
     </>
   );

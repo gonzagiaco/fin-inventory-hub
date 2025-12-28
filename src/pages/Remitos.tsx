@@ -31,6 +31,7 @@ import { format } from "date-fns";
 import { formatARS } from "@/utils/numberParser";
 import { DeliveryNote } from "@/types";
 import Header from "@/components/Header";
+import { getCompanyNameForDocs } from "@/lib/userProfile";
 
 const Remitos = () => {
   const { deliveryNotes, isLoading, deleteDeliveryNote, markAsPaid, isDeleting } = useDeliveryNotes();
@@ -74,8 +75,8 @@ const Remitos = () => {
     return matchesSearch && matchesStatus && matchesDate;
   });
 
-  const handleExportPDF = (note: DeliveryNote) => {
-    generateDeliveryNotePDF(note);
+  const handleExportPDF = async (note: DeliveryNote) => {
+    await generateDeliveryNotePDF(note);
   };
 
   const handleWhatsApp = async (note: DeliveryNote) => {
@@ -101,7 +102,8 @@ const Remitos = () => {
       ).join("\n") || "";
 
       // Construir mensaje con toda la información del remito
-      let message = `*REMITO*\n\n` +
+      const companyName = getCompanyNameForDocs(note.userId);
+      let message = `*${companyName}*\n\n` + `*REMITO*\n\n` +
         `Fecha: ${format(new Date(note.issueDate), "dd/MM/yyyy")}\n` +
         `Cliente: ${note.customerName}\n`;
       
@@ -306,7 +308,7 @@ const Remitos = () => {
 
                         <Tooltip>
                           <TooltipTrigger asChild>
-                            <Button size="sm" variant="outline" onClick={() => handleExportPDF(note)}>
+                            <Button size="sm" variant="outline" onClick={() => void handleExportPDF(note)}>
                               <Download className="h-4 w-4" />
                             </Button>
                           </TooltipTrigger>

@@ -7,6 +7,7 @@ import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "./components/ProtectedRoute";
 import CollapsibleSidebar from "./components/CollapsibleSidebar";
 import { ConnectionBadge } from "./components/ConnectionBadge";
+import { UserProfileOnboardingDialog } from "@/components/user/UserProfileOnboardingDialog";
 
 import Stock from "./pages/Stock";
 import MiStock from "./pages/MiStock";
@@ -34,6 +35,7 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <div className="flex min-h-screen w-full safe-top">
+                    <UserProfileOnboardingDialog />
                     <CollapsibleSidebar />
                     <MiStock />
                   </div>
@@ -45,6 +47,7 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <div className="flex min-h-screen w-full safe-top">
+                    <UserProfileOnboardingDialog />
                     <CollapsibleSidebar />
                     <Stock />
                   </div>
@@ -56,6 +59,7 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <div className="flex min-h-screen w-full safe-top">
+                    <UserProfileOnboardingDialog />
                     <CollapsibleSidebar />
                     <Remitos />
                   </div>
@@ -67,6 +71,7 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <div className="flex min-h-screen w-full safe-top">
+                    <UserProfileOnboardingDialog />
                     <CollapsibleSidebar />
                     <Proveedores />
                   </div>
@@ -78,6 +83,7 @@ const App = () => (
               element={
                 <ProtectedRoute>
                   <div className="flex min-h-screen w-full safe-top">
+                    <UserProfileOnboardingDialog />
                     <CollapsibleSidebar />
                     <Ayuda />
                   </div>
