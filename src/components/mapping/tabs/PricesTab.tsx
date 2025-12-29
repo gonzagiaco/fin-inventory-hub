@@ -124,7 +124,13 @@ export function PricesTab({ keys, map, setMap, setKeys, isSaving, isNumericColum
 
   // Get existing custom column names to exclude from base column selection
   const customColumnNames = Object.keys(map.custom_columns || {});
-  const availableBaseColumns = keys.filter((k) => isNumericColumn(k) && !customColumnNames.includes(k));
+  const availableBaseColumns = keys.filter((k) => {
+    if (customColumnNames.includes(k)) return true;
+    return isNumericColumn(k);
+  });
+  const availableBaseColumnsForEdit = editingColumn
+    ? availableBaseColumns.filter((k) => k !== editingColumn)
+    : availableBaseColumns;
 
   return (
     <div className="space-y-6">
@@ -447,7 +453,7 @@ export function PricesTab({ keys, map, setMap, setKeys, isSaving, isNumericColum
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          {availableBaseColumns.map((k) => (
+                          {availableBaseColumnsForEdit.map((k) => (
                             <SelectItem key={k} value={k}>
                               {k}
                             </SelectItem>

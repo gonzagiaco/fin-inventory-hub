@@ -37,6 +37,7 @@ interface ProductCardViewProps {
   showStockThreshold?: boolean;
   onThresholdChange?: (productId: string, newThreshold: number) => void;
   suppressStockToasts?: boolean;
+  onAddedToStock?: (product: DynamicProduct) => void;
 }
 
 type SortDirection = 'asc' | 'desc' | null;
@@ -60,6 +61,7 @@ export function ProductCardView({
   showStockThreshold = false,
   onThresholdChange,
   suppressStockToasts = false,
+  onAddedToStock,
 }: ProductCardViewProps) {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [displayCount, setDisplayCount] = useState(10);
@@ -159,6 +161,38 @@ export function ProductCardView({
     return String(value);
   };
 
+  const getSortValue = (product: any, key: string) => {
+    const effectiveMappingConfig = product.mappingConfig || mappingConfig;
+
+    if (effectiveMappingConfig?.price_primary_key && key === effectiveMappingConfig.price_primary_key) {
+      return product.price;
+    }
+
+    if (product.calculated_data && key in product.calculated_data) {
+      return product.calculated_data[key];
+    }
+
+    if (key === "code") return product.code;
+    if (key === "name") return product.name;
+    if (key === "price") return product.price;
+    if (key === "quantity") return product.quantity;
+    if (key === "stock_threshold") return product.stock_threshold ?? 0;
+    if (key === "supplier_name") return product.supplierName;
+
+    return product.data?.[key];
+  };
+
+  const isDescriptionColumn = (columnKey: string | null): boolean => {
+    if (!columnKey) return false;
+    const normalized = columnKey.toLowerCase();
+    return (
+      normalized === "name" ||
+      normalized.includes("descripcion") ||
+      normalized.includes("description") ||
+      (mappingConfig?.name_keys || []).includes(columnKey)
+    );
+  };
+
   // Función para alternar el orden de una columna
   const toggleSort = (columnKey: string) => {
     if (!onSortChange) return;
@@ -183,16 +217,19 @@ export function ProductCardView({
 
     // Determinar si la columna es de precio para aplicar ordenamiento numérico
     const columnConfig = columnSchema.find(col => col.key === sortColumn);
-    const isPriceColumn = sortColumn === "price" || 
-                          sortColumn === mappingConfig?.price_primary_key ||
-                          (mappingConfig?.price_alt_keys && mappingConfig.price_alt_keys.includes(sortColumn)) ||
-                          sortColumn.toLowerCase().includes('precio') ||
-                          sortColumn.toLowerCase().includes('price');
-    const isNumericColumn = columnConfig?.type === 'number' || isPriceColumn;
+    const isPriceColumn =
+      sortColumn === "price" ||
+      sortColumn === mappingConfig?.price_primary_key ||
+      (mappingConfig?.price_alt_keys && mappingConfig.price_alt_keys.includes(sortColumn)) ||
+      sortColumn.toLowerCase().includes("precio") ||
+      sortColumn.toLowerCase().includes("price");
+
+    const isNumericColumn = columnConfig?.type === "number" || isPriceColumn;
+    const isDescription = isDescriptionColumn(sortColumn);
 
     const sorted = [...products].sort((a, b) => {
-      const aValue = getFieldValue(a, sortColumn);
-      const bValue = getFieldValue(b, sortColumn);
+      const aValue = getSortValue(a, sortColumn);
+      const bValue = getSortValue(b, sortColumn);
 
       // Manejar valores nulos
       if (aValue == null && bValue == null) return 0;
@@ -209,13 +246,18 @@ export function ProductCardView({
         }
       }
 
-      // Comparar como strings (orden alfanumérico natural)
       const aStr = String(aValue).toLowerCase();
       const bStr = String(bValue).toLowerCase();
 
-      if (aStr < bStr) return sortDirection === 'asc' ? -1 : 1;
-      if (aStr > bStr) return sortDirection === 'asc' ? 1 : -1;
-      return 0;
+      if (isDescription) {
+        return sortDirection === "asc"
+          ? aStr.localeCompare(bStr, "es", { numeric: false, sensitivity: "base" })
+          : bStr.localeCompare(aStr, "es", { numeric: false, sensitivity: "base" });
+      }
+
+      return sortDirection === "asc"
+        ? aStr.localeCompare(bStr, "es", { numeric: true, sensitivity: "base" })
+        : bStr.localeCompare(aStr, "es", { numeric: true, sensitivity: "base" });
     });
 
     return sorted;
@@ -530,6 +572,7 @@ export function ProductCardView({
                       mappingConfig={mappingConfig}
                       onAddToRequest={onAddToRequest}
                       showAddToStock={shouldShowAddToStock}
+                      onAddToStock={() => onAddedToStock?.(product as DynamicProduct)}
                     />
                   </div>
                 )}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ShoppingCart, Package, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -18,6 +18,7 @@ interface AddProductDropdownProps {
   onAddToRequest: (product: any, mappingConfig?: any) => void;
   showAddToStock?: boolean;
   showRemoveFromStock?: boolean;
+  onAddToStock?: (productId: string) => void;
 }
 
 export function AddProductDropdown({
@@ -26,6 +27,7 @@ export function AddProductDropdown({
   onAddToRequest,
   showAddToStock = true,
   showRemoveFromStock = false,
+  onAddToStock,
 }: AddProductDropdownProps) {
   const queryClient = useQueryClient();
   const location = useLocation();
@@ -37,6 +39,7 @@ export function AddProductDropdown({
   const handleAddToStock = async () => {
     toast.success("Agregado a Mi Stock");
     setHasBeenAddedToStock(true);
+    onAddToStock?.(productId);
     queryClient.invalidateQueries({ queryKey: ["my-stock"] });
 
     queueMicrotask(async () => {
@@ -60,7 +63,14 @@ export function AddProductDropdown({
     }
   };
 
-  const isInMyStock = product.in_my_stock === true;
+  const derivedInMyStock = product.in_my_stock === true || (product.quantity ?? 0) > 0;
+
+  useEffect(() => {
+    // Mantener el estado interno alineado cuando el producto ya está en Mi Stock
+    setHasBeenAddedToStock(derivedInMyStock);
+  }, [derivedInMyStock]);
+
+  const isInMyStock = derivedInMyStock;
   const shouldDisableAddToStock = isInMyStock || hasBeenAddedToStock;
 
   // Página Mi Stock: mostrar botones para agregar al pedido y quitar del stock
