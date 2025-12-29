@@ -41,9 +41,24 @@ export function GlobalProductSearch({
   isLoadingMore = false,
 }: GlobalProductSearchProps) {
   const [viewMode, setViewMode] = useState(() => defaultViewMode);
+  const [localResults, setLocalResults] = useState(() =>
+    globalResults.map((item) => ({
+      ...item,
+      in_my_stock: item.in_my_stock || (item.quantity ?? 0) > 0,
+    })),
+  );
   const { setCardPreviewFields, cardPreviewFields } = useProductListStore();
 
   const isMobile = useIsMobile()
+
+  useEffect(() => {
+    setLocalResults(
+      globalResults.map((item) => ({
+        ...item,
+        in_my_stock: item.in_my_stock || (item.quantity ?? 0) > 0,
+      })),
+    );
+  }, [globalResults]);
 
   useEffect(() => {
     const globalSearchId = "global-search-results";
@@ -112,7 +127,7 @@ export function GlobalProductSearch({
       }
     >();
 
-    globalResults.forEach((item: any) => {
+    localResults.forEach((item: any) => {
       const listInfo = lists.find((l: any) => l.id === item.list_id);
       const supplierInfo = suppliers.find((s: any) => s.id === listInfo?.supplier_id);
 
@@ -149,7 +164,15 @@ export function GlobalProductSearch({
     });
 
     return Array.from(grouped.values());
-  }, [globalResults, lists, suppliers]);
+  }, [localResults, lists, suppliers]);
+
+  const updateLocalProduct = (listId: string, productId: string, updater: (item: any) => any) => {
+    setLocalResults((prev) =>
+      prev.map((item) =>
+        item.list_id === listId && item.product_id === productId ? updater(item) : item,
+      ),
+    );
+  };
 
   // Estado: Proveedor seleccionado sin término de búsqueda
   if (isSupplierSelectedNoTerm) {
@@ -272,6 +295,13 @@ export function GlobalProductSearch({
                   }, listGroup.mappingConfig)
                 }
                 showActions={true}
+                onAddedToStock={(product) =>
+                  updateLocalProduct(listGroup.listId, product.id, (prev) => ({
+                    ...prev,
+                    in_my_stock: true,
+                    quantity: prev.quantity || 1,
+                  }))
+                }
               />
             </div>
           ))}
@@ -307,9 +337,16 @@ export function GlobalProductSearch({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {globalResults.map((item: any) => {
+              {localResults.map((item: any) => {
                 const listInfo = lists.find((l: any) => l.id === item.list_id);
                 const supplierInfo = suppliers.find((s: any) => s.id === listInfo?.supplier_id);
+
+                const markInStock = (inStock: boolean, quantity?: number) =>
+                  updateLocalProduct(item.list_id, item.product_id, (prev) => ({
+                    ...prev,
+                    in_my_stock: inStock,
+                    quantity: typeof quantity === "number" ? quantity : prev.quantity,
+                  }));
 
                 return (
                   <TableRow key={item.product_id}>
@@ -330,6 +367,7 @@ export function GlobalProductSearch({
                         mappingConfig={listInfo?.mapping_config}
                         onAddToRequest={onAddToRequest}
                         showAddToStock={true}
+                        onAddToStock={() => markInStock(true, item.quantity || 1)}
                       />
                     </TableCell>
 
@@ -340,6 +378,7 @@ export function GlobalProductSearch({
                           listId={item.list_id}
                           value={item.quantity}
                           visibleSpan={false}
+                          onLocalUpdate={(newQty) => markInStock(newQty > 0, newQty)}
                         />
                       </div>
                     </TableCell>

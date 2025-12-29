@@ -141,6 +141,16 @@ export const DynamicProductTable = ({
 
   const visibilityState = columnVisibility[listId] || {};
 
+  const isDescriptionColumn = (key: string) => {
+    const normalized = key.toLowerCase();
+    return (
+      normalized === "name" ||
+      normalized.includes("descripcion") ||
+      normalized.includes("description") ||
+      (mappingConfig?.name_keys || []).includes(key)
+    );
+  };
+
   const columns = useMemo<ColumnDef<DynamicProduct>[]>(() => {
     const orderedSchema = currentOrder
       .map((key) => columnSchema.find((c) => c.key === key))
@@ -148,6 +158,7 @@ export const DynamicProductTable = ({
 
     const dataColumns = orderedSchema.map((schema) => {
       const isVisible = visibilityState[schema.key] !== false;
+      const isDescription = isDescriptionColumn(schema.key);
 
       // Caso especial: columna de stock editable (reutiliza QuantityCell)
       if (schema.key === "quantity") {
@@ -239,6 +250,13 @@ export const DynamicProductTable = ({
           // fallback para columnas no numéricas o valores no convertibles
           return String(value);
         },
+        sortingFn: isDescription
+          ? (rowA, rowB, columnId) => {
+              const aValue = String(rowA.getValue(columnId) ?? "").toLowerCase();
+              const bValue = String(rowB.getValue(columnId) ?? "").toLowerCase();
+              return aValue.localeCompare(bValue, "es", { numeric: false, sensitivity: "base" });
+            }
+          : undefined,
         meta: {
           isStandard: schema.isStandard,
           visible: isVisible,
